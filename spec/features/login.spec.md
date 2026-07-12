@@ -1,0 +1,27 @@
+# Login
+
+Signing in to the Xiaomi account that owns the camera. Signing in happens once; afterwards the
+session persists and refreshes itself.
+
+- **AUTH-1** A signed-out user is asked for Xiaomi account username/email, password, and server
+  region — nothing else is reachable before signing in.
+- **AUTH-2** Submitting valid credentials signs the user in and moves on (to camera selection, or
+  straight to the live feed when a camera is already stored — see APP-1).
+- **AUTH-3** When Xiaomi demands a captcha, the captcha image is shown and login continues with
+  the entered code; a rejected code yields a fresh captcha to retry, not a failure.
+- **AUTH-4** When Xiaomi demands two-factor verification, the app says where the code was sent
+  (masked phone number or email) and completes login with the submitted code.
+- **AUTH-5** A successful sign-in is persisted: relaunching the app (including after force-stop)
+  does not ask for credentials.
+- **AUTH-6** Persisted session tokens are stored encrypted, never in plain text.
+- **AUTH-7** When the short-lived service session expires, the app transparently refreshes it
+  using the stored long-lived token — no user interaction — and persists the refreshed session.
+- **AUTH-8** If the server **refuses** the stored long-lived token, the user lands back on sign-in
+  with a message saying the session expired. A refresh that fails for any other reason — no
+  network, an answer that did not come from the account server (captive portal, outage page), a
+  redirect loop — is a temporary error: it is retried and **never** signs the user out. Declaring
+  a session expired discards it, so it is only ever declared when the server actually said no.
+- **AUTH-9** A failed sign-in (wrong credentials, network error, unexpected response) shows a
+  readable error and lets the user retry with the fields still editable.
+- **AUTH-10** The user can sign out from inside the app; signing out forgets the session, the
+  selected camera, and returns to sign-in.

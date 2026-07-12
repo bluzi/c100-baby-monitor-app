@@ -1,0 +1,506 @@
+package com.bluzi.babymonitor.ui
+
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.content.res.Configuration
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings as AndroidSettings
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.bluzi.babymonitor.data.AppStore
+import com.bluzi.babymonitor.data.Settings
+import com.bluzi.babymonitor.monitor.AlarmKind
+import com.bluzi.babymonitor.monitor.CameraControl
+import com.bluzi.babymonitor.monitor.MonitorHub
+import com.bluzi.babymonitor.monitor.MonitorService
+import com.bluzi.babymonitor.monitor.effectiveThresholdDb
+import com.bluzi.babymonitor.xiaomi.Device
+import com.bluzi.babymonitor.xiaomi.NightVisionMode
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+// LIVE-1..9, BG-5, CAM-4, ALRM/WATCH acknowledge: the live feed and its controls.
+
+private tailrec fun android.content.Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+@Composable
+fun ViewerScreen(
+    store: AppStore,
+    device: Device,
+    onDeviceChanged: (Device) -> Unit,
+    onSignOut: () -> Unit,
+    onSessionExpired: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val status by MonitorHub.status.collectAsState()
+    val level by MonitorHub.level.collectAsState()
+    val running by MonitorHub.running.collectAsState()
+    val cameraName by MonitorHub.cameraName.collectAsState()
+    val activeAlarm by MonitorHub.activeAlarm.collectAsState()
+    // Settings live in the hub (single source); the store is just persistence.
+    val settings by MonitorHub.settings.collectAsState()
+
+    val scope = rememberCoroutineScope()
+    var showSettings by remember { mutableStateOf(false) }
+    var showCameras by remember { mutableStateOf(false) }
+    var showSignOut by remember { mutableStateOf(false) }
+
+    // LIVE-10: night vision — the camera's own mode, read on open, written on change.
+    var showNightVision by remember { mutableStateOf(false) }
+    var nightVision by remember { mutableStateOf<NightVisionMode?>(null) }
+    var nightVisionBusy by remember { mutableStateOf(false) }
+    var nightVisionError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(device.did) {
+        nightVision = null // don't show the previous camera's mode while fetching
+        nightVision = try {
+            CameraControl.getNightVision(store)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null // camera offline / not readable — control still works, just shows unknown
+        }
+    }
+
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    // LIVE-11: in landscape the controls are toggled by tapping the VIDEO, and by nothing else.
+    // They never hide on their own — watching the room should not cost you a tap to get them back.
+    var controlsVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(landscape) {
+        if (!landscape) controlsVisible = true // portrait always shows them
+    }
+
+    /** A tap on the video (LIVE-11): show the controls if hidden, hide them if shown. */
+    fun toggleControls() {
+        controlsVisible = !controlsVisible
+    }
+
+    /** A tap on a control: use it, and never let it hide the row under the user's finger. */
+    fun poke() {
+        controlsVisible = true
+    }
+
+    // LIVE-9: in landscape the system bars hide with the controls (video truly fills the screen).
+    val view = LocalView.current
+    LaunchedEffect(landscape, controlsVisible) {
+        val window = view.context.findActivity()?.window ?: return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (landscape && !controlsVisible) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            view.context.findActivity()?.window?.let {
+                WindowCompat.getInsetsController(it, view).show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    // Alarms only *notify* with permission; warn when it's denied (alarms still sound).
+    var notificationsDenied by remember { mutableStateOf(false) }
+    val notifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> notificationsDenied = !granted }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    // BG-9: without a battery-optimisation exemption, Doze can suspend the stream *and* the
+    // watchdog overnight — the monitor would go quiet with nothing to show for it.
+    val power = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+    var batteryExempt by remember { mutableStateOf(power.isIgnoringBatteryOptimizations(context.packageName)) }
+    val batteryPrompt = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { batteryExempt = power.isIgnoringBatteryOptimizations(context.packageName) }
+
+    // BG-5: opening the live feed starts (or joins) monitoring — including a warm reopen after the
+    // notification's Stop. Switching cameras restarts it (CAM-4). Starting is a no-op when the
+    // stream is already running, so reopening never interrupts it.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, device.did) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                MonitorHub.applySettings(store.loadSettings())
+                MonitorService.start(context)
+                batteryExempt = power.isIgnoringBatteryOptimizations(context.packageName)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // BG-8: the session died while monitoring — no retry can fix it, so send the user to sign-in.
+    val sessionExpired by MonitorHub.sessionExpired.collectAsState()
+    LaunchedEffect(sessionExpired) {
+        if (sessionExpired) {
+            MonitorHub.sessionExpired.value = false
+            onSessionExpired("Your session expired — please sign in again.")
+        }
+    }
+
+    fun saveSettings(next: Settings) {
+        store.saveSettings(next) // LIVE-2 / ALRM-6 / WATCH-5
+        MonitorHub.applySettings(next) // effective immediately (ALRM-2/7/8, WATCH-1)
+    }
+
+    val actions = viewerActions(
+        muted = settings.muted,
+        running = running,
+        nightVision = nightVision,
+        onToggleMute = { saveSettings(settings.copy(muted = !settings.muted)); poke() },
+        onResume = { MonitorService.start(context); poke() },
+        onNightVision = { showNightVision = true; poke() },
+        onSettings = { showSettings = true },
+        onCameras = { showCameras = true },
+        onSignOut = { showSignOut = true },
+    )
+
+    val alarmBanner: (@Composable (Modifier) -> Unit)? = activeAlarm?.let { kind ->
+        { modifier ->
+            AlarmBanner(
+                text = when (kind) {
+                    AlarmKind.BABY_NOISE -> "Baby noise detected"
+                    AlarmKind.FEED_DOWN -> "Feed unavailable"
+                },
+                onAcknowledge = { MonitorHub.acknowledge() },
+                modifier = modifier,
+            )
+        }
+    }
+
+    // ALRM-15: after a crying alarm is acknowledged, ask — in the alarm banner's spot, but only
+    // while no alarm is ringing: a live alarm always outranks a question about a finished one.
+    val pendingFeedback by MonitorHub.pendingCryFeedback.collectAsState()
+    val feedbackBanner: (@Composable (Modifier) -> Unit)? =
+        if (pendingFeedback != null && activeAlarm == null) {
+            { modifier ->
+                CryFeedbackBanner(
+                    onAnswer = { MonitorHub.submitCryFeedback(it) },
+                    onDismiss = { MonitorHub.dismissCryFeedback() },
+                    modifier = modifier,
+                )
+            }
+        } else {
+            null
+        }
+    val banner = alarmBanner ?: feedbackBanner
+
+    // ALRM-12: the trigger mark reflects what would actually alarm — dial plus learned tuning.
+    val calibrationSteps by MonitorHub.calibrationSteps.collectAsState()
+    val thresholdDb = effectiveThresholdDb(settings.alarmSensitivity, calibrationSteps).toFloat()
+
+    // Anything that would quietly weaken the monitor gets said out loud, on the main screen.
+    val warnings = buildList {
+        if (!batteryExempt) { // BG-9
+            add(
+                MonitorWarning("Battery saving can stop monitoring overnight. Tap to allow it to run.") {
+                    batteryPrompt.launch(
+                        Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                            .setData(Uri.parse("package:${context.packageName}")),
+                    )
+                },
+            )
+        }
+        if (notificationsDenied) {
+            add(
+                MonitorWarning("Notifications are off — alarms will sound but won't show. Tap to fix.") {
+                    context.startActivity(
+                        Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName),
+                    )
+                },
+            )
+        }
+    }
+    val notice: (@Composable () -> Unit)? = if (warnings.isEmpty()) null else {
+        { MonitorWarnings(warnings) }
+    }
+
+    val videoSurface: @Composable (Modifier) -> Unit = { modifier ->
+        AndroidView(
+            factory = { ctx ->
+                SurfaceView(ctx).apply {
+                    holder.addCallback(object : SurfaceHolder.Callback {
+                        override fun surfaceCreated(holder: SurfaceHolder) {
+                            MonitorHub.surface.value = holder.surface
+                        }
+
+                        override fun surfaceChanged(holder: SurfaceHolder, f: Int, w: Int, h: Int) {
+                            MonitorHub.surface.value = holder.surface
+                        }
+
+                        override fun surfaceDestroyed(holder: SurfaceHolder) {
+                            MonitorHub.surface.value = null // audio keeps running (LIVE-7)
+                        }
+                    })
+                }
+            },
+            modifier = modifier,
+        )
+    }
+
+    if (landscape) {
+        LandscapeViewer(
+            cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
+            actions, banner, notice,
+            controlsVisible, videoSurface, onToggleControls = ::toggleControls, onPoke = ::poke,
+        )
+    } else {
+        PortraitViewer(
+            cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
+            actions, banner, notice, videoSurface,
+        )
+    }
+
+    if (showSettings) {
+        SettingsDialog(
+            settings = settings,
+            onChange = ::saveSettings,
+            onPreviewSound = { sound -> MonitorService.previewSound(context, sound) }, // ALRM-11
+            onDismiss = { showSettings = false },
+        )
+    }
+    if (showCameras) { // CAM-4
+        AlertDialog(
+            onDismissRequest = { showCameras = false },
+            confirmButton = { TextButton(onClick = { showCameras = false }) { Text("Cancel") } },
+            title = { Text("Switch camera") },
+            text = {
+                CameraList(
+                    store = store,
+                    currentDid = device.did,
+                    onSelect = { cam ->
+                        showCameras = false
+                        if (cam.did != device.did) { // same camera: never restart a healthy stream
+                            store.saveDevice(cam)
+                            onDeviceChanged(cam)
+                            MonitorService.start(context, restart = true)
+                        }
+                    },
+                    onSessionExpired = { message ->
+                        showCameras = false
+                        onSessionExpired(message) // AUTH-8: back to sign-in, not a dead end
+                    },
+                )
+            },
+        )
+    }
+    if (showSignOut) {
+        ConfirmSignOutDialog(
+            onConfirm = {
+                showSignOut = false
+                onSignOut() // AUTH-10
+            },
+            onDismiss = { showSignOut = false },
+        )
+    }
+    if (showNightVision) { // LIVE-10
+        NightVisionDialog(
+            current = nightVision,
+            error = nightVisionError,
+            busy = nightVisionBusy,
+            onSelect = { mode ->
+                nightVisionError = null
+                nightVisionBusy = true
+                val previous = nightVision
+                nightVision = mode // optimistic
+                scope.launch {
+                    try {
+                        CameraControl.setNightVision(store, mode)
+                        showNightVision = false
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        nightVision = previous // revert on failure, keep dialog open
+                        nightVisionError = e.message ?: "Couldn't reach the camera"
+                    } finally {
+                        nightVisionBusy = false
+                    }
+                }
+            },
+            onDismiss = { showNightVision = false; nightVisionError = null },
+        )
+    }
+}
+
+/** Portrait: video on top, everything else stacked below it (LIVE-9). */
+@Composable
+private fun PortraitViewer(
+    cameraName: String,
+    status: String,
+    muted: Boolean,
+    level: Float,
+    thresholdDb: Float,
+    alarmArmed: Boolean,
+    actions: List<ViewerAction>,
+    banner: (@Composable (Modifier) -> Unit)?,
+    notice: (@Composable () -> Unit)?,
+    videoSurface: @Composable (Modifier) -> Unit,
+) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
+            videoSurface(Modifier.fillMaxSize())
+        }
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            banner?.invoke(Modifier)
+            StatusAndLevel(
+                cameraName, status, muted, level,
+                thresholdDb = thresholdDb,
+                alarmArmed = alarmArmed,
+                onOverlay = false,
+            )
+            notice?.invoke()
+            IconButtonRow(actions, Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/**
+ * Landscape: video fills the screen; status + level overlay the top, buttons the bottom, both
+ * auto-hiding. The alarm banner overrides auto-hide and stays put (LIVE-9).
+ */
+@Composable
+private fun LandscapeViewer(
+    cameraName: String,
+    status: String,
+    muted: Boolean,
+    level: Float,
+    thresholdDb: Float,
+    alarmArmed: Boolean,
+    actions: List<ViewerAction>,
+    banner: (@Composable (Modifier) -> Unit)?,
+    notice: (@Composable () -> Unit)?,
+    controlsVisible: Boolean,
+    videoSurface: @Composable (Modifier) -> Unit,
+    onToggleControls: () -> Unit,
+    onPoke: () -> Unit,
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggleControls, // LIVE-11: tapping the video toggles the controls
+            ),
+    ) {
+        videoSurface(Modifier.fillMaxSize())
+
+        val scrim = Color(0x99000000)
+        AnimatedVisibility(
+            visible = controlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(scrim)
+                    // LIVE-11: a tap on the controls is not a tap on the video — it keeps them up.
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onPoke,
+                    )
+                    .safeDrawingPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Column {
+                    StatusAndLevel(
+                        cameraName, status, muted, level,
+                        thresholdDb = thresholdDb,
+                        alarmArmed = alarmArmed,
+                        onOverlay = true,
+                    )
+                    notice?.invoke()
+                }
+            }
+        }
+        AnimatedVisibility(
+            visible = controlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(scrim)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onPoke, // LIVE-11: never hides the row under the user's finger
+                    )
+                    .safeDrawingPadding(),
+            ) {
+                IconButtonRow(actions, Modifier.fillMaxWidth().padding(vertical = 4.dp))
+            }
+        }
+        // The alarm banner (or the post-alarm question) is always visible and never auto-hides (LIVE-9).
+        banner?.invoke(
+            Modifier
+                .align(Alignment.Center)
+                .safeDrawingPadding()
+                .padding(horizontal = 24.dp),
+        )
+    }
+}

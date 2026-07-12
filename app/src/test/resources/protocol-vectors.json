@@ -1,0 +1,41 @@
+{
+  "password": "hunter2",
+  "passwordHashUpperHex": "2AB96390C7DBE3439DE74D0C9B0B1767",
+  "rc4": {
+    "keyHex": "8f9e0d1c2b3a49586776859403122130404f5e6d7c8b9aa9b8c7d6e5f4030201",
+    "plaintextUtf8": "{\"data\":\"the quick brown fox\"}",
+    "ciphertextHex": "4653d2c3832e012c17389ffb8371dc8230946c42e4c8146745b8a8984509"
+  },
+  "chacha": {
+    "keyHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "nonce8Hex": "4041424344454647",
+    "plaintextUtf8": "The quick brown fox jumps over the lazy dog",
+    "ciphertextHex": "8f0c23c42b22610b577ec80b4d671ec74737b2885aaeba5ad10ac9e2abcdd32c97ab8b91a68b19e4295192"
+  },
+  "sharedKey": {
+    "clientPrivateHex": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+    "clientPublicHex": "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
+    "devicePublicHex": "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
+    "sharedHex": "1b27556473e985d462cd51197a9a46c76009549eac6474f206c4ee0844f68389",
+    "sharedReverseHex": "1b27556473e985d462cd51197a9a46c76009549eac6474f206c4ee0844f68389"
+  },
+  "signing": {
+    "ssecurityB64": "EBESExQVFhcYGRobHB0eHw==",
+    "nonceHex": "a1a2a3a4a5a6a7a801c2b3d4",
+    "signedNonceHex": "72197d11cd0fd0cc44dae96623b175b9048b11320f4f9d2850a4d98ffce53d73"
+  },
+  "signedRequest": {
+    "path": "/v2/home/device_list_page",
+    "data": "{}",
+    "rc4HashB64": "IceAttV5JCZMIbsK88bdUxzxfCQ=",
+    "encryptedDataB64": "9co=",
+    "encryptedRc4HashB64": "x9SLslRk6J5v7E+uHYuTUt+hSJYpKg07O8QMMw==",
+    "signatureB64": "Ws+sHjC/s8d/x6VCwEqrIQic7bM=",
+    "nonceB64": "oaKjpKWmp6gBwrPU",
+    "formEncoded": "data=9co%3D&rc4_hash__=x9SLslRk6J5v7E%2BuHYuTUt%2BhSJYpKg07O8QMMw%3D%3D&signature=Ws%2BsHjC%2Fs8d%2Fx6VCwEqrIQic7bM%3D&_nonce=oaKjpKWmp6gBwrPU"
+  },
+  "response": {
+    "plaintext": "{\"code\":0,\"result\":{\"ok\":true}}",
+    "bodyB64": "9ZWNnER1nJEVgzeRMZqVdZO7EIlePRxhZ/MvewRynA=="
+  }
+}

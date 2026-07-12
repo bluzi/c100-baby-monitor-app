@@ -9,4 +9,5 @@ captures/
 *.keystore
 !debug.keystore
 *.jks
+secrets/
 .DS_Store

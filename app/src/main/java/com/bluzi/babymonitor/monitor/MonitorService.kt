@@ -97,6 +97,9 @@ class MonitorService : Service() {
         Log.i("service", "onStartCommand action=${intent?.action}")
         when (intent?.action) {
             ACTION_STOP -> {
+                // BG-10: only a deliberate stop clears the reboot marker. A system-initiated
+                // onDestroy must leave it set, or a reboot would be reported to no one.
+                Stores.app(this).setMonitoring(false)
                 stopMonitoring()
                 stopSelf()
                 return START_NOT_STICKY
@@ -136,6 +139,11 @@ class MonitorService : Service() {
         }
 
         goForeground()
+        // BG-10: monitoring is running again — retire the "monitoring stopped" reboot
+        // notification, whichever way the user resumed (tapping it, or just opening the app).
+        // Left up, it would contradict the live "Monitoring" notification all night.
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .cancel(BootReceiver.NOTIFICATION_ID)
         acquireLocks()
         if (ringer == null) {
             ringer = AlarmRinger(this, scope, Stores.app(this)).also {
@@ -163,7 +171,7 @@ class MonitorService : Service() {
         val open = PendingIntent.getActivity(
             this,
             0,
-            packageManager.getLaunchIntentForPackage(packageName),
+            packageManager.getLaunchIntentForPackage(packageName) ?: Intent(),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val stop = PendingIntent.getService(
@@ -214,6 +222,8 @@ class MonitorService : Service() {
     }
 
     override fun onDestroy() {
+        // May be system-initiated (shutdown, the OS stopping the service) — release everything,
+        // but leave the BG-10 reboot marker alone: the user did not stop monitoring.
         stopMonitoring()
         scope.cancel()
         super.onDestroy()

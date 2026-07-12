@@ -26,6 +26,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Compute version from commit count
+        # Monotonic only while main is never rewritten: a history-shrinking force-push would
+        # lower the versionCode and phones would silently refuse the "update" as a downgrade.
         run: |
           COUNT=$(git rev-list --count HEAD)
           echo "VERSION_CODE=$COUNT" >> "$GITHUB_ENV"

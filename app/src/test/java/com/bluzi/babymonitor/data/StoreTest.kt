@@ -172,6 +172,32 @@ class StoreTest {
     }
 
     @Test
+    fun `ALRM-4+6 a stored alarm volume of zero is floored — a silent alarm is not an alarm`() {
+        kv.put("settings_v1", """{"alarmVolume":0.0}""")
+        assertEquals(Settings.VOLUME_MIN, store.loadSettings().alarmVolume, 1e-9)
+        kv.put("settings_v1", """{"alarmVolume":7.5}""")
+        assertEquals(Settings.VOLUME_MAX, store.loadSettings().alarmVolume, 1e-9)
+    }
+
+    @Test
+    fun `WATCH-1+5 a stored grace of zero cannot make the watchdog fire on every hiccup`() {
+        kv.put("settings_v1", """{"watchdogGraceSeconds":0}""")
+        assertEquals(Settings.GRACE_MIN_SECONDS, store.loadSettings().watchdogGraceSeconds)
+        kv.put("settings_v1", """{"watchdogGraceSeconds":-3}""")
+        assertEquals(Settings.GRACE_MIN_SECONDS, store.loadSettings().watchdogGraceSeconds)
+        kv.put("settings_v1", """{"watchdogGraceSeconds":99999}""")
+        assertEquals(Settings.GRACE_MAX_SECONDS, store.loadSettings().watchdogGraceSeconds)
+    }
+
+    @Test
+    fun `ALRM-6+7 stored schedule minutes outside a day are clamped into one`() {
+        kv.put("settings_v1", """{"alarmWindowStartMinutes":99999,"alarmWindowEndMinutes":-5}""")
+        val s = store.loadSettings()
+        assertEquals(24 * 60 - 1, s.alarmWindowStartMinutes)
+        assertEquals(0, s.alarmWindowEndMinutes)
+    }
+
+    @Test
     fun `corrupt stored data degrades to defaults instead of crashing`() {
         kv.put("session_v1", "SEALED:not-json")
         kv.put("device_v1", "{broken")

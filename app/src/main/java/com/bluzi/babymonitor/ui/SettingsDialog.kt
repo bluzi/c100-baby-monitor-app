@@ -217,7 +217,7 @@ fun SettingsDialog(
                 Slider(
                     value = settings.watchdogGraceSeconds.toFloat(),
                     onValueChange = { onChange(settings.copy(watchdogGraceSeconds = it.toInt())) },
-                    valueRange = 5f..120f,
+                    valueRange = Settings.GRACE_MIN_SECONDS.toFloat()..Settings.GRACE_MAX_SECONDS.toFloat(),
                     steps = 22,
                     enabled = alarmOn && settings.watchdogEnabled,
                 )
@@ -248,7 +248,8 @@ fun SettingsDialog(
                 Slider(
                     value = settings.alarmVolume.toFloat(),
                     onValueChange = { onChange(settings.copy(alarmVolume = it.toDouble())) },
-                    valueRange = 0.2f..1f, // never all the way down: a silent alarm is not an alarm
+                    // Never all the way down: a silent alarm is not an alarm.
+                    valueRange = Settings.VOLUME_MIN.toFloat()..Settings.VOLUME_MAX.toFloat(),
                     steps = 7,
                 )
                 Text(

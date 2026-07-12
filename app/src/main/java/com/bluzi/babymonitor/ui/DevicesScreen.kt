@@ -71,11 +71,16 @@ fun CameraList(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            val message = e.message ?: "Failed to load devices"
-            Log.w("ui", "device list load failed: $message", e)
+            Log.w("ui", "device list load failed: ${e.message}", e)
             // AUTH-8: the type says it, not the wording — a transient network error must never
             // masquerade as an expired session and send the user off to sign in again.
             val authExpired = e is AuthExpiredException || e is IllegalStateException
+            // CAM-5/APP-3: readable words on screen; the raw error lives in the log above.
+            val message = if (authExpired) {
+                "Your session expired — please sign in again."
+            } else {
+                "Couldn't load your cameras — check the connection and try again."
+            }
             LoadState.Failed(message, authExpired)
         }
     }

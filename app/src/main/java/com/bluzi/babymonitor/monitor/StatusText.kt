@@ -30,7 +30,7 @@ fun friendlyStatus(raw: String): String = when {
     raw == STATUS_LIVE -> "Live"
     raw == STATUS_STOPPED -> "Stopped"
     raw == STATUS_SESSION_EXPIRED -> "Session expired — open the app to sign in" // BG-8
-    raw == STATUS_MONITOR_FAILED -> "Monitoring stopped working — reopen the app" // WATCH-11
+    raw == STATUS_MONITOR_FAILED -> "Monitoring stopped working — press Resume to restart" // WATCH-11
     raw == STATUS_UNSUPPORTED_CAMERA -> "This camera model isn't supported" // LIVE-12
     raw.startsWith("reconnecting") -> raw.replaceFirstChar { it.uppercase() }
     raw.startsWith("error:") -> "Connection lost — retrying"

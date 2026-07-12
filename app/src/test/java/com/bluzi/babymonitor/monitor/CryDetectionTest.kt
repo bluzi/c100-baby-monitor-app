@@ -115,4 +115,26 @@ class CryDetectionTest {
         det.suppressed = true // the engine sets this while the alarm rings
         assertFalse(runSound(det, ::babyCry, seconds = 4.0))
     }
+
+    @Test
+    fun `ALRM-5 after acknowledgment the alarm stays quiet for the cooldown, then may trigger again`() {
+        val det = detector()
+        var now = 0L
+        // Like runSound, but on one continuous clock so the snooze deadline means something.
+        fun cryFor(seconds: Double): Boolean {
+            var fired = false
+            val windows = (seconds * SR / WINDOW).toInt()
+            val pcm = babyCry(WINDOW * windows)
+            for (w in 0 until windows) {
+                now += WINDOW_MS
+                val metrics = analyzeWindow(pcm.copyOfRange(w * WINDOW, (w + 1) * WINDOW), SR)
+                if (det.onWindow(20.0, metrics, WINDOW_MS, now)) fired = true
+            }
+            return fired
+        }
+        assertTrue(cryFor(4.0))
+        det.snooze(now + 30_000) // what the engine does on acknowledgment
+        assertFalse("crying inside the cooldown must not re-alarm", cryFor(25.0))
+        assertTrue("crying after the cooldown must alarm again", cryFor(10.0))
+    }
 }

@@ -57,6 +57,22 @@ class Cs2FramingTest {
     }
 
     @Test
+    fun `PROTO-18 a record completed by a chunk of 4 bytes or fewer is delivered immediately`() {
+        // A short command record (an ack) whose last bytes arrive alone must not sit in the
+        // assembler until unrelated traffic happens to flush it out.
+        val asm = RecordAssembler()
+        val record = byteArrayOf(7, 8, 9)
+        val stream = ByteArray(4 + record.size)
+        stream.putBeU32(0, record.size.toLong())
+        record.copyInto(stream, 4)
+
+        assertTrue(asm.push(stream.copyOfRange(0, 5)).isEmpty()) // prefix + first byte
+        val out = asm.push(stream.copyOfRange(5, stream.size)) // the final two bytes
+        assertEquals(1, out.size)
+        assertArrayEquals(record, out[0])
+    }
+
+    @Test
     fun `PROTO-18 a corrupt record length is a dead connection, not a crash`() {
         // A length prefix ≥ 2^31 would turn into a negative Int and crash copyOfRange —
         // taking the whole process down. It must surface as a protocol error instead.

@@ -6,12 +6,17 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.res.Configuration
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -23,6 +28,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -61,6 +67,7 @@ import com.bluzi.babymonitor.monitor.AlarmKind
 import com.bluzi.babymonitor.monitor.CameraControl
 import com.bluzi.babymonitor.monitor.MonitorHub
 import com.bluzi.babymonitor.monitor.MonitorService
+import com.bluzi.babymonitor.monitor.STATUS_LIVE
 import com.bluzi.babymonitor.monitor.effectiveThresholdDb
 import com.bluzi.babymonitor.xiaomi.Device
 import com.bluzi.babymonitor.xiaomi.NightVisionMode
@@ -74,6 +81,13 @@ private tailrec fun android.content.Context.findActivity(): Activity? = when (th
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+/** LIVE-13: is the phone on a network the camera could be on (Wi-Fi, or wired via a dock)? */
+private fun onLocalNetwork(cm: ConnectivityManager): Boolean {
+    val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+    return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+        caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
 }
 
 @Composable
@@ -153,6 +167,41 @@ fun ViewerScreen(
         }
     }
 
+    // LIVE-14: while the feed is live, the screen stays awake — watching the baby must never end
+    // in a sleeping screen. Anything else (connecting, error) sleeps normally to spare the battery.
+    DisposableEffect(status == STATUS_LIVE) {
+        val window = view.context.findActivity()?.window
+        if (status == STATUS_LIVE) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
+
+    // LIVE-13: without Wi-Fi the camera is unreachable — track it live, not just on open.
+    val connectivity = remember { context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
+    var onWifi by remember { mutableStateOf(onLocalNetwork(connectivity)) }
+    DisposableEffect(Unit) {
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+            .build()
+        // Callbacks arrive sequentially on one handler thread; track the matching networks so
+        // losing one of two (Wi-Fi + a dock) never shows a false warning — a warning that can
+        // be wrong is a warning that gets ignored.
+        val localNetworks = mutableSetOf<Network>()
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                localNetworks.add(network)
+                onWifi = true
+            }
+
+            override fun onLost(network: Network) {
+                localNetworks.remove(network)
+                onWifi = localNetworks.isNotEmpty()
+            }
+        }
+        connectivity.registerNetworkCallback(request, callback)
+        onDispose { connectivity.unregisterNetworkCallback(callback) }
+    }
+
     // Alarms only *notify* with permission; warn when it's denied (alarms still sound).
     var notificationsDenied by remember { mutableStateOf(false) }
     val notifPermission = rememberLauncherForActivityResult(
@@ -203,6 +252,7 @@ fun ViewerScreen(
     val actions = viewerActions(
         muted = settings.muted,
         running = running,
+        status = status,
         nightVision = nightVision,
         onToggleMute = { saveSettings(settings.copy(muted = !settings.muted)); poke() },
         onResume = { MonitorService.start(context); poke() },
@@ -248,6 +298,19 @@ fun ViewerScreen(
 
     // Anything that would quietly weaken the monitor gets said out loud, on the main screen.
     val warnings = buildList {
+        if (!onWifi) { // LIVE-13: without Wi-Fi nothing else on this screen can work
+            add(
+                MonitorWarning("No Wi-Fi — the camera can only be reached on its own network. Tap to turn Wi-Fi on.") {
+                    context.startActivity(
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            Intent(AndroidSettings.Panel.ACTION_WIFI) // the quick toggle panel
+                        } else {
+                            Intent(AndroidSettings.ACTION_WIFI_SETTINGS)
+                        },
+                    )
+                },
+            )
+        }
         if (!batteryExempt) { // BG-9
             add(
                 MonitorWarning("Battery saving can stop monitoring overnight. Tap to allow it to run.") {
@@ -296,6 +359,13 @@ fun ViewerScreen(
         )
     }
 
+    // LIVE-15: which build is running — the OTA pipeline makes "did the update land?" a real
+    // question. Read from the package, so it always matches what is actually installed.
+    val appVersion = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull().orEmpty()
+    }
+
     if (landscape) {
         LandscapeViewer(
             cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
@@ -305,7 +375,7 @@ fun ViewerScreen(
     } else {
         PortraitViewer(
             cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
-            actions, banner, notice, videoSurface,
+            actions, banner, notice, videoSurface, appVersion,
         )
     }
 
@@ -393,6 +463,7 @@ private fun PortraitViewer(
     banner: (@Composable (Modifier) -> Unit)?,
     notice: (@Composable () -> Unit)?,
     videoSurface: @Composable (Modifier) -> Unit,
+    appVersion: String,
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
@@ -408,6 +479,15 @@ private fun PortraitViewer(
             )
             notice?.invoke()
             IconButtonRow(actions, Modifier.fillMaxWidth())
+        }
+        if (appVersion.isNotEmpty()) { // LIVE-15
+            Spacer(Modifier.weight(1f))
+            Text(
+                "v$appVersion",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp),
+            )
         }
     }
 }

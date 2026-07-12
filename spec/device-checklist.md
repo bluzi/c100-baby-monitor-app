@@ -28,6 +28,8 @@ before calling a release done. Each step names the criteria it verifies.
    and server region; the camera picker lists each camera with its name and model. With the
    keyboard open on the sign-in screen, the focused field and the Sign in button stay visible;
    the keyboard's action key moves username → password and submits from the password field.
+8b. **Version visible (LIVE-15):** in portrait, the live feed shows the app version at the
+    bottom; it matches the installed release's version.
 9. **Ring-until-acknowledged (ALRM-4, ALRM-5):** trigger the noise alarm — the tone repeats for
    well over 30 s until Acknowledge is tapped in the app; trigger again and acknowledge from the
    notification action instead. After acknowledging, continued noise stays quiet for ~30 s.
@@ -59,12 +61,20 @@ before calling a release done. Each step names the criteria it verifies.
 14. **Battery exemption (BG-9):** with the app not exempt from battery optimisation, the live feed
     shows the warning and its button opens the system exemption prompt; once granted, the warning
     is gone.
+14b. **No-Wi-Fi warning (LIVE-13):** while on the live feed, turn Wi-Fi off (leave mobile data
+    on). A warning appears saying the camera can only be reached on its own network; tapping it
+    opens the system Wi-Fi panel/settings, and turning Wi-Fi back on makes the warning disappear.
+14c. **Screen stays awake while live (LIVE-14):** set the screen timeout to 30 s and watch the
+    live feed without touching the phone for 2+ minutes — the screen never sleeps. Unplug the
+    camera and wait for the status to leave "Live": the screen now sleeps on its normal timeout.
 15. **Overnight survival (BG-1, BG-6, BG-9):** grant the exemption and enable the crying alarm
     and the watchdog (so the watchdog is armed — WATCH-9), then leave the phone unplugged,
     stationary and screen-off for 2+ hours overnight. In the morning audio is still live (or has
     reconnected by itself), and the watchdog never fired spuriously.
 16. **Restart (BG-10):** while monitoring, reboot the phone. After boot a notification says
-    monitoring stopped; tapping it opens the app and monitoring resumes.
+    monitoring stopped; tapping it opens the app and monitoring resumes. The "monitoring
+    stopped" notification is gone once monitoring runs again — also when the app was opened
+    from the launcher instead of the notification.
 17. **Silent stall (WATCH-7):** while live, switch the camera off (do not touch the phone's
     network). Within seconds the status leaves "Live" and reconnect attempts begin. Leave it off
     and reopen the app: it never claims "Live" while the camera sends nothing. With the watchdog

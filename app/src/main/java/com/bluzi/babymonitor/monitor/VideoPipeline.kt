@@ -106,7 +106,7 @@ class HevcRenderer {
 
             if (surface == null || !surface.isValid) {
                 if (codec != null) {
-                    Log.i(TAG, "video: surface gone, releasing decoder (audio unaffected)")
+                    Log.i(TAG, "surface gone, releasing decoder (audio unaffected)")
                     release()
                 }
                 return
@@ -119,13 +119,13 @@ class HevcRenderer {
                 if (csd == null) {
                     if (!loggedWaiting) {
                         loggedWaiting = true
-                        Log.i(TAG, "video: keyframe seen but VPS/SPS/PPS not yet cached — waiting")
+                        Log.i(TAG, "keyframe seen but VPS/SPS/PPS not yet cached — waiting")
                     }
                     return
                 }
                 release()
                 configure(csd, surface)
-                Log.i(TAG, "video: H265 decoder configured (csd ${csd.size}B)")
+                Log.i(TAG, "H265 decoder configured (csd ${csd.size}B)")
             }
 
             val c = codec ?: return
@@ -143,7 +143,7 @@ class HevcRenderer {
             }
         } catch (e: Exception) {
             failures++
-            Log.w(TAG, "video: decode failed (attempt $failures/8), retrying at next keyframe", e)
+            Log.w(TAG, "decode failed (attempt $failures/8), retrying at next keyframe", e)
             release()
         }
     }

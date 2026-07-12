@@ -126,6 +126,14 @@ data class Settings(
         const val SENSITIVITY_MAX = 10
         const val SENSITIVITY_DEFAULT = 5
 
+        // ALRM-4: never all the way down — a stored volume of zero would be a silent alarm.
+        const val VOLUME_MIN = 0.2
+        const val VOLUME_MAX = 1.0
+
+        // WATCH-1: grace bounds — a zero grace would alarm on every one-second audio hiccup.
+        const val GRACE_MIN_SECONDS = 5
+        const val GRACE_MAX_SECONDS = 120
+
         // ALRM-11: calm → urgent.
         const val SOUND_SOFT_CHIME = "soft-chime"
         const val SOUND_RISING_CHIME = "rising-chime"
@@ -151,13 +159,18 @@ data class Settings(
                     alarmSensitivity = v.optInt("alarmSensitivity", legacySensitivity(v))
                         .coerceIn(SENSITIVITY_MIN, SENSITIVITY_MAX),
                     alarmScheduleMode = v.optString("alarmScheduleMode", SCHEDULE_ALWAYS),
-                    alarmWindowStartMinutes = v.optInt("alarmWindowStartMinutes", 19 * 60),
-                    alarmWindowEndMinutes = v.optInt("alarmWindowEndMinutes", 7 * 60),
+                    alarmWindowStartMinutes = v.optInt("alarmWindowStartMinutes", 19 * 60)
+                        .coerceIn(0, 24 * 60 - 1),
+                    alarmWindowEndMinutes = v.optInt("alarmWindowEndMinutes", 7 * 60)
+                        .coerceIn(0, 24 * 60 - 1),
                     watchdogEnabled = v.optBoolean("watchdogEnabled", false),
-                    watchdogGraceSeconds = v.optInt("watchdogGraceSeconds", 30),
+                    // Clamped like sensitivity: stored data (old versions, hand edits) must never
+                    // yield a watchdog that fires on every hiccup or an alarm that plays silently.
+                    watchdogGraceSeconds = v.optInt("watchdogGraceSeconds", 30)
+                        .coerceIn(GRACE_MIN_SECONDS, GRACE_MAX_SECONDS),
                     cryAlarmSound = v.optString("cryAlarmSound", SOUND_RISING_CHIME),
                     feedAlarmSound = v.optString("feedAlarmSound", SOUND_LOW_PULSE),
-                    alarmVolume = v.optDouble("alarmVolume", 0.85),
+                    alarmVolume = v.optDouble("alarmVolume", 0.85).coerceIn(VOLUME_MIN, VOLUME_MAX),
                     alarmVibrate = v.optBoolean("alarmVibrate", true),
                 )
                 // Stored data can be old or hand-edited; never let the two alarms collide (ALRM-11).

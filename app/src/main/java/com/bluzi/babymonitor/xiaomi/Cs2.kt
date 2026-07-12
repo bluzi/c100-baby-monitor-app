@@ -87,16 +87,20 @@ class RecordAssembler {
     fun push(chunk: ByteArray): List<ByteArray> {
         pending = concatBytes(pending, chunk)
         val out = mutableListOf<ByteArray>()
-        while (pending.size > 4) {
+        while (true) {
             if (waitSize == 0) {
+                if (pending.size < 4) break
                 val size = pending.beU32(0)
                 if (size > MAX_RECORD_BYTES) {
                     throw XiaomiException("cs2: corrupt record length $size — dropping the connection")
                 }
                 waitSize = size.toInt()
                 pending = pending.copyOfRange(4, pending.size)
+                continue // a zero-length record is consumed by its prefix alone
             }
-            if (waitSize > pending.size) break
+            // A record completed by even a 1-byte chunk must come out now — a small command
+            // record must never sit here waiting for unrelated bytes to flush it.
+            if (pending.size < waitSize) break
             out.add(pending.copyOfRange(0, waitSize))
             pending = pending.copyOfRange(waitSize, pending.size)
             waitSize = 0

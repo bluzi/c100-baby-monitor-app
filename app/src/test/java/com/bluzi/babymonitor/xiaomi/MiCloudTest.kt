@@ -8,6 +8,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -287,7 +288,7 @@ class MiCloudTest {
         val err = assertThrows(XiaomiException::class.java) {
             kotlinx.coroutines.runBlocking { twoFactor.submit("000000") }
         }
-        assertEquals("That code wasn't accepted — request a new one and try again.", err.message)
+        assertEquals("That code wasn't accepted — check it and try again, or start over to get a new code.", err.message)
         assertFalse(err.message!!.contains("{"))
     }
 
@@ -380,6 +381,43 @@ class MiCloudTest {
         assertEquals("STNEW", refreshed!!.serviceToken)
         assertEquals("PT2", refreshed!!.passToken)
         assertEquals(newSsecurityB64, refreshed!!.ssecurity.toBase64())
+    }
+
+    @Test
+    fun `PROTO-5+AUTH-8 a refresh whose redirect chain dies part-way stays retryable and mixes no tokens`() = runTest {
+        // The serviceLogin answer hands out a NEW ssecurity, but the hop that should deliver the
+        // matching NEW serviceToken dies. Continuing with new-ssecurity + old-serviceToken would
+        // poison the stored session (every signed request rejected until the next refresh).
+        val http = FakeMiHttp()
+        val newSsecurityB64 = "ICEiIyQlJicoKSorLC0uLw=="
+        var apiCalls = 0
+        http.handler = { req ->
+            val url = req.url
+            when {
+                url.endsWith("/v2/home/device_list_page") -> {
+                    apiCalls++
+                    resp(status = 401, body = "Unauthorized".toByteArray())
+                }
+                url.startsWith("https://account.xiaomi.com/pass/serviceLogin?") -> resp(
+                    body = loginBody(
+                        """{"ssecurity":"$newSsecurityB64","passToken":"PT2","location":"https://sts.api.io.mi.com/refresh-hop"}""",
+                    ),
+                )
+                url == "https://sts.api.io.mi.com/refresh-hop" -> resp(status = 500) // chain dies here
+                else -> error("unexpected url: $url")
+            }
+        }
+
+        val cloud = MiCloud(http, session = session())
+        var refreshed: Session? = null
+        cloud.onSessionRefreshed = { refreshed = it }
+
+        val err = assertThrows(Exception::class.java) {
+            kotlinx.coroutines.runBlocking { cloud.deviceList() }
+        }
+        assertFalse("a half-finished refresh must stay retryable", err is AuthExpiredException)
+        assertNull("a mixed session must never be persisted", refreshed)
+        assertEquals("the request must not be retried with mixed tokens", 1, apiCalls)
     }
 
     @Test

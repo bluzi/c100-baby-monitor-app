@@ -40,7 +40,7 @@ class StatusTextTest {
 
     @Test
     fun `WATCH-11 a failed monitor says it stopped working, never retrying`() {
-        assertEquals("Monitoring stopped working — reopen the app", friendlyStatus(STATUS_MONITOR_FAILED))
+        assertEquals("Monitoring stopped working — press Resume to restart", friendlyStatus(STATUS_MONITOR_FAILED))
     }
 
     @Test

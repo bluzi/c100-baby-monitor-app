@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
 import com.bluzi.babymonitor.monitor.LevelMeter
+import com.bluzi.babymonitor.monitor.STATUS_MONITOR_FAILED
 import com.bluzi.babymonitor.monitor.displayLevelDb
 import com.bluzi.babymonitor.monitor.statusLine
 import com.bluzi.babymonitor.xiaomi.NightVisionMode
@@ -55,6 +56,7 @@ data class ViewerAction(
 fun viewerActions(
     muted: Boolean,
     running: Boolean,
+    status: String,
     nightVision: NightVisionMode?,
     onToggleMute: () -> Unit,
     onResume: () -> Unit,
@@ -63,7 +65,9 @@ fun viewerActions(
     onCameras: () -> Unit,
     onSignOut: () -> Unit,
 ): List<ViewerAction> = buildList {
-    if (!running) {
+    // APP-3/WATCH-11: a failed monitor keeps `running` true (the watchdog still guards), so it
+    // needs its own Resume — the failure must be recoverable right here, not by reopening the app.
+    if (!running || status == STATUS_MONITOR_FAILED) {
         add(ViewerAction(Icons.Filled.PlayArrow, "Resume", onClick = onResume))
     }
     add(

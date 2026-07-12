@@ -6,8 +6,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// CI derives these from the git tag (see .github/workflows/release.yml); local builds
-// fall back to the defaults below.
+// CI derives these from the commit count on main (see .github/workflows/release.yml);
+// local builds fall back to the defaults below.
 val releaseVersionName = providers.gradleProperty("releaseVersionName").orNull
 val releaseVersionCode = providers.gradleProperty("releaseVersionCode").orNull?.toInt()
 

@@ -304,7 +304,7 @@ class MiCloud(
         if (location.isEmpty()) {
             // AUTH-9: the overwhelmingly likely cause is a wrong or expired code — say that.
             Log.w("login", "2FA verify returned no location: code=${v1.opt("code")}")
-            throw XiaomiException("That code wasn't accepted — request a new one and try again.")
+            throw XiaomiException("That code wasn't accepted — check it and try again, or start over to get a new code.")
         }
         finishAuth(location)
         recoverSsecurityIfMissing()
@@ -389,10 +389,19 @@ class MiCloud(
         // a garbled answer (captive portal, maintenance page) or no answer at all must stay
         // retryable, because declaring expiry throws away a session that may be perfectly good.
         if (location.isEmpty()) throw AuthExpiredException("Your session expired — please sign in again.")
+        // PROTO-5: a new ssecurity is always paired with a NEW serviceToken. Drop the stored pair
+        // before harvesting, so a redirect chain that dies part-way can never leave a fresh
+        // ssecurity married to the stale serviceToken — the gateway rejects that mix on every
+        // signed request, and persisting it would poison the stored session too.
+        ssecurity = null
+        serviceToken = null
         v1.optString("ssecurity").takeIf { it.isNotEmpty() }?.let { ssecurity = it.base64ToBytes() }
         v1.optString("passToken").takeIf { it.isNotEmpty() }?.let { this.passToken = it }
         this.userId = userId
         finishAuth(location)
+        // A chain that ended early (a dead hop) is an incomplete refresh: throw here so the
+        // caller treats it as temporary (AUTH-8) instead of continuing with half a session.
+        getSession()
     }
 
     /** PROTO-10: authed request with a one-shot passToken refresh on auth-shaped failures. */

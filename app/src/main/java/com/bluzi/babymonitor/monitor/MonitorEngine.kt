@@ -23,6 +23,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -92,10 +93,21 @@ class MonitorEngine(
     @Volatile
     private var suppressionLogged = false
 
+    /** ALRM-15: the camera that was ringing, captured at ring time (a switch may follow). */
+    @Volatile
+    private var alarmDid: String? = null
+
     fun start() {
         if (job?.isActive == true) {
-            Log.i("engine", "start ignored — already monitoring")
-            return
+            if (MonitorHub.status.value != STATUS_MONITOR_FAILED) {
+                Log.i("engine", "start ignored — already monitoring")
+                return
+            }
+            // WATCH-11/APP-3: an aux loop (watchdog, settings) died while the connection loop
+            // lived on. "Press Resume to restart" must actually restart — a monitor without its
+            // watchdog is broken even if audio still flows, so tear the survivor down too
+            // (the new loop below waits for its teardown before touching the shared fields).
+            Log.w("engine", "restarting after a monitor failure — cancelling the surviving loops")
         }
         Log.i("engine", "start monitoring")
         // The connection loop can return on its own (an expired session), leaving the aux jobs
@@ -188,7 +200,14 @@ class MonitorEngine(
             }
         }.announceIfItDies("watchdog tick loop")
 
-        job = scope.launch { connectionLoop() }.announceIfItDies("connection loop")
+        val previous = job
+        job = scope.launch {
+            // Never overlap two connection loops on one engine: the old loop's finally writes
+            // the shared client/player/renderer fields, and racing it could null or release the
+            // new connection's objects. Its teardown is bounded (~1 s), so waiting is cheap.
+            previous?.cancelAndJoin()
+            connectionLoop()
+        }.announceIfItDies("connection loop")
     }
 
     fun stop() {
@@ -199,7 +218,9 @@ class MonitorEngine(
         // out again the next time the viewer opens (see connectOnce's signed-out path).
         MonitorHub.sessionExpired.value = false
         MonitorHub.level.value = 0f
-        store.setMonitoring(false) // BG-10: a deliberate stop is not a crash
+        // The BG-10 reboot marker is NOT cleared here: stop() also runs on system-initiated
+        // teardown (service onDestroy) and camera switches. Only the user-intent paths — the
+        // Stop action and signing out — clear it.
         ringer.acknowledge() // stopping monitoring silences any ringing alarm
         watchdog.reset()
         auxJobs.forEach { it.cancel() }
@@ -213,14 +234,19 @@ class MonitorEngine(
         val acknowledged = MonitorHub.activeAlarm.value
         ringer.acknowledge()
         detector.suppressed = false
-        detector.snooze(nowMs() + ALARM_COOLDOWN_MS) // ALRM-5
+        if (acknowledged == AlarmKind.BABY_NOISE) {
+            // ALRM-5: the cooldown is the crying alarm's own. Acknowledging a feed-drop alarm
+            // must not snooze cry detection — the feed may recover with the baby crying.
+            detector.snooze(nowMs() + ALARM_COOLDOWN_MS)
+        }
         // The watchdog stays quiet for this outage by itself; recovery re-arms it (WATCH-3).
 
         // ALRM-15: a crying alarm earns the question; the answer is pinned to the camera that
         // alarmed, so it still lands right if the user switches cameras before answering.
         if (acknowledged != null && asksForCryFeedback(acknowledged)) {
-            store.loadDevice()?.did?.let { MonitorHub.pendingCryFeedback.value = it }
+            (alarmDid ?: store.loadDevice()?.did)?.let { MonitorHub.pendingCryFeedback.value = it }
         }
+        alarmDid = null
     }
 
     /** ALRM-16: one yes/no from the parent moves this camera's learned tuning one step. */
@@ -301,6 +327,7 @@ class MonitorEngine(
             // never an expiry. Declaring it expired would poison the expired flag and bounce the
             // *next* sign-in straight back out.
             Log.i("engine", "no stored session — signed out; stopping monitoring")
+            store.setMonitoring(false) // BG-10: signing out is a deliberate stop
             MonitorHub.running.value = false
             MonitorHub.status.value = STATUS_STOPPED
             return
@@ -432,6 +459,7 @@ class MonitorEngine(
 
                 try {
                     var sawVideo = false
+                    var unsupportedVideoLogged = false
                     while (isActive && MonitorHub.running.value) {
                         val frame = missClient.readFrame()
                         when (frame) {
@@ -464,6 +492,12 @@ class MonitorEngine(
                                 }
                                 videoBacklog.incrementAndGet()
                                 videoQueue.trySend(frame)
+                            } else if (!unsupportedVideoLogged) {
+                                // A camera sending only e.g. h264 shows a black picture; never
+                                // let that be a silent mystery. Audio monitoring is unaffected
+                                // (LIVE-7), so this is a log, not a failure.
+                                unsupportedVideoLogged = true
+                                Log.w("engine", "unsupported video codec ${frame.codec} — no picture; audio monitoring continues")
                             }
                         }
                     }
@@ -530,6 +564,7 @@ class MonitorEngine(
                 // ALRM-5 / WATCH-6: only suppress further triggers if the alarm actually started.
                 if (ringer.ring(AlarmKind.BABY_NOISE, MonitorHub.cameraName.value)) { // ALRM-4
                     detector.suppressed = true // nothing new until acknowledged
+                    alarmDid = store.loadDevice()?.did // ALRM-15: pin the camera that alarmed
                 }
             }
         }

@@ -132,7 +132,9 @@ fun AboutDialog(version: String, onDismiss: () -> Unit) {
 fun IconButtonRow(actions: List<ViewerAction>, modifier: Modifier = Modifier) {
     Row(
         modifier,
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        // A centred cluster, not a full-width scatter — buttons stay near each other (and the
+        // thumb), and the row reads as one control strip.
+        horizontalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         for (action in actions) {
@@ -170,16 +172,22 @@ fun StatusAndLevel(
     thresholdDb: Float,
     alarmArmed: Boolean,
     onOverlay: Boolean,
+    /** Sits at the end of the status line (the overlay menu) so the two share one row. */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val textColor = if (onOverlay) Color.White else MaterialTheme.colorScheme.onSurface
     val subColor = if (onOverlay) Color(0xFFB8C0C8) else MaterialTheme.colorScheme.onSurfaceVariant
     val shown = displayLevelDb(level.toDouble()).toFloat() // LIVE-6: residual flutter reads quiet
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            statusLine(cameraName, status, muted), // APP-3 readable; LIVE-2: muted said in words
-            style = MaterialTheme.typography.labelLarge,
-            color = textColor,
-        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                statusLine(cameraName, status, muted), // APP-3 readable; LIVE-2: muted said in words
+                style = MaterialTheme.typography.titleMedium,
+                color = textColor,
+                modifier = Modifier.weight(1f),
+            )
+            trailing?.invoke()
+        }
         // ALRM-12: mark where the alarm would go off, and colour the bar once the room is past it.
         LevelBar(
             level = shown,

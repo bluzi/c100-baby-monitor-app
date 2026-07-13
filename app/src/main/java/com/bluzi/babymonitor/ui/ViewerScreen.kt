@@ -25,9 +25,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -48,6 +48,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -497,7 +498,10 @@ private fun ViewerContent(
     ) {
         videoSurface(Modifier.fillMaxSize())
 
-        val scrim = Color(0x99000000)
+        // The overlays sit on soft fades, not hard-edged blocks — the video shows through and
+        // the controls still read against any picture.
+        val topFade = Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent))
+        val bottomFade = Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000)))
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
@@ -507,7 +511,7 @@ private fun ViewerContent(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .background(scrim)
+                    .background(topFade)
                     // LIVE-11: a tap on the controls is not a tap on the video — it keeps them up.
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -515,20 +519,16 @@ private fun ViewerContent(
                         onClick = onPoke,
                     )
                     .safeDrawingPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 28.dp),
             ) {
-                Column {
-                    Row {
-                        Box(Modifier.weight(1f)) {
-                            StatusAndLevel(
-                                cameraName, status, muted, level,
-                                thresholdDb = thresholdDb,
-                                alarmArmed = alarmArmed,
-                                onOverlay = true,
-                            )
-                        }
-                        menu()
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatusAndLevel(
+                        cameraName, status, muted, level,
+                        thresholdDb = thresholdDb,
+                        alarmArmed = alarmArmed,
+                        onOverlay = true,
+                        trailing = menu,
+                    )
                     notice?.invoke()
                 }
             }
@@ -542,15 +542,16 @@ private fun ViewerContent(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .background(scrim)
+                    .background(bottomFade)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onPoke, // LIVE-11: never hides the row under the user's finger
                     )
-                    .safeDrawingPadding(),
+                    .safeDrawingPadding()
+                    .padding(top = 24.dp, bottom = 8.dp),
             ) {
-                IconButtonRow(actions, Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                IconButtonRow(actions, Modifier.fillMaxWidth())
             }
         }
         // The alarm banner (or the post-alarm question) is always visible and never auto-hides (LIVE-9).

@@ -9,9 +9,9 @@ is supposed to be listening.
   period in seconds (default 30).
 - **WATCH-2** While monitoring is on (not stopped by the user) and the watchdog is armed
   (WATCH-9), if no live **audio** has arrived for longer than the grace period — whatever the
-  cause — the phone sounds an alarm **clearly distinct** from the noise alarm and posts a
-  notification. Audio is what monitoring means: a feed delivering video but no usable audio is a
-  dead feed.
+  cause — the phone sounds the feed-drop alarm — with its own sound, volume and vibrate
+  (ALRM-11), distinct from the noise alarm by default — and posts a notification. Audio is what
+  monitoring means: a feed delivering video but no usable audio is a dead feed.
 - **WATCH-3** The watchdog alarm keeps sounding until acknowledged (in app or from the
   notification). Within one armed stretch, one outage fires at most one alarm: after
   acknowledgment it stays quiet until the feed has recovered and fails again. A new armed

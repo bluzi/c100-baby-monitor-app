@@ -63,26 +63,16 @@ class AlarmTonesTest {
     }
 
     @Test
-    fun `ALRM-11 the crying alarm and the feed alarm can never be given the same sound`() {
-        val settings = Settings()
-        assertNotEquals(settings.cryAlarmSound, settings.feedAlarmSound) // defaults differ
+    fun `ALRM-11+WATCH-2 the alarms differ by default but may be given the same sound`() {
+        assertNotEquals(Settings().cryAlarmSound, Settings().feedAlarmSound) // distinct by default
 
-        // Choosing the feed alarm's sound for crying pushes the feed alarm off it.
-        val collided = settings.withSounds(cry = settings.feedAlarmSound)
-        assertEquals(settings.feedAlarmSound, collided.cryAlarmSound)
-        assertNotEquals(collided.cryAlarmSound, collided.feedAlarmSound)
-
-        // And the same the other way round.
-        val other = settings.withSounds(feed = settings.cryAlarmSound)
-        assertEquals(settings.cryAlarmSound, other.feedAlarmSound)
-        assertNotEquals(other.cryAlarmSound, other.feedAlarmSound)
-    }
-
-    @Test
-    fun `ALRM-11 stored settings that name the same sound twice are repaired on load`() {
-        val corrupt = """{"cryAlarmSound":"siren","feedAlarmSound":"siren"}"""
-        val loaded = Settings.fromJson(corrupt)
-        assertNotEquals(loaded.cryAlarmSound, loaded.feedAlarmSound)
+        val same = Settings().copy(
+            cryAlarmSound = Settings.SOUND_SIREN,
+            feedAlarmSound = Settings.SOUND_SIREN,
+        )
+        val reloaded = Settings.fromJson(same.toJson()) // the choice survives storage un-"repaired"
+        assertEquals(Settings.SOUND_SIREN, reloaded.cryAlarmSound)
+        assertEquals(Settings.SOUND_SIREN, reloaded.feedAlarmSound)
     }
 
     @Test
@@ -95,14 +85,30 @@ class AlarmTonesTest {
     }
 
     @Test
-    fun `ALRM-6 the alarm sounds, volume and vibrate setting all persist`() {
-        val settings = Settings()
-            .withSounds(cry = Settings.SOUND_SIREN, feed = Settings.SOUND_SOFT_CHIME)
-            .copy(alarmVolume = 0.6, alarmVibrate = false)
+    fun `ALRM-6 each alarm's sound, volume and vibrate setting persists on its own`() {
+        val settings = Settings().copy(
+            cryAlarmSound = Settings.SOUND_SIREN,
+            feedAlarmSound = Settings.SOUND_SOFT_CHIME,
+            cryAlarmVolume = 0.6,
+            feedAlarmVolume = 1.0,
+            cryAlarmVibrate = false,
+            feedAlarmVibrate = true,
+        )
         val reloaded = Settings.fromJson(settings.toJson())
         assertEquals(Settings.SOUND_SIREN, reloaded.cryAlarmSound)
         assertEquals(Settings.SOUND_SOFT_CHIME, reloaded.feedAlarmSound)
-        assertEquals(0.6, reloaded.alarmVolume, 1e-9)
-        assertEquals(false, reloaded.alarmVibrate)
+        assertEquals(0.6, reloaded.cryAlarmVolume, 1e-9)
+        assertEquals(1.0, reloaded.feedAlarmVolume, 1e-9)
+        assertEquals(false, reloaded.cryAlarmVibrate)
+        assertEquals(true, reloaded.feedAlarmVibrate)
+    }
+
+    @Test
+    fun `ALRM-6 a single volume and vibrate saved by an older version applies to both alarms`() {
+        val loaded = Settings.fromJson("""{"alarmVolume":0.6,"alarmVibrate":false}""")
+        assertEquals(0.6, loaded.cryAlarmVolume, 1e-9)
+        assertEquals(0.6, loaded.feedAlarmVolume, 1e-9)
+        assertEquals(false, loaded.cryAlarmVibrate)
+        assertEquals(false, loaded.feedAlarmVibrate)
     }
 }

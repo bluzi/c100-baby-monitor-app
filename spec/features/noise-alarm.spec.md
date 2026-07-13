@@ -65,18 +65,20 @@ learning may only ever nudge, within hard bounds, and never in secret.
   acknowledged from inside the app or from the notification; it never times out on its own. If
   the phone cannot produce the tone at all, that failure is never silent: monitoring keeps
   running and the notification still appears.
-- **ALRM-11** The alarm sound is configurable, separately for the crying alarm and for the
-  feed-drop alarm (WATCH-2), from a set of choices ranging from calm to urgent. The two alarms can
-  never be given the same sound — they demand different reactions, so they must never be confused.
-  Settings also has an alarm volume and a vibrate option, and every alarm sound can be **previewed**
-  from settings (a preview stops on its own and never counts as a real alarm).
-- **ALRM-14** An alarm starts at a gentler volume and rises to the configured volume within a few
+- **ALRM-11** Each alarm — the crying alarm and the feed-drop alarm (WATCH-2) — has its own
+  **sound** (from a set of choices ranging from calm to urgent), its own **volume** and its own
+  **vibrate** option, set alongside that alarm's other settings. The two alarms may be given the
+  same sound. Every alarm sound can be **previewed** from settings — at that alarm's volume,
+  vibrating if that alarm's vibrate option is on (a preview stops on its own and never counts as
+  a real alarm).
+- **ALRM-14** An alarm starts at a gentler volume and rises to its configured volume within a few
   seconds — enough to wake without startling, and never so gentle that it fails to wake.
 - **ALRM-5** While an alarm is sounding, no new alarm can trigger. After acknowledgment the alarm
   stays quiet for a 30-second cooldown, then may trigger again.
-- **ALRM-6** The alarm toggle, sensitivity, schedule, sounds, volume and vibrate setting all
-  persist across restarts. A threshold saved by an older version of the app maps onto the
-  sensitivity scale rather than being lost.
+- **ALRM-6** The alarm toggle, sensitivity, schedule, and each alarm's sound, volume and vibrate
+  setting all persist across restarts. Settings saved by an older version of the app map rather
+  than being lost: an old threshold onto the sensitivity scale, an old single volume and vibrate
+  setting onto both alarms.
 - **ALRM-7** The alarm can be scheduled: active **always** (default), or only between two daily
   times — a window that may cross midnight (e.g. 19:00–07:00). Outside the window nothing
   triggers. A window whose start equals its end means always. Schedule changes take effect

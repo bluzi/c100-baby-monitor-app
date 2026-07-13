@@ -385,7 +385,9 @@ fun ViewerScreen(
         SettingsDialog(
             settings = settings,
             onChange = ::saveSettings,
-            onPreviewSound = { sound -> MonitorService.previewSound(context, sound) }, // ALRM-11
+            onPreviewSound = { sound, volume, vibrate, kind -> // ALRM-11
+                MonitorService.previewSound(context, sound, volume, vibrate, kind)
+            },
             onDismiss = { showSettings = false },
         )
     }

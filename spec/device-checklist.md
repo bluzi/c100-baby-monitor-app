@@ -111,9 +111,11 @@ before calling a release done. Each step names the criteria it verifies.
 21. **Camera list failures (CAM-5):** with the phone offline, open the camera picker — a readable
     error with a Retry. On an account with no cameras, it says so rather than showing an empty list.
 22. **The alarm sounds (ALRM-11, ALRM-14):** in settings, preview every sound — each is audible and
-    clearly different from the others. The sound already used by the other alarm cannot be picked.
-    Trigger a real alarm: it starts softer and climbs to the set volume within a few seconds, and
-    the phone vibrates if that is on. Turn the volume down and preview again — quieter, not silent.
+    clearly different from the others; each alarm previews at its own set volume and vibrates with
+    the preview when that alarm's vibrate is on. Both alarms may be given the same sound. Trigger a
+    real alarm: it starts softer and climbs to that alarm's volume within a few seconds, and the
+    phone vibrates if that alarm's vibrate is on. Turn the alarm's volume down and preview again —
+    quieter, not silent.
 23. **Trigger point on the level meter (ALRM-12):** with the crying alarm on, watch the level bar —
     a mark shows where the alarm triggers, and the bar changes colour once the room is past it.
     Answer "no" to a feedback question (item 25) and check the mark moves right by one step.

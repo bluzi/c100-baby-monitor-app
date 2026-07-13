@@ -11,8 +11,8 @@ import kotlin.math.sin
 // on repeat, and you have the alarm.
 //
 // The set runs from calm to urgent on purpose. A parent choosing "soft chime" for the baby wants
-// to be woken gently; one choosing "siren" has slept through gentler things. What matters is that
-// whichever they pick, the two alarms never sound alike (Settings.withSounds).
+// to be woken gently; one choosing "siren" has slept through gentler things. The default sounds
+// for the two alarms differ, so they are told apart by ear out of the box (WATCH-2).
 
 const val ALARM_SAMPLE_RATE = 22_050
 

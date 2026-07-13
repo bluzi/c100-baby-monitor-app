@@ -16,7 +16,9 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
@@ -36,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bluzi.babymonitor.data.Settings
+import com.bluzi.babymonitor.monitor.AlarmKind
 import com.bluzi.babymonitor.monitor.MonitorHub
 import com.bluzi.babymonitor.monitor.alarmSoundDescription
 import com.bluzi.babymonitor.monitor.alarmSoundLabel
@@ -83,22 +87,26 @@ private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean = true, 
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurface))
+        Text(
+            label,
+            color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.weight(1f).padding(end = 8.dp),
+        )
         Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 
 /**
- * Alert settings: the crying alarm (ALRM-1/2/7/8/11), the feed watchdog (WATCH-1), and how both
- * alarms sound (ALRM-11/14). Every change is pushed through [onChange] immediately so it persists
- * and takes effect right away. Sub-settings stay visible but disabled while their toggle is off,
- * so they can be tuned before being switched on.
+ * Alert settings: the crying alarm (ALRM-1/2/7/8) and the feed watchdog (WATCH-1), each with its
+ * own sound, volume and vibrate (ALRM-11/14). Every change is pushed through [onChange]
+ * immediately so it persists and takes effect right away. Each alarm's sub-settings stay visible
+ * but disabled while that alarm is off.
  */
 @Composable
 fun SettingsDialog(
     settings: Settings,
     onChange: (Settings) -> Unit,
-    onPreviewSound: (String) -> Unit,
+    onPreviewSound: (sound: String, volume: Double, vibrate: Boolean, kind: AlarmKind) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val liveLevel by MonitorHub.level.collectAsState() // ALRM-12: tune against the real room
@@ -109,6 +117,8 @@ fun SettingsDialog(
         MonitorHub.level.collect { if (it > peakLevel) peakLevel = it }
     }
     val alarmOn = settings.alarmEnabled
+    // WATCH-9: the feed alarm only ever rings while the crying alarm could — its settings follow.
+    val watchdogOn = alarmOn && settings.watchdogEnabled
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -211,67 +221,51 @@ fun SettingsDialog(
                     }
                 }
 
+                // ALRM-11/14: how this alarm sounds, right below the alarm it belongs to.
+                AlarmSoundSettings(
+                    sound = settings.cryAlarmSound,
+                    volume = settings.cryAlarmVolume,
+                    vibrate = settings.cryAlarmVibrate,
+                    enabled = alarmOn,
+                    kind = AlarmKind.BABY_NOISE,
+                    onSound = { onChange(settings.copy(cryAlarmSound = it)) },
+                    onVolume = { onChange(settings.copy(cryAlarmVolume = it)) },
+                    onVibrate = { onChange(settings.copy(cryAlarmVibrate = it)) },
+                    onPreview = onPreviewSound,
+                )
+
                 // --- Feed watchdog (WATCH-1/9/10) ---------------------------------
                 SectionLabel("Feed watchdog")
-                ToggleRow("Alarm if the feed drops", settings.watchdogEnabled, enabled = alarmOn) {
+                ToggleRow(
+                    // WATCH-10: the dependency on the crying alarm is stated where it is toggled.
+                    "Alarm if the feed drops while the crying alarm is active",
+                    settings.watchdogEnabled,
+                    enabled = alarmOn,
+                ) {
                     onChange(settings.copy(watchdogEnabled = it))
                 }
                 Text(
-                    "Guards the crying alarm: only alarms while the crying alarm is on and " +
-                        "within its active hours.", // WATCH-9/10
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
                     "After ${settings.watchdogGraceSeconds}s without live audio",
-                    color = dimmedIf(!alarmOn || !settings.watchdogEnabled, MaterialTheme.colorScheme.onSurface),
+                    color = dimmedIf(!watchdogOn, MaterialTheme.colorScheme.onSurface),
                 )
                 Slider(
                     value = settings.watchdogGraceSeconds.toFloat(),
                     onValueChange = { onChange(settings.copy(watchdogGraceSeconds = it.toInt())) },
                     valueRange = Settings.GRACE_MIN_SECONDS.toFloat()..Settings.GRACE_MAX_SECONDS.toFloat(),
                     steps = 22,
-                    enabled = alarmOn && settings.watchdogEnabled,
+                    enabled = watchdogOn,
                 )
-
-                // --- How the alarms sound (ALRM-11/14) ----------------------------
-                SectionLabel("Alarm sounds")
-                Text(
-                    "The two alarms always sound different, so you know which one woke you.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                SoundPicker(
-                    title = "When the baby cries",
-                    selected = settings.cryAlarmSound,
-                    other = settings.feedAlarmSound,
-                    onSelect = { onChange(settings.withSounds(cry = it)) },
+                AlarmSoundSettings(
+                    sound = settings.feedAlarmSound,
+                    volume = settings.feedAlarmVolume,
+                    vibrate = settings.feedAlarmVibrate,
+                    enabled = watchdogOn,
+                    kind = AlarmKind.FEED_DOWN,
+                    onSound = { onChange(settings.copy(feedAlarmSound = it)) },
+                    onVolume = { onChange(settings.copy(feedAlarmVolume = it)) },
+                    onVibrate = { onChange(settings.copy(feedAlarmVibrate = it)) },
                     onPreview = onPreviewSound,
                 )
-                SoundPicker(
-                    title = "When the feed drops",
-                    selected = settings.feedAlarmSound,
-                    other = settings.cryAlarmSound,
-                    onSelect = { onChange(settings.withSounds(feed = it)) },
-                    onPreview = onPreviewSound,
-                )
-
-                Text("Alarm volume: ${"%.0f".format(Locale.ROOT, settings.alarmVolume * 100)}%")
-                Slider(
-                    value = settings.alarmVolume.toFloat(),
-                    onValueChange = { onChange(settings.copy(alarmVolume = it.toDouble())) },
-                    // Never all the way down: a silent alarm is not an alarm.
-                    valueRange = Settings.VOLUME_MIN.toFloat()..Settings.VOLUME_MAX.toFloat(),
-                    steps = 7,
-                )
-                Text(
-                    "Alarms rise from soft to this volume over a few seconds.", // ALRM-14
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ToggleRow("Vibrate as well", settings.alarmVibrate) {
-                    onChange(settings.copy(alarmVibrate = it))
-                }
             }
         },
     )
@@ -337,41 +331,104 @@ fun LevelBar(
     }
 }
 
-/** ALRM-11: pick a sound for one alarm; the other alarm's sound is shown as unavailable. */
+/**
+ * ALRM-11: one alarm's sound, volume and vibrate, edited as a unit under that alarm's toggle.
+ * A preview plays exactly what a real alarm of [kind] would do — this volume, this vibration.
+ */
+@Composable
+private fun AlarmSoundSettings(
+    sound: String,
+    volume: Double,
+    vibrate: Boolean,
+    enabled: Boolean,
+    kind: AlarmKind,
+    onSound: (String) -> Unit,
+    onVolume: (Double) -> Unit,
+    onVibrate: (Boolean) -> Unit,
+    onPreview: (sound: String, volume: Double, vibrate: Boolean, kind: AlarmKind) -> Unit,
+) {
+    SoundPicker(
+        selected = sound,
+        enabled = enabled,
+        onSelect = onSound,
+        onPreview = { onPreview(it, volume, vibrate, kind) },
+    )
+    Text(
+        "Volume: ${"%.0f".format(Locale.ROOT, volume * 100)}%",
+        color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurface),
+    )
+    Slider(
+        value = volume.toFloat(),
+        onValueChange = { onVolume(it.toDouble()) },
+        // Never all the way down: a silent alarm is not an alarm.
+        valueRange = Settings.VOLUME_MIN.toFloat()..Settings.VOLUME_MAX.toFloat(),
+        steps = 7,
+        enabled = enabled,
+    )
+    Text(
+        "Rises from soft to this volume over a few seconds.", // ALRM-14
+        style = MaterialTheme.typography.bodySmall,
+        color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurfaceVariant),
+    )
+    ToggleRow("Vibrate as well", vibrate, enabled = enabled, onChange = onVibrate)
+}
+
+/**
+ * ALRM-11: pick the sound for one alarm. Collapsed (the default) it shows just the current
+ * choice; expanding it lists every sound, each previewable — never discover your alarm is
+ * inaudible during a real one.
+ */
 @Composable
 private fun SoundPicker(
-    title: String,
     selected: String,
-    other: String,
+    enabled: Boolean,
     onSelect: (String) -> Unit,
     onPreview: (String) -> Unit,
 ) {
-    Text(title, style = MaterialTheme.typography.bodyMedium)
-    Column(Modifier.selectableGroup()) {
-        for (sound in Settings.ALARM_SOUNDS) {
-            val isOther = sound == other
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !isOther) { onSelect(sound) }
-                    .padding(vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = sound == selected, onClick = null, enabled = !isOther)
-                Column(Modifier.padding(start = 4.dp).weight(1f)) {
-                    Text(
-                        alarmSoundLabel(sound),
-                        color = dimmedIf(isOther, MaterialTheme.colorScheme.onSurface),
-                    )
-                    Text(
-                        if (isOther) "Used by the other alarm" else alarmSoundDescription(sound),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                // Never discover your alarm is inaudible during a real one — hear it now.
-                IconButton(onClick = { onPreview(sound) }) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = "Preview ${alarmSoundLabel(sound)}")
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { expanded = !expanded }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = if (expanded) "Hide sounds" else "Change sound",
+            tint = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurfaceVariant),
+        )
+        Text(
+            "Sound: ${alarmSoundLabel(selected)}",
+            color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.padding(start = 4.dp),
+        )
+    }
+    if (expanded) {
+        Column(Modifier.selectableGroup()) {
+            for (sound in Settings.ALARM_SOUNDS) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = enabled) { onSelect(sound) }
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = sound == selected, onClick = null, enabled = enabled)
+                    Column(Modifier.padding(start = 4.dp).weight(1f)) {
+                        Text(
+                            alarmSoundLabel(sound),
+                            color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurface),
+                        )
+                        Text(
+                            alarmSoundDescription(sound),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurfaceVariant),
+                        )
+                    }
+                    IconButton(onClick = { onPreview(sound) }, enabled = enabled) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Preview ${alarmSoundLabel(sound)}")
+                    }
                 }
             }
         }

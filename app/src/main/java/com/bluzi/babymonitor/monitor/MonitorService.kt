@@ -12,6 +12,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import com.bluzi.babymonitor.data.Settings
 import com.bluzi.babymonitor.data.Stores
 import com.bluzi.babymonitor.log.Log
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -35,6 +36,9 @@ class MonitorService : Service() {
         const val ACTION_ACK_ALARM = "com.bluzi.babymonitor.ACK_ALARM"
         const val ACTION_PREVIEW_SOUND = "com.bluzi.babymonitor.PREVIEW_SOUND"
         const val EXTRA_SOUND = "sound"
+        const val EXTRA_VOLUME = "volume"
+        const val EXTRA_VIBRATE = "vibrate"
+        const val EXTRA_KIND = "kind"
         const val CHANNEL_ID = "monitoring"
         const val NOTIFICATION_ID = 1
 
@@ -48,12 +52,17 @@ class MonitorService : Service() {
             context.startService(Intent(context, MonitorService::class.java).setAction(ACTION_STOP))
         }
 
-        /** ALRM-11: hear an alarm sound from settings, before you are relying on it at 3am. */
-        fun previewSound(context: Context, sound: String) {
+        /** ALRM-11: hear an alarm sound from settings, before you are relying on it at 3am.
+         *  [volume] and [vibrate] are the settings of the alarm being tuned ([kind]) — a preview
+         *  plays exactly what a real alarm of that kind would do. */
+        fun previewSound(context: Context, sound: String, volume: Double, vibrate: Boolean, kind: AlarmKind) {
             context.startService(
                 Intent(context, MonitorService::class.java)
                     .setAction(ACTION_PREVIEW_SOUND)
-                    .putExtra(EXTRA_SOUND, sound),
+                    .putExtra(EXTRA_SOUND, sound)
+                    .putExtra(EXTRA_VOLUME, volume)
+                    .putExtra(EXTRA_VIBRATE, vibrate)
+                    .putExtra(EXTRA_KIND, kind.name),
             )
         }
     }
@@ -123,7 +132,11 @@ class MonitorService : Service() {
                 var previewJob: kotlinx.coroutines.Job? = null
                 if (sound != null) {
                     val alarm = ringer ?: AlarmRinger(this, scope, Stores.app(this)).also { ringer = it }
-                    previewJob = alarm.preview(sound, MonitorHub.settings.value.alarmVolume)
+                    val volume = intent.getDoubleExtra(EXTRA_VOLUME, Settings().cryAlarmVolume)
+                    val vibrate = intent.getBooleanExtra(EXTRA_VIBRATE, false)
+                    val kind = AlarmKind.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_KIND) }
+                        ?: AlarmKind.BABY_NOISE
+                    previewJob = alarm.preview(sound, volume, vibrate, kind)
                 }
                 // A preview must never start, stop, or otherwise disturb monitoring — and when
                 // nothing is being monitored, it must not leave an idle service behind either.

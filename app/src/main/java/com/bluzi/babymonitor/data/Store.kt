@@ -80,28 +80,15 @@ data class Settings(
     // WATCH-1: feed watchdog.
     val watchdogEnabled: Boolean = false,
     val watchdogGraceSeconds: Int = 30,
-    // ALRM-11: how each alarm sounds. The two must never be the same (see [withSounds]).
+    // ALRM-11: how each alarm sounds — sound, volume and vibrate, each per alarm. The default
+    // sounds differ so the two alarms are told apart by ear out of the box (WATCH-2).
     val cryAlarmSound: String = SOUND_RISING_CHIME,
     val feedAlarmSound: String = SOUND_LOW_PULSE,
-    val alarmVolume: Double = 0.85, // 0..1, on top of the phone's alarm stream
-    val alarmVibrate: Boolean = true,
+    val cryAlarmVolume: Double = 0.85, // 0..1, on top of the phone's alarm stream
+    val feedAlarmVolume: Double = 0.85,
+    val cryAlarmVibrate: Boolean = true,
+    val feedAlarmVibrate: Boolean = true,
 ) {
-    /**
-     * ALRM-11: the two alarms must never sound the same — "the baby is crying" and "the monitor is
-     * blind" call for different reactions, and at 3am you decide by ear before you can read.
-     * Picking a sound for one alarm therefore pushes the other off it.
-     */
-    fun withSounds(cry: String = cryAlarmSound, feed: String = feedAlarmSound): Settings {
-        if (cry != feed) return copy(cryAlarmSound = cry, feedAlarmSound = feed)
-        val cryChanged = cry != cryAlarmSound
-        val alternative = ALARM_SOUNDS.first { it != cry }
-        return if (cryChanged) {
-            copy(cryAlarmSound = cry, feedAlarmSound = alternative)
-        } else {
-            copy(cryAlarmSound = alternative, feedAlarmSound = feed)
-        }
-    }
-
     fun toJson(): String = JSONObject()
         .put("muted", muted)
         .put("alarmEnabled", alarmEnabled)
@@ -113,8 +100,10 @@ data class Settings(
         .put("watchdogGraceSeconds", watchdogGraceSeconds)
         .put("cryAlarmSound", cryAlarmSound)
         .put("feedAlarmSound", feedAlarmSound)
-        .put("alarmVolume", alarmVolume)
-        .put("alarmVibrate", alarmVibrate)
+        .put("cryAlarmVolume", cryAlarmVolume)
+        .put("feedAlarmVolume", feedAlarmVolume)
+        .put("cryAlarmVibrate", cryAlarmVibrate)
+        .put("feedAlarmVibrate", feedAlarmVibrate)
         .toString()
 
     companion object {
@@ -153,7 +142,12 @@ data class Settings(
             if (json == null) return Settings()
             return try {
                 val v = JSONObject(json)
-                val settings = Settings(
+                // ALRM-6: settings written before volume/vibrate were per-alarm had one shared
+                // "alarmVolume"/"alarmVibrate" — an old value seeds both alarms rather than
+                // being lost.
+                val legacyVolume = v.optDouble("alarmVolume", 0.85)
+                val legacyVibrate = v.optBoolean("alarmVibrate", true)
+                Settings(
                     muted = v.optBoolean("muted", false),
                     alarmEnabled = v.optBoolean("alarmEnabled", false),
                     alarmSensitivity = v.optInt("alarmSensitivity", legacySensitivity(v))
@@ -170,11 +164,13 @@ data class Settings(
                         .coerceIn(GRACE_MIN_SECONDS, GRACE_MAX_SECONDS),
                     cryAlarmSound = v.optString("cryAlarmSound", SOUND_RISING_CHIME),
                     feedAlarmSound = v.optString("feedAlarmSound", SOUND_LOW_PULSE),
-                    alarmVolume = v.optDouble("alarmVolume", 0.85).coerceIn(VOLUME_MIN, VOLUME_MAX),
-                    alarmVibrate = v.optBoolean("alarmVibrate", true),
+                    cryAlarmVolume = v.optDouble("cryAlarmVolume", legacyVolume)
+                        .coerceIn(VOLUME_MIN, VOLUME_MAX),
+                    feedAlarmVolume = v.optDouble("feedAlarmVolume", legacyVolume)
+                        .coerceIn(VOLUME_MIN, VOLUME_MAX),
+                    cryAlarmVibrate = v.optBoolean("cryAlarmVibrate", legacyVibrate),
+                    feedAlarmVibrate = v.optBoolean("feedAlarmVibrate", legacyVibrate),
                 )
-                // Stored data can be old or hand-edited; never let the two alarms collide (ALRM-11).
-                settings.withSounds()
             } catch (_: Exception) {
                 Settings()
             }

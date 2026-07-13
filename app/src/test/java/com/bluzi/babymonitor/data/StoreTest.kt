@@ -173,10 +173,16 @@ class StoreTest {
 
     @Test
     fun `ALRM-4+6 a stored alarm volume of zero is floored — a silent alarm is not an alarm`() {
+        kv.put("settings_v1", """{"cryAlarmVolume":0.0,"feedAlarmVolume":0.0}""")
+        assertEquals(Settings.VOLUME_MIN, store.loadSettings().cryAlarmVolume, 1e-9)
+        assertEquals(Settings.VOLUME_MIN, store.loadSettings().feedAlarmVolume, 1e-9)
+        kv.put("settings_v1", """{"cryAlarmVolume":7.5,"feedAlarmVolume":7.5}""")
+        assertEquals(Settings.VOLUME_MAX, store.loadSettings().cryAlarmVolume, 1e-9)
+        assertEquals(Settings.VOLUME_MAX, store.loadSettings().feedAlarmVolume, 1e-9)
+        // A zero volume from an older version must be floored too, on both alarms.
         kv.put("settings_v1", """{"alarmVolume":0.0}""")
-        assertEquals(Settings.VOLUME_MIN, store.loadSettings().alarmVolume, 1e-9)
-        kv.put("settings_v1", """{"alarmVolume":7.5}""")
-        assertEquals(Settings.VOLUME_MAX, store.loadSettings().alarmVolume, 1e-9)
+        assertEquals(Settings.VOLUME_MIN, store.loadSettings().cryAlarmVolume, 1e-9)
+        assertEquals(Settings.VOLUME_MIN, store.loadSettings().feedAlarmVolume, 1e-9)
     }
 
     @Test

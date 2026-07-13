@@ -30,8 +30,8 @@ enum class AlarmKind { BABY_NOISE, FEED_DOWN }
 /**
  * ALRM-4 / ALRM-11 / ALRM-14 / WATCH-3: rings the alarm — on the ALARM audio stream, so it cuts
  * through a muted feed and media volume — until acknowledged from the app or the notification.
- * Each alarm kind has its own sound (never the same one) so a parent knows what happened by ear
- * before they can read the screen.
+ * Each alarm kind has its own sound, volume and vibrate setting, so a parent knows what happened
+ * by ear before they can read the screen.
  *
  * This class is the last link between a crying baby and a sleeping parent, so it is paranoid:
  *  - it never throws (a crash here would take monitoring down at the worst possible moment),
@@ -64,11 +64,13 @@ class AlarmRinger(
     fun ring(kind: AlarmKind, cameraName: String): Boolean {
         if (MonitorHub.activeAlarm.value != null || job?.isActive == true) return false
         val settings = MonitorHub.settings.value
-        val sound = when (kind) {
-            AlarmKind.BABY_NOISE -> settings.cryAlarmSound
-            AlarmKind.FEED_DOWN -> settings.feedAlarmSound
+        val (sound, volume, vibrate) = when (kind) {
+            AlarmKind.BABY_NOISE ->
+                Triple(settings.cryAlarmSound, settings.cryAlarmVolume, settings.cryAlarmVibrate)
+            AlarmKind.FEED_DOWN ->
+                Triple(settings.feedAlarmSound, settings.feedAlarmVolume, settings.feedAlarmVibrate)
         }
-        Log.w("service", "alarm ringing: $kind sound=$sound volume=${settings.alarmVolume}")
+        Log.w("service", "alarm ringing: $kind sound=$sound volume=$volume")
 
         // The sound IS the alarm; the notification is a convenience. Start the sound first, and let
         // nothing here throw: a throw after marking the alarm active would leave it "ringing" with
@@ -76,7 +78,7 @@ class AlarmRinger(
         raiseAlarmVolume()
         job = scope.launch {
             try {
-                playLoop(sound, settings.alarmVolume, settings.alarmVibrate, kind)
+                playLoop(sound, volume, vibrate, kind)
             } catch (e: CancellationException) {
                 throw e // acknowledge cancelling the sound is not a failure
             } catch (e: Throwable) {
@@ -107,15 +109,24 @@ class AlarmRinger(
     }
 
     /**
-     * ALRM-11: preview a sound from settings. Stops on its own; never counts as a real alarm.
-     * Returns the playing job (null if suppressed) so the service can tidy up after it.
+     * ALRM-11: preview a sound from settings — exactly what a real alarm of [kind] would do:
+     * the sound at that alarm's volume, vibrating if its vibrate option is on. Stops on its own;
+     * never counts as a real alarm. Returns the playing job (null if suppressed) so the service
+     * can tidy up after it.
      */
-    fun preview(sound: String, volume: Double): Job? {
+    fun preview(sound: String, volume: Double, vibrate: Boolean, kind: AlarmKind): Job? {
         if (MonitorHub.activeAlarm.value != null) return null // never talk over a real alarm
-        Log.i("service", "previewing alarm sound: $sound at volume $volume")
+        Log.i("service", "previewing alarm sound: $sound at volume $volume vibrate=$vibrate")
         return scope.launch {
-            runCatching { playOnce(sound, volume) }
-                .onFailure { Log.w("service", "could not preview $sound: ${it.message}", it) }
+            if (vibrate) startVibration(kind)
+            try {
+                runCatching { playOnce(sound, volume) }
+                    .onFailure { Log.w("service", "could not preview $sound: ${it.message}", it) }
+            } finally {
+                // A real alarm may have started mid-preview and own the vibrator now — never cut
+                // a real alarm's vibration short.
+                if (MonitorHub.activeAlarm.value == null) stopVibration()
+            }
         }
     }
 

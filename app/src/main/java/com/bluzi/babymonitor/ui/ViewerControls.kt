@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -64,11 +65,17 @@ fun viewerActions(
     onSettings: () -> Unit,
     onCameras: () -> Unit,
     onSignOut: () -> Unit,
+    onStop: () -> Unit,
 ): List<ViewerAction> = buildList {
     // APP-3/WATCH-11: a failed monitor keeps `running` true (the watchdog still guards), so it
     // needs its own Resume — the failure must be recoverable right here, not by reopening the app.
     if (!running || status == STATUS_MONITOR_FAILED) {
         add(ViewerAction(Icons.Filled.PlayArrow, "Resume", onClick = onResume))
+    }
+    // BG-11: a running service can be stopped right here — the notification must not be the only
+    // way. A failed monitor is still a running service (the watchdog guards), so it offers both.
+    if (running) {
+        add(ViewerAction(Icons.Filled.Stop, "Stop monitoring", onClick = onStop))
     }
     add(
         ViewerAction(
@@ -259,6 +266,18 @@ fun MonitorWarnings(warnings: List<MonitorWarning>) {
             }
         }
     }
+}
+
+/** BG-11 guard: a single stray tap must never stop the monitor — always confirm. */
+@Composable
+fun ConfirmStopDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Stop monitoring?") },
+        text = { Text("Audio and alarms stop until you start monitoring again.") },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Stop") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /** AUTH-10 guard: signing out forgets the account and camera — always confirm. */

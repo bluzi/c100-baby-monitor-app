@@ -11,6 +11,9 @@ before calling a release done. Each step names the criteria it verifies.
 3. **Notification (BG-2, BG-3):** while monitoring, check the persistent notification names the
    camera; tap it → live feed opens; use its Stop action → audio and connection stop and the
    notification clears.
+3b. **In-app stop (BG-11):** while live, tap the live feed's stop control — a confirmation
+    appears; cancel and nothing changes. Confirm — audio stops, the persistent notification
+    clears, the status reads stopped, and the resume control starts monitoring again.
 4. **Overnight reconnect (BG-6):** toggle the router's Wi-Fi (or the phone's) off/on while the
    screen is locked. Within a minute of Wi-Fi returning, audio resumes by itself.
 5. **Video resilience (LIVE-7):** cover/uncover works trivially; stronger check — switch cameras

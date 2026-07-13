@@ -107,6 +107,7 @@ fun ViewerScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showCameras by remember { mutableStateOf(false) }
     var showSignOut by remember { mutableStateOf(false) }
+    var showStop by remember { mutableStateOf(false) }
 
     // LIVE-10: night vision — the camera's own mode, read on open, written on change.
     var showNightVision by remember { mutableStateOf(false) }
@@ -259,6 +260,7 @@ fun ViewerScreen(
         onSettings = { showSettings = true },
         onCameras = { showCameras = true },
         onSignOut = { showSignOut = true },
+        onStop = { showStop = true; poke() },
     )
 
     val alarmBanner: (@Composable (Modifier) -> Unit)? = activeAlarm?.let { kind ->
@@ -403,6 +405,15 @@ fun ViewerScreen(
                     },
                 )
             },
+        )
+    }
+    if (showStop) { // BG-11
+        ConfirmStopDialog(
+            onConfirm = {
+                showStop = false
+                MonitorService.stop(context)
+            },
+            onDismiss = { showStop = false },
         )
     }
     if (showSignOut) {

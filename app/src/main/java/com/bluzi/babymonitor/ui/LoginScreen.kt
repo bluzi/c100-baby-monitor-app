@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -56,6 +57,7 @@ import com.bluzi.babymonitor.xiaomi.REGIONS
 import com.bluzi.babymonitor.xiaomi.Session
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -88,6 +90,17 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
     val usernameFocus = remember { FocusRequester() }
     val passwordFocus = remember { FocusRequester() }
     val codeFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    // AUTH-11: focus a field the moment its step appears. The step change also tears down the
+    // previously focused field, and that teardown's keyboard-hide lands *after* a requestFocus
+    // issued in the same frame — so wait the churn out, then focus and show the keyboard
+    // explicitly.
+    suspend fun focusWithKeyboard(target: FocusRequester) {
+        delay(150)
+        target.requestFocus()
+        keyboard?.show()
+    }
 
     fun handleResult(result: LoginResult) {
         when (result) {
@@ -163,7 +176,7 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                         .focusRequester(usernameFocus),
                 )
                 // AUTH-11: typing is the only thing to do here — start in the username field.
-                LaunchedEffect(Unit) { usernameFocus.requestFocus() }
+                LaunchedEffect(Unit) { focusWithKeyboard(usernameFocus) }
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
@@ -271,8 +284,10 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                         .fillMaxWidth()
                         .focusRequester(codeFocus),
                 )
-                // AUTH-11: the code is the only thing to type here — put the cursor in it.
-                LaunchedEffect(c) { codeFocus.requestFocus() }
+                // AUTH-11: the code is the only thing to type here — put the cursor in it. Keyed
+                // on [busy] too: submitting disables the field (dropping focus and keyboard), so
+                // a rejected code refocuses for the retry.
+                LaunchedEffect(c, busy) { if (!busy) focusWithKeyboard(codeFocus) }
                 Button(
                     onClick = { submit { c.submit(challengeCode.trim()) } },
                     enabled = !busy && challengeCode.isNotBlank(),

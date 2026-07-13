@@ -34,9 +34,9 @@ before calling a release done. Each step names the criteria it verifies.
 8a. **Autofocus (AUTH-11):** open the sign-in screen — the username field is already focused
     with the keyboard up. Sign in so Xiaomi demands a verification code — the code field is
     focused the same way, and typing immediately fills it.
-8b. **Version visible (LIVE-15):** with the controls shown, the live feed shows the app version
-    at the bottom; it matches the installed release's version. It hides and returns with the
-    controls.
+8b. **Version visible (LIVE-15):** open the live feed's top-right menu → About — the version
+    shown matches the installed release's. Switch camera and Sign out are in the same menu and
+    work from there (LIVE-9).
 9. **Ring-until-acknowledged (ALRM-4, ALRM-5):** trigger the noise alarm — the tone repeats for
    well over 30 s until Acknowledge is tapped in the app; trigger again and acknowledge from the
    notification action instead. After acknowledging, continued noise stays quiet for ~30 s.

@@ -45,8 +45,9 @@ state. Monitoring starts when the live feed opens and keeps running until explic
 - **LIVE-9** `[device]` The live feed is landscape only: opening it turns the display to
   landscape no matter how the phone is held, and leaving it lets the phone rotate freely again.
   The video fills the screen and the controls are icon buttons overlaying it in two rows —
-  status and level indicator along the top, buttons along the bottom. An unacknowledged alarm's
-  acknowledge control is always visible.
+  status and level indicator along the top, buttons along the bottom. Less-used actions —
+  switching camera, signing out, About — sit behind a menu at the top right instead of being
+  always-visible buttons. An unacknowledged alarm's acknowledge control is always visible.
 - **LIVE-11** `[device]` The controls are shown or hidden **only** by tapping the **video**: each
   tap toggles them. They never hide on their own — a parent watching the room is never made to
   tap to get them back. Tapping the controls themselves uses the control and never hides them:
@@ -58,9 +59,8 @@ state. Monitoring starts when the live feed opens and keeps running until explic
 - **LIVE-14** `[device]` While the live feed is on screen and the feed is live, the screen stays
   awake — watching the baby never ends in a sleeping screen. When the feed is not live (or the
   live feed is left), the screen may sleep normally again.
-- **LIVE-15** `[device]` While the controls are shown, the running app version is readable at
-  the bottom of the live feed — unobtrusive, but enough to tell at a glance whether an update
-  landed.
+- **LIVE-15** `[device]` The live feed's menu has an About entry that shows the running app
+  version — enough to tell at a glance whether an update landed.
 - **LIVE-10** `[device]` The live feed has a night-vision control offering the camera's three modes — off,
   auto, and on. It shows the camera's current mode (read when the feed opens) and, on change,
   sets the mode on the camera. Because the mode lives on the camera, it is shared by everyone

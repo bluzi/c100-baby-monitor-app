@@ -11,9 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
@@ -22,6 +21,8 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -29,6 +30,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -63,8 +68,6 @@ fun viewerActions(
     onResume: () -> Unit,
     onNightVision: () -> Unit,
     onSettings: () -> Unit,
-    onCameras: () -> Unit,
-    onSignOut: () -> Unit,
     onStop: () -> Unit,
 ): List<ViewerAction> = buildList {
     // APP-3/WATCH-11: a failed monitor keeps `running` true (the watchdog still guards), so it
@@ -94,8 +97,35 @@ fun viewerActions(
         ),
     )
     add(ViewerAction(Icons.Filled.Tune, "Alerts", onClick = onSettings))
-    add(ViewerAction(Icons.Filled.Cameraswitch, "Switch camera", onClick = onCameras))
-    add(ViewerAction(Icons.Filled.Logout, "Sign out", onClick = onSignOut))
+    // LIVE-9: switching camera, signing out, and About are rare — they live in the top-right
+    // menu (OverlayMenu), keeping the button row down to what a night actually needs.
+}
+
+/** LIVE-9: the less-used actions behind a top-right menu instead of always-visible buttons. */
+@Composable
+fun OverlayMenu(onCameras: () -> Unit, onSignOut: () -> Unit, onAbout: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "Menu", tint = Color.White)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Switch camera") }, onClick = { open = false; onCameras() })
+            DropdownMenuItem(text = { Text("Sign out") }, onClick = { open = false; onSignOut() })
+            DropdownMenuItem(text = { Text("About") }, onClick = { open = false; onAbout() })
+        }
+    }
+}
+
+/** LIVE-15: which build is running — the OTA pipeline makes "did the update land?" a real question. */
+@Composable
+fun AboutDialog(version: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Baby Monitor") },
+        text = { Text(if (version.isEmpty()) "Version unknown" else "Version $version") },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
 }
 
 @Composable

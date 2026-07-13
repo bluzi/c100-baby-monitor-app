@@ -17,8 +17,6 @@ class ViewerActionsTest {
         onResume = {},
         onNightVision = {},
         onSettings = {},
-        onCameras = {},
-        onSignOut = {},
         onStop = {},
     )
 

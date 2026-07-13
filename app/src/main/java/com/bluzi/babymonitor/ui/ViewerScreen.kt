@@ -27,12 +27,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -108,6 +108,7 @@ fun ViewerScreen(
     var showCameras by remember { mutableStateOf(false) }
     var showSignOut by remember { mutableStateOf(false) }
     var showStop by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
 
     // LIVE-10: night vision — the camera's own mode, read on open, written on change.
     var showNightVision by remember { mutableStateOf(false) }
@@ -258,8 +259,6 @@ fun ViewerScreen(
         onResume = { MonitorService.start(context); poke() },
         onNightVision = { showNightVision = true; poke() },
         onSettings = { showSettings = true },
-        onCameras = { showCameras = true },
-        onSignOut = { showSignOut = true },
         onStop = { showStop = true; poke() },
     )
 
@@ -370,7 +369,14 @@ fun ViewerScreen(
     ViewerContent(
         cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
         actions, banner, notice,
-        controlsVisible, videoSurface, appVersion,
+        controlsVisible, videoSurface,
+        menu = {
+            OverlayMenu(
+                onCameras = { showCameras = true },
+                onSignOut = { showSignOut = true },
+                onAbout = { showAbout = true },
+            )
+        },
         onToggleControls = ::toggleControls, onPoke = ::poke,
     )
 
@@ -406,6 +412,9 @@ fun ViewerScreen(
                 )
             },
         )
+    }
+    if (showAbout) { // LIVE-15
+        AboutDialog(version = appVersion, onDismiss = { showAbout = false })
     }
     if (showStop) { // BG-11
         ConfirmStopDialog(
@@ -455,9 +464,9 @@ fun ViewerScreen(
 }
 
 /**
- * The live feed is landscape only (LIVE-9): video fills the screen; status + level overlay the
- * top, buttons + version the bottom, both toggled by tapping the video. The alarm banner is
- * exempt and stays put.
+ * The live feed is landscape only (LIVE-9): video fills the screen; status + level and the
+ * overflow menu overlay the top, buttons the bottom, both toggled by tapping the video. The
+ * alarm banner is exempt and stays put.
  */
 @Composable
 private fun ViewerContent(
@@ -472,7 +481,7 @@ private fun ViewerContent(
     notice: (@Composable () -> Unit)?,
     controlsVisible: Boolean,
     videoSurface: @Composable (Modifier) -> Unit,
-    appVersion: String,
+    menu: @Composable () -> Unit,
     onToggleControls: () -> Unit,
     onPoke: () -> Unit,
 ) {
@@ -509,12 +518,17 @@ private fun ViewerContent(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Column {
-                    StatusAndLevel(
-                        cameraName, status, muted, level,
-                        thresholdDb = thresholdDb,
-                        alarmArmed = alarmArmed,
-                        onOverlay = true,
-                    )
+                    Row {
+                        Box(Modifier.weight(1f)) {
+                            StatusAndLevel(
+                                cameraName, status, muted, level,
+                                thresholdDb = thresholdDb,
+                                alarmArmed = alarmArmed,
+                                onOverlay = true,
+                            )
+                        }
+                        menu()
+                    }
                     notice?.invoke()
                 }
             }
@@ -536,17 +550,7 @@ private fun ViewerContent(
                     )
                     .safeDrawingPadding(),
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButtonRow(actions, Modifier.fillMaxWidth().padding(vertical = 4.dp))
-                    if (appVersion.isNotEmpty()) { // LIVE-15
-                        Text(
-                            "v$appVersion",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                    }
-                }
+                IconButtonRow(actions, Modifier.fillMaxWidth().padding(vertical = 4.dp))
             }
         }
         // The alarm banner (or the post-alarm question) is always visible and never auto-hides (LIVE-9).

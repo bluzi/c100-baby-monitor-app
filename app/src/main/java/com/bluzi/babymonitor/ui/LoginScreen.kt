@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,7 +59,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// AUTH-1..AUTH-4, AUTH-9: Mi account sign-in with captcha and 2FA continuations.
+// AUTH-1..AUTH-4, AUTH-9, AUTH-11: Mi account sign-in with captcha and 2FA continuations.
 
 private val REGION_NAMES = mapOf(
     "cn" to "China",
@@ -84,7 +85,9 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var challenge by remember { mutableStateOf<LoginResult?>(null) }
     var challengeCode by remember { mutableStateOf("") }
+    val usernameFocus = remember { FocusRequester() }
     val passwordFocus = remember { FocusRequester() }
+    val codeFocus = remember { FocusRequester() }
 
     fun handleResult(result: LoginResult) {
         when (result) {
@@ -155,8 +158,12 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                         imeAction = ImeAction.Next,
                     ),
                     keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() }),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(usernameFocus),
                 )
+                // AUTH-11: typing is the only thing to do here — start in the username field.
+                LaunchedEffect(Unit) { usernameFocus.requestFocus() }
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
@@ -260,8 +267,12 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                     keyboardActions = KeyboardActions(onDone = {
                         if (!busy && challengeCode.isNotBlank()) submit { c.submit(challengeCode.trim()) }
                     }),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(codeFocus),
                 )
+                // AUTH-11: the code is the only thing to type here — put the cursor in it.
+                LaunchedEffect(c) { codeFocus.requestFocus() }
                 Button(
                     onClick = { submit { c.submit(challengeCode.trim()) } },
                     enabled = !busy && challengeCode.isNotBlank(),

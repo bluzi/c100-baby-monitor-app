@@ -11,6 +11,9 @@ session persists and refreshes itself.
   the entered code; a rejected code yields a fresh captcha to retry, not a failure.
 - **AUTH-4** When Xiaomi demands two-factor verification, the app says where the code was sent
   (masked phone number or email) and completes login with the submitted code.
+- **AUTH-11** `[device]` Sign-in never asks for a tap before typing: the credentials screen opens
+  with the username field already focused, and the two-factor step with its code field already
+  focused — keyboard up, ready to type straight away.
 - **AUTH-5** A successful sign-in is persisted: relaunching the app (including after force-stop)
   does not ask for credentials.
 - **AUTH-6** Persisted session tokens are stored encrypted, never in plain text.

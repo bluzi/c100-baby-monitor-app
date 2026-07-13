@@ -28,6 +28,9 @@ before calling a release done. Each step names the criteria it verifies.
    and server region; the camera picker lists each camera with its name and model. With the
    keyboard open on the sign-in screen, the focused field and the Sign in button stay visible;
    the keyboard's action key moves username → password and submits from the password field.
+8a. **Autofocus (AUTH-11):** open the sign-in screen — the username field is already focused
+    with the keyboard up. Sign in so Xiaomi demands a verification code — the code field is
+    focused the same way, and typing immediately fills it.
 8b. **Version visible (LIVE-15):** with the controls shown, the live feed shows the app version
     at the bottom; it matches the installed release's version. It hides and returns with the
     controls.

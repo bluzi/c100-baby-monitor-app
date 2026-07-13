@@ -28,8 +28,9 @@ before calling a release done. Each step names the criteria it verifies.
    and server region; the camera picker lists each camera with its name and model. With the
    keyboard open on the sign-in screen, the focused field and the Sign in button stay visible;
    the keyboard's action key moves username → password and submits from the password field.
-8b. **Version visible (LIVE-15):** in portrait, the live feed shows the app version at the
-    bottom; it matches the installed release's version.
+8b. **Version visible (LIVE-15):** with the controls shown, the live feed shows the app version
+    at the bottom; it matches the installed release's version. It hides and returns with the
+    controls.
 9. **Ring-until-acknowledged (ALRM-4, ALRM-5):** trigger the noise alarm — the tone repeats for
    well over 30 s until Acknowledge is tapped in the app; trigger again and acknowledge from the
    notification action instead. After acknowledging, continued noise stays quiet for ~30 s.
@@ -43,11 +44,13 @@ before calling a release done. Each step names the criteria it verifies.
     crying alarm on with the feed still dead — the watchdog alarm rings within a couple of
     seconds. Then schedule the crying alarm out of hours and kill Wi-Fi again — silent; move the
     window start to a minute from now — the alarm rings when the window opens.
-11. **Landscape overlay (LIVE-9, LIVE-11):** rotate to landscape — video fills the screen, status +
-    level on top, icon buttons at the bottom. They stay put: wait a minute and they are still
-    there. Tap the **video** — they hide (system bars with them); tap it again — they come back.
-    Tap the status row or a button — they never hide under your finger. Rotate back — controls sit
-    below the video again.
+11. **Landscape only + overlay (LIVE-9, LIVE-11):** open the live feed holding the phone
+    upright — the display is landscape anyway; rotate the phone every which way — it stays
+    landscape (flipping between the two landscape directions is fine). Video fills the screen,
+    status + level on top, icon buttons at the bottom. They stay put: wait a minute and they are
+    still there. Tap the **video** — they hide (system bars with them); tap it again — they come
+    back. Tap the status row or a button — they never hide under your finger. Sign out — the
+    sign-in screen rotates freely again.
 12. **Lock screen (BG-7):** while monitoring, lock the phone and tap the monitoring
     notification (or the launcher icon) — the live feed shows without unlocking.
 13. **Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,

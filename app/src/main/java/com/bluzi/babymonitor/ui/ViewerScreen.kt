@@ -5,7 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
-import android.content.res.Configuration
+import android.content.pm.ActivityInfo
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -25,11 +25,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -52,7 +49,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
@@ -128,14 +124,17 @@ fun ViewerScreen(
         }
     }
 
-    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // LIVE-9: the live feed is landscape only — lock while this screen shows, release on leave.
+    // SENSOR_LANDSCAPE, not LANDSCAPE: whichever way the phone is held at 3am is the right way.
+    DisposableEffect(Unit) {
+        val activity = context.findActivity()
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
 
-    // LIVE-11: in landscape the controls are toggled by tapping the VIDEO, and by nothing else.
+    // LIVE-11: the controls are toggled by tapping the VIDEO, and by nothing else.
     // They never hide on their own — watching the room should not cost you a tap to get them back.
     var controlsVisible by remember { mutableStateOf(true) }
-    LaunchedEffect(landscape) {
-        if (!landscape) controlsVisible = true // portrait always shows them
-    }
 
     /** A tap on the video (LIVE-11): show the controls if hidden, hide them if shown. */
     fun toggleControls() {
@@ -147,13 +146,13 @@ fun ViewerScreen(
         controlsVisible = true
     }
 
-    // LIVE-9: in landscape the system bars hide with the controls (video truly fills the screen).
+    // LIVE-9: the system bars hide with the controls (video truly fills the screen).
     val view = LocalView.current
-    LaunchedEffect(landscape, controlsVisible) {
+    LaunchedEffect(controlsVisible) {
         val window = view.context.findActivity()?.window ?: return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(window, view)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        if (landscape && !controlsVisible) {
+        if (!controlsVisible) {
             controller.hide(WindowInsetsCompat.Type.systemBars())
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
@@ -366,18 +365,12 @@ fun ViewerScreen(
             .getOrNull().orEmpty()
     }
 
-    if (landscape) {
-        LandscapeViewer(
-            cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
-            actions, banner, notice,
-            controlsVisible, videoSurface, onToggleControls = ::toggleControls, onPoke = ::poke,
-        )
-    } else {
-        PortraitViewer(
-            cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
-            actions, banner, notice, videoSurface, appVersion,
-        )
-    }
+    ViewerContent(
+        cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
+        actions, banner, notice,
+        controlsVisible, videoSurface, appVersion,
+        onToggleControls = ::toggleControls, onPoke = ::poke,
+    )
 
     if (showSettings) {
         SettingsDialog(
@@ -450,54 +443,13 @@ fun ViewerScreen(
     }
 }
 
-/** Portrait: video on top, everything else stacked below it (LIVE-9). */
-@Composable
-private fun PortraitViewer(
-    cameraName: String,
-    status: String,
-    muted: Boolean,
-    level: Float,
-    thresholdDb: Float,
-    alarmArmed: Boolean,
-    actions: List<ViewerAction>,
-    banner: (@Composable (Modifier) -> Unit)?,
-    notice: (@Composable () -> Unit)?,
-    videoSurface: @Composable (Modifier) -> Unit,
-    appVersion: String,
-) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
-            videoSurface(Modifier.fillMaxSize())
-        }
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            banner?.invoke(Modifier)
-            StatusAndLevel(
-                cameraName, status, muted, level,
-                thresholdDb = thresholdDb,
-                alarmArmed = alarmArmed,
-                onOverlay = false,
-            )
-            notice?.invoke()
-            IconButtonRow(actions, Modifier.fillMaxWidth())
-        }
-        if (appVersion.isNotEmpty()) { // LIVE-15
-            Spacer(Modifier.weight(1f))
-            Text(
-                "v$appVersion",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp),
-            )
-        }
-    }
-}
-
 /**
- * Landscape: video fills the screen; status + level overlay the top, buttons the bottom, both
- * auto-hiding. The alarm banner overrides auto-hide and stays put (LIVE-9).
+ * The live feed is landscape only (LIVE-9): video fills the screen; status + level overlay the
+ * top, buttons + version the bottom, both toggled by tapping the video. The alarm banner is
+ * exempt and stays put.
  */
 @Composable
-private fun LandscapeViewer(
+private fun ViewerContent(
     cameraName: String,
     status: String,
     muted: Boolean,
@@ -509,6 +461,7 @@ private fun LandscapeViewer(
     notice: (@Composable () -> Unit)?,
     controlsVisible: Boolean,
     videoSurface: @Composable (Modifier) -> Unit,
+    appVersion: String,
     onToggleControls: () -> Unit,
     onPoke: () -> Unit,
 ) {
@@ -572,7 +525,17 @@ private fun LandscapeViewer(
                     )
                     .safeDrawingPadding(),
             ) {
-                IconButtonRow(actions, Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButtonRow(actions, Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                    if (appVersion.isNotEmpty()) { // LIVE-15
+                        Text(
+                            "v$appVersion",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
+                }
             }
         }
         // The alarm banner (or the post-alarm question) is always visible and never auto-hides (LIVE-9).

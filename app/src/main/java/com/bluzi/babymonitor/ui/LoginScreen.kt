@@ -3,7 +3,9 @@ package com.bluzi.babymonitor.ui
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,11 +15,14 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -49,6 +54,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.bluzi.babymonitor.log.Log
 import com.bluzi.babymonitor.net.JavaMiHttp
 import com.bluzi.babymonitor.xiaomi.LoginResult
@@ -149,6 +155,19 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Fields and primary buttons share one width, capped so landscape doesn't stretch them.
+        val fieldWidth = Modifier.widthIn(max = 400.dp).fillMaxWidth()
+        Box(
+            Modifier.size(72.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.ChildCare,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp),
+            )
+        }
         Text("Baby Monitor", style = MaterialTheme.typography.headlineMedium)
         Text(
             "Sign in with the Xiaomi account that owns the camera",
@@ -171,9 +190,7 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                         imeAction = ImeAction.Next,
                     ),
                     keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(usernameFocus),
+                    modifier = fieldWidth.focusRequester(usernameFocus),
                 )
                 // AUTH-11: typing is the only thing to do here — start in the username field.
                 LaunchedEffect(Unit) { focusWithKeyboard(usernameFocus) }
@@ -201,22 +218,30 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                         imeAction = ImeAction.Go,
                     ),
                     keyboardActions = KeyboardActions(onGo = { submitCredentials() }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(passwordFocus),
+                    modifier = fieldWidth.focusRequester(passwordFocus),
                 )
-                OutlinedButton(onClick = { regionMenu = true }, enabled = !busy) {
-                    Text("Server region: ${regionLabel(region)}")
-                }
-                DropdownMenu(expanded = regionMenu, onDismissRequest = { regionMenu = false }) {
-                    for (r in REGIONS) {
-                        DropdownMenuItem(
-                            text = { Text(regionLabel(r)) },
-                            onClick = {
-                                region = r
-                                regionMenu = false
-                            },
-                        )
+                // The menu lives in a Box with its button: as a bare Column child it would both
+                // anchor to the whole column and add a phantom row to spacedBy while open.
+                Box {
+                    OutlinedButton(onClick = { regionMenu = true }, enabled = !busy) {
+                        Text("Server region: ${regionLabel(region)}")
+                    }
+                    DropdownMenu(
+                        expanded = regionMenu,
+                        onDismissRequest = { regionMenu = false },
+                        // Non-focusable: picking a region mid-typing must not steal focus from
+                        // the field and collapse the keyboard. Taps still work without focus.
+                        properties = PopupProperties(focusable = false),
+                    ) {
+                        for (r in REGIONS) {
+                            DropdownMenuItem(
+                                text = { Text(regionLabel(r)) },
+                                onClick = {
+                                    region = r
+                                    regionMenu = false
+                                },
+                            )
+                        }
                     }
                 }
                 Text(
@@ -227,7 +252,7 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                 Button(
                     onClick = ::submitCredentials,
                     enabled = !busy && username.isNotBlank() && password.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = fieldWidth.height(52.dp),
                 ) {
                     Text(if (busy) "Signing in…" else "Sign in")
                 }
@@ -256,11 +281,12 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                     keyboardActions = KeyboardActions(onDone = {
                         if (!busy && challengeCode.isNotBlank()) submit { c.submit(challengeCode.trim()) }
                     }),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = fieldWidth,
                 )
                 Button(
                     onClick = { submit { c.submit(challengeCode.trim()) } },
                     enabled = !busy && challengeCode.isNotBlank(),
+                    modifier = fieldWidth.height(52.dp),
                 ) { Text("Continue") }
                 TextButton(onClick = { challenge = null }, enabled = !busy) { Text("Start over") }
             }
@@ -280,9 +306,7 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                     keyboardActions = KeyboardActions(onDone = {
                         if (!busy && challengeCode.isNotBlank()) submit { c.submit(challengeCode.trim()) }
                     }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(codeFocus),
+                    modifier = fieldWidth.focusRequester(codeFocus),
                 )
                 // AUTH-11: the code is the only thing to type here — put the cursor in it. Keyed
                 // on [busy] too: submitting disables the field (dropping focus and keyboard), so
@@ -291,6 +315,7 @@ fun LoginScreen(notice: String?, onLoggedIn: (Session) -> Unit) {
                 Button(
                     onClick = { submit { c.submit(challengeCode.trim()) } },
                     enabled = !busy && challengeCode.isNotBlank(),
+                    modifier = fieldWidth.height(52.dp),
                 ) { Text("Verify") }
                 TextButton(onClick = { challenge = null }, enabled = !busy) { Text("Start over") }
             }

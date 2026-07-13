@@ -9,15 +9,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,8 +55,15 @@ import kotlin.math.roundToInt
 // Locale.ROOT everywhere: the app is English-only (UI-2) — digits must not localise either.
 private fun fmtTime(minutes: Int): String = "%02d:%02d".format(Locale.ROOT, minutes / 60, minutes % 60)
 
+/** A section heading; [first] skips the divider that separates a section from the previous one. */
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(text: String, first: Boolean = false) {
+    if (!first) {
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
     Text(
         text,
         style = MaterialTheme.typography.labelLarge,
@@ -108,7 +120,7 @@ fun SettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 // --- Crying alarm --------------------------------------------------
-                SectionLabel("Crying alarm")
+                SectionLabel("Crying alarm", first = true)
                 ToggleRow("Alarm when the baby cries", alarmOn) { // ALRM-1
                     onChange(settings.copy(alarmEnabled = it))
                 }
@@ -388,7 +400,11 @@ private fun TimeStepper(label: String, minutes: Int, enabled: Boolean, onChange:
             color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurfaceVariant),
             modifier = Modifier.width(48.dp),
         )
-        TextButton(onClick = { onChange((minutes - 30 + 1440) % 1440) }, enabled = enabled) { Text("−") }
+        FilledTonalIconButton(
+            onClick = { onChange((minutes - 30 + 1440) % 1440) },
+            enabled = enabled,
+            modifier = Modifier.size(36.dp),
+        ) { Icon(Icons.Filled.Remove, contentDescription = "$label: 30 minutes earlier") }
         Text(
             fmtTime(minutes),
             style = MaterialTheme.typography.titleMedium,
@@ -396,6 +412,10 @@ private fun TimeStepper(label: String, minutes: Int, enabled: Boolean, onChange:
             color = dimmedIf(!enabled, MaterialTheme.colorScheme.onSurface),
             modifier = Modifier.width(64.dp),
         )
-        TextButton(onClick = { onChange((minutes + 30) % 1440) }, enabled = enabled) { Text("+") }
+        FilledTonalIconButton(
+            onClick = { onChange((minutes + 30) % 1440) },
+            enabled = enabled,
+            modifier = Modifier.size(36.dp),
+        ) { Icon(Icons.Filled.Add, contentDescription = "$label: 30 minutes later") }
     }
 }

@@ -285,7 +285,7 @@ fun MonitorWarnings(warnings: List<MonitorWarning>) {
                 Modifier
                     .fillMaxWidth()
                     .clickable(onClick = warning.onClick)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

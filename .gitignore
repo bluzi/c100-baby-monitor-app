@@ -11,3 +11,9 @@ captures/
 *.jks
 secrets/
 .DS_Store
+
+# Local AI/editor tooling configs (argent init artifacts — machine-specific)
+.claude/
+.codex/
+.mcp.json
+.vscode/

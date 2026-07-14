@@ -55,6 +55,28 @@ extension View {
 
 // MARK: - Controls
 
+/// **Every glyph on the control bar is drawn by this one view.**
+///
+/// It exists because they drifted: the buttons drew their symbol one way and the two *menus* —
+/// night vision and the overflow — drew theirs another, and the moon came out visibly smaller and
+/// thinner than the speaker beside it. A row of controls that are not the same size does not read
+/// as a row of controls; it reads as a mistake. One glyph, one size, everywhere.
+///
+/// `.symbolVariant(.fill)` is part of that: SF Symbols' outline and filled forms have different
+/// optical weights, and a bar that mixes them looks mixed however carefully each one is sized.
+struct ControlGlyph: View {
+    let symbol: String
+
+    var body: some View {
+        Image(systemName: symbol)
+            .symbolVariant(.fill)
+            .symbolRenderingMode(.hierarchical)
+            .font(.system(size: 15, weight: .semibold))
+            .imageScale(.medium)
+            .frame(width: 34, height: 34)
+    }
+}
+
 /// One icon control on the glass bar. `latched` is not decoration: LIVE-2 requires that "muted"
 /// can never be misread as "press to mute", so the engaged state is a filled, tinted well — a
 /// changed glyph is never the only clue.
@@ -69,11 +91,8 @@ struct ControlButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
+            ControlGlyph(symbol: symbol)
                 .foregroundStyle(latched ? AnyShapeStyle(.white) : AnyShapeStyle(tint))
-                .frame(width: 34, height: 34)
                 .background {
                     Circle()
                         .fill(latched ? AnyShapeStyle(Color.red.opacity(0.9))
@@ -82,6 +101,33 @@ struct ControlButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(label)
+        .accessibilityLabel(label)
+    }
+}
+
+/// The same glyph, on a menu instead of a button — night vision and the overflow. A menu is still
+/// a control on that bar, and must look like one.
+struct ControlMenu<Content: View>: View {
+    let symbol: String
+    let label: String
+    @ViewBuilder var content: Content
+
+    @State private var hovering = false
+
+    var body: some View {
+        Menu {
+            content
+        } label: {
+            ControlGlyph(symbol: symbol)
+                .background(Circle().fill(Color.white.opacity(hovering ? 0.16 : 0)))
+                .contentShape(Circle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .frame(width: 34, height: 34)
         .onHover { hovering = $0 }
         .help(label)
         .accessibilityLabel(label)

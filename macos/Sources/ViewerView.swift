@@ -175,21 +175,12 @@ struct ViewerChrome: View {
     }
 
     private var moreMenu: some View {
-        Menu {
+        ControlMenu(symbol: "ellipsis", label: "More") {
             Button("Switch Camera…") { state.switchCamera() }
             Button("Sign Out") { state.signOut() }
             Divider()
             Text("Baby Monitor \(AppDelegate.version)") // LIVE-15 / UPD-6
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 34, height: 34)
-                .contentShape(Circle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .frame(width: 34)
-        .help("More")
     }
 }
 
@@ -200,16 +191,19 @@ struct NightVisionControl: View {
     @State private var mode: String?
     @State private var error: String?
 
+    /// The camera's current mode, at a glance. All three are filled forms, so the moon carries the
+    /// same weight as the speaker next to it.
     private var symbol: String {
         switch mode {
         case "ON": return "moon.fill"
-        case "AUTO": return "moon.stars"
-        default: return "moon"
+        case "AUTO": return "moon.stars.fill"
+        case "OFF": return "moon.slash.fill"
+        default: return "moon.fill" // not read yet
         }
     }
 
     var body: some View {
-        Menu {
+        ControlMenu(symbol: symbol, label: "Night vision") {
             Picker("Night vision", selection: Binding(get: { mode ?? "AUTO" }, set: set)) {
                 Text("Off").tag("OFF")
                 Text("Auto").tag("AUTO")
@@ -220,17 +214,7 @@ struct NightVisionControl: View {
                 Divider()
                 Text(error)
             }
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 34, height: 34)
-                .contentShape(Circle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .frame(width: 34)
-        .help("Night vision")
-        .accessibilityLabel("Night vision")
         .onAppear {
             BabyMonitor.shared.nightVision { value, message in
                 mode = value

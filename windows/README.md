@@ -62,6 +62,12 @@ monitor ends up in a startup list its owner never chose. Uninstalling leaves
 `%LOCALAPPDATA%\BabyMonitor` alone — the session, the settings and the learned alarm tuning are not
 something an uninstall-to-reinstall-a-fix should cost a parent.
 
+**The setup is unsigned, so the first install hits SmartScreen** ("Windows protected your PC" →
+*More info* → *Run anyway*). Only the first install: every update after it is a file swap the app does
+to itself, with no installer and no prompt (UPD-10). A parent who backs out of that dialog has no
+monitor, so it is worth saying plainly wherever the app is handed out — and worth an Authenticode
+certificate if one is ever available (the Mac's first install is notarized for exactly this reason).
+
 The core and its tests need nothing but the .NET SDK, and they run anywhere:
 
 ```bash

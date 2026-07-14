@@ -5,6 +5,7 @@ on:
   pull_request:
 
 jobs:
+  # The shared Kotlin monitor: the phone's and the Mac's.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -19,3 +20,35 @@ jobs:
 
       - name: Lint and unit tests
         run: ./gradlew check
+
+  # The Windows port of that same monitor, held to the same evidence: the same interop vectors and the
+  # same spec suite, criterion for criterion. It needs no Windows to prove it — the core is plain
+  # net8.0 — so it runs on the cheap runner, and a change that breaks the monitor on the PC alone
+  # cannot go green.
+  windows-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Run the spec suite against the Windows port
+        run: dotnet test windows/tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj --nologo
+
+  # The shell itself, which does need Windows. It only has to compile: what it *does* is verified by
+  # the spec suite above (the decisions are all in the core) and by the device checklist.
+  windows-app:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build the Windows app
+        run: >
+          dotnet build windows/src/BabyMonitor.App/BabyMonitor.App.csproj
+          --configuration Release -p:Platform=x64 --nologo

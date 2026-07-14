@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    THE MONITOR, in C#.
+
+    This is a port of the Kotlin core (../../../core), not a rewrite: Windows cannot consume the
+    Kotlin Multiplatform framework, so the protocol, the engine and every decision they make had to
+    be written again. Two implementations of one monitor is a real risk — they can disagree — so the
+    mitigation is not care, it is evidence:
+
+      * the SAME interop vectors (core/protocol-vectors.json, generated from the proven c100
+        implementation) pin the wire, byte for byte;
+      * the SAME spec suite runs against this port, criterion for criterion (BabyMonitor.Core.Tests).
+
+    It deliberately targets plain net8.0, with nothing Windows-specific in it — so the whole monitor
+    builds and its tests run on any machine, including the Mac this was written on. Everything that
+    needs Windows (WASAPI, Media Foundation, the tray, DPAPI) lives behind an interface here and is
+    implemented in BabyMonitor.App.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AssemblyName>BabyMonitor.Core</AssemblyName>
+    <RootNamespace>BabyMonitor.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The camera speaks Opus and .NET decodes nothing. Concentus is a managed port of libopus —
+         the same codec the phone and the Mac use, on the audio path that feeds the crying alarm. -->
+    <PackageReference Include="Concentus" Version="1.1.7" />
+  </ItemGroup>
+
+</Project>

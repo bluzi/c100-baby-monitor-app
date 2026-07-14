@@ -14,8 +14,16 @@ having; a simpler design that is easier to trust usually is.
 
 A spec-driven monorepo: **one monitor, several shells.** Log in to Mi Cloud, pick a camera, get its
 live video + audio — with the audio (and a configurable crying alarm) kept alive in the background.
-Today it ships on **Android** (Kotlin + Compose) and **macOS** (Swift + AppKit). Windows and iOS are
-expected to follow, and the architecture exists so that they are shells and nothing more.
+Today it ships on **Android** (Kotlin + Compose), **macOS** (Swift + AppKit) and **Windows** (C# +
+WinUI 3). iOS is expected to follow, and the architecture exists so that it is a shell and nothing
+more.
+
+**Windows is the exception that proves the rule.** It cannot consume the Kotlin Multiplatform core,
+so the monitor is *written twice*: `core/` in Kotlin, `windows/src/BabyMonitor.Core/` in C#. Two
+implementations of one baby monitor is a genuine risk — a disagreement here is a missed cry — so the
+port is not held together by care, it is held together by evidence: **the same interop vectors** pin
+the wire byte for byte, and **the same spec suite** runs against both, criterion for criterion. If
+you change behaviour, change the spec, then change *both* suites.
 
 ## Spec-driven workflow — READ FIRST
 
@@ -50,13 +58,15 @@ implementation structure, and specs describe *what*, never *how*. There is delib
 spec": the core has no user-visible behavior of its own. Its behavior *is* the feature specs.
 
 - **Untagged criteria are universal**, and their tests live in `core`'s common test source set — so
-  they run on the JVM *and* on Kotlin/Native. "Both apps behave the same" is executed twice, not
-  asserted in prose. This is the whole reason the spec is shared.
-- **`[android]` / `[macos]`** tag a criterion that genuinely differs in *behavior*, not in
-  implementation. Its test lives in that platform's source set (or the device checklist).
-- A whole platform-only *surface* gets its own feature spec (`macos-shell.spec.md`), rather than
-  turning a shared spec into "on Android X, on macOS Y" soup. **Smell test:** if most of a feature
-  spec's criteria are tagged, it is not one feature — it is two, and it should split.
+  they run on the JVM *and* on Kotlin/Native — **and again** in the Windows port's suite
+  (`windows/tests/`). "The apps behave the same" is executed three times, not asserted in prose. This
+  is the whole reason the spec is shared.
+- **`[android]` / `[macos]` / `[windows]`** tag a criterion that genuinely differs in *behavior*, not
+  in implementation. Its test lives in that platform's source set (or the device checklist).
+- A whole platform-only *surface* gets its own feature spec (`macos-shell.spec.md`,
+  `windows-shell.spec.md`), rather than turning a shared spec into "on Android X, on macOS Y" soup.
+  **Smell test:** if most of a feature spec's criteria are tagged, it is not one feature — it is two,
+  and it should split.
 
 **A capability gap is behavior, not an omission.** When one platform can do something another
 cannot, the weaker platform does not go quiet about it. Every guarantee the app makes on one
@@ -81,10 +91,17 @@ Gradle is the task runner for the shared core and the Android app; the macOS app
 | Build the macOS app | `./macos/build.sh [debug\|release]` |
 | Run the macOS app | `./macos/run.sh` |
 | Look at a macOS screen without a camera | `BM_UI_PREVIEW=viewer ./macos/build/BabyMonitor.app/Contents/MacOS/BabyMonitor` |
+| **The Windows monitor's spec suite** (runs anywhere) | `dotnet test windows/tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj` |
+| Build + run the Windows app (on Windows) | `.\windows\build.ps1 -Run` |
 
 `./gradlew check` must be green before anything is considered done. It runs the core's tests on
 **both** the JVM and Kotlin/Native — a change that breaks the monitor on macOS alone cannot go
 green, which is the point.
+
+**The Windows suite is the other half of that sentence**, and it needs no Windows: `windows/`'s core
+is plain `net8.0` with no Windows API in it, so `dotnet test` runs it on a Mac, on Linux, anywhere.
+Run it alongside `./gradlew check` whenever you touch shared behaviour — a change that breaks the
+monitor on the PC alone must not be able to go green either.
 
 `runEmulator` / `runPhone` target the device via `adb -e` / `adb -d`, so both can be connected at
 once. Start an emulator first with `emulator -avd <name>` (or through Argent tools).
@@ -130,8 +147,11 @@ actually checked rather than assumed.
 ## Releasing
 
 - **Every push to `main` is a release**, and the workflows are path-filtered: a change under
-  `android/` releases the phone app, a change under `macos/` releases the Mac app, and a change
-  under `core/` releases **both** — because it changed both.
+  `android/` releases the phone app, a change under `macos/` releases the Mac app, a change under
+  `windows/` releases the PC app, and a change under `core/` releases the phone **and** the Mac —
+  because it changed both. (`core/` does not release Windows: Windows carries its own port of the
+  monitor. But `core/protocol-vectors.json` does, because it is the one file both ports are measured
+  against.)
 - Version is shared: `versionCode` = commit count on main, `versionName = 0.1.<versionCode>`.
 - **Android:** signed APK published as GitHub Release `v0.1.<n>`. Keep **exactly one `.apk` asset
   per release** — Obtainium needs to resolve a single APK or silent background updates stop working.
@@ -146,6 +166,12 @@ actually checked rather than assumed.
   `BM_KEY_ALIAS`.
 - **macOS:** a zipped `.app` plus its SHA-256, published to the same release. The app updates
   itself (see `spec/features/updates.spec.md`).
+- **Windows:** a zipped, self-contained app folder plus its SHA-256 in **`checksums-windows.txt`** —
+  its own file, deliberately: the macOS and Windows jobs run at the same time, and appending to one
+  shared `checksums.txt` would be a race whose loser ships a build with no checksum, which its own
+  updater would then refuse to install (UPD-3). The app updates itself, and because Windows will not
+  let a running program overwrite itself, the swap is performed **by the new version**: the old one
+  starts it with `--apply-update`, then exits.
 - **The updater never restarts a running monitor.** It downloads, verifies, and waits for
   monitoring to stop. A monitor that relaunches itself at 3am is the failure this project exists to
   prevent — this is why we do not use Sparkle, whose model is "download and relaunch".
@@ -154,7 +180,7 @@ actually checked rather than assumed.
 
 ```
 spec/                 Source of truth (behavior). app.spec.md + features/*.spec.md
-  device-checklist.md Manual verification for [device] criteria (Android + macOS sections)
+  device-checklist.md Manual verification for [device] criteria (Android + macOS + Windows)
 
 core/                 THE MONITOR. Kotlin Multiplatform: JVM (Android) + Kotlin/Native (macOS).
   commonMain/           xiaomi/  Mi Cloud + camera protocol, crypto (pure Kotlin), JSON shim
@@ -169,11 +195,23 @@ core/                 THE MONITOR. Kotlin Multiplatform: JVM (Android) + Kotlin/
   protocol-vectors.json Interop vectors from the proven c100 TS impl; compiled into the tests
 
 brand/                THE APP ICON, for every platform. icon.swift is the one description of the
-                      mark; ./brand/build.sh renders it into macOS's .icns AND Android's adaptive
-                      icon. Never export an icon per platform — that is how they stop matching.
+                      mark; ./brand/build.sh renders it into macOS's .icns, Android's adaptive icon
+                      AND Windows's .ico (plus the four tray states, which are the same mark).
+                      Never export an icon per platform — that is how they stop matching.
 
 android/              The Android shell: MediaCodec, AudioTrack, foreground service, Compose
 macos/                The macOS shell: AppKit + SwiftUI, menu bar, VideoToolbox, Keychain, updater
+
+windows/              THE PC. Its own core, because Windows cannot consume the Kotlin one.
+  src/BabyMonitor.Core/    The monitor, in C#. net8.0 — NO Windows API in it, so it builds and its
+                           tests run on any machine. Same packages as core/: xiaomi, net, monitor,
+                           dsp, data, ui, shell.
+  tests/BabyMonitor.Core.Tests/
+                           The spec suite again, criterion for criterion, reading the SAME
+                           core/protocol-vectors.json. This is what makes a second implementation
+                           safe rather than reckless.
+  src/BabyMonitor.App/     The shell: WinUI 3. Tray icon (Win32), one window / two shapes, WASAPI,
+                           Media Foundation, DPAPI, the updater.
   Sources/
     AppDelegate.swift   Lifecycle, the menu bar item and its menu, updates, sleep/wake
     MainMenu.swift      The standard Mac menus — and therefore ⌘V (MACOS-13)
@@ -185,13 +223,14 @@ macos/                The macOS shell: AppKit + SwiftUI, menu bar, VideoToolbox,
     Preview.swift       Visual harness (BM_UI_PREVIEW=…) — dead code in a real run
 ```
 
-**The icon is shared, and generated (UI-3).** One mark, on the Mac and on the phone, and on
+**The icon is shared, and generated (UI-3).** One mark, on the Mac, the phone and the PC, and on
 whatever ships next: `brand/icon.swift` holds the colours and the geometry, and `./brand/build.sh`
-renders *both* `macos/Resources/AppIcon.icns` and Android's adaptive-icon vectors from them in one
-run. The outputs are committed, so a normal build never regenerates them — but they are outputs.
-Editing `ic_launcher_foreground.xml` by hand, or exporting a new `.icns` from a design tool, is how
-the two platforms quietly stop being the same app. `./brand/build.sh --preview` draws what each
-platform's mask will actually show, side by side.
+renders `macos/Resources/AppIcon.icns`, Android's adaptive-icon vectors and Windows's `.ico` files
+from them in one run — the PC's icons are packed from the *same pixels* the Mac's are. The outputs
+are committed, so a normal build never regenerates them — but they are outputs. Editing
+`ic_launcher_foreground.xml` by hand, or exporting a new `.icns` from a design tool, is how three
+platforms quietly stop being the same app. `./brand/build.sh --preview` draws what each platform's
+mask will actually show, side by side. (Windows also needs `brew install imagemagick`.)
 
 ## Architecture conventions
 
@@ -216,12 +255,19 @@ platform's mask will actually show, side by side.
   `/Users/bluzi/repos/c100` (which itself ports go2rtc). When touching it, compare against
   `spec/features/xiaomi-protocol.spec.md` and the interop vectors; never "improve" wire behavior.
 - **Session safety:** Mi account tokens are stored encrypted — Android Keystore on the phone, the
-  Keychain on the Mac. The encryption primitive is behind an interface with a passthrough fake for
-  tests; serialization is pure and fully tested.
+  Keychain on the Mac, DPAPI on the PC. The encryption primitive is behind an interface with a
+  passthrough fake for tests; serialization is pure and fully tested.
 - **The monitor owns itself.** All monitoring (connection loop, decode, level, alarm) runs
   independently of any UI and survives it — a foreground service on Android, the tray-resident
-  process on macOS. The UI is a thin observer over `MonitorHub`'s state flows; closing and
-  reopening it must never restart the stream.
+  process on macOS and Windows. The UI is a thin observer over `MonitorHub`'s state flows; closing
+  and reopening it must never restart the stream.
+- **The C# port is a mirror, not a rewrite.** `windows/src/BabyMonitor.Core/` is the Kotlin core
+  translated file for file, with the same names, the same comments and the same decisions. Keep it
+  that way: the value of a port you can read side by side with the original is that a reviewer can
+  *see* they agree. When you change one, change the other, and change both suites. The one place they
+  deliberately differ is the hashes — Kotlin/Native has no `MessageDigest`, so the Kotlin core ports
+  MD5/SHA-1/SHA-256 by hand; .NET has had them for twenty years, and a hand-rolled hash next to a
+  correct one in the box is a liability, not an asset. The interop vectors prove both.
 - **English only, simple dark UI.** No i18n layer yet — user-facing copy lives in the views; keep
   it terse.
 
@@ -230,15 +276,19 @@ platform's mask will actually show, side by side.
 The app logs its whole lifecycle so field issues are debuggable from a device. Keep and extend
 this; don't strip it out.
 
-- **Facade:** `core`'s `log/Log.kt` is a platform-free logging facade so the protocol layer can log
-  while staying portable. Each app installs a sink at process start (Android: `android.util.Log`;
-  macOS: `os_log`). Unit tests leave the default no-op sink. Never log secrets (password,
-  passToken, serviceToken, ssecurity) — log ids, ips, statuses, and error messages.
+- **Facade:** `core`'s `log/Log.kt` (and the port's `Logging/Log.cs`) is a platform-free logging
+  facade so the protocol layer can log while staying portable. Each app installs a sink at process
+  start (Android: `android.util.Log`; macOS: `os_log`; Windows: a file). Unit tests leave the default
+  no-op sink. Never log secrets (password, passToken, serviceToken, ssecurity) — log ids, ips,
+  statuses, and error messages.
 - **One tag, per-subsystem labels.** Everything logs under `BabyMonitor`, with the subsystem in the
   message: `login`, `cloud`, `cs2`, `miss`, `engine`, `service`, `ui`, `video`, `audio`, `update`,
   `app`.
-- **Read it live:** `adb -d logcat -s BabyMonitor` (phone) or
-  `log stream --predicate 'subsystem == "com.bluzi.babymonitor"'` (Mac).
+- **Read it live:** `adb -d logcat -s BabyMonitor` (phone),
+  `log stream --predicate 'subsystem == "com.bluzi.babymonitor"'` (Mac), or
+  `Get-Content -Wait $env:LOCALAPPDATA\BabyMonitor\babymonitor.log` (PC — there is no system log to
+  lean on there, so the app keeps its own, capped and rolled once so a monitor left running for a
+  month cannot fill a disk).
 - **What's covered:** login (each step, captcha/2FA, redirect hops at DEBUG, token refresh,
   success/failure), signed cloud requests (path, non-200, error codes), device list, MiOT get/set,
   the CS2 handshake stages (LAN search → punch → P2P-ready → transport up) and connection loss,
@@ -289,3 +339,29 @@ From this repo:
 - `runTest`'s virtual clock advances the instant the test coroutine idles, which fires every
   `withTimeout` before a *real* worker thread can deliver. Tests that drive real concurrency (the
   CS2 transport, the sockets) use `runRealTimeTest`.
+
+Windows:
+
+- **Media Foundation will not decode a byte without a frame size.** MediaCodec and VideoToolbox work
+  the size out from the parameter sets; a Windows media type must carry it up front. So the C# core
+  parses the SPS (`HevcSps.Dimensions`) — Exp-Golomb, emulation-prevention bytes and the conformance
+  window (a "1080p" stream codes 1088 rows and crops 8). It is also where the window gets the
+  camera's shape (WIN-19), so it earns its keep twice.
+- **The camera sends VPS/SPS/PPS in their own access units**, so the Windows renderer prepends them
+  to every keyframe. A decoder that started late has nothing to start from otherwise.
+- **Windows may have no H.265 decoder at all** (the HEVC Video Extensions are a separate free Store
+  download). That is a capability gap, so it is *behaviour*: the app says so, points at the
+  extension, and keeps monitoring (WIN-20). It must never be a black rectangle.
+- **DPAPI keys on the user, not the binary** — which is the whole reason the session uses it. An
+  update replaces every byte of the app and the stored session still opens with no prompt (AUTH-6w).
+  The Mac needs a Developer ID, a provisioning profile and an entitlement to buy the same thing.
+- **Windows will not let a running program overwrite itself.** The updater therefore hands the job to
+  the *new* build (`--apply-update <dir> <pid>`), which waits for the old one to exit, swaps the
+  files and starts it again.
+- **`IsEnabled` is on `Control`, not on `Panel`.** A `StackPanel` cannot be greyed out; wrap the
+  group in a `ContentControl` (this is why `AlarmGroup` is one).
+- **A WinUI 3 app cannot be built on a Mac** — the XAML compiler is a Windows binary. But everything
+  *else* can: the core and its whole spec suite are plain `net8.0`, and the shell's C# can be
+  type-checked against the real WinUI assemblies by compiling it with `EnableWindowsTargeting=true`
+  and stubbed `InitializeComponent`s. Two real bugs were caught that way before the code ever met a
+  PC. The markup itself still needs a Windows build to prove.

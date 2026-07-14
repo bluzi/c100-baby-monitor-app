@@ -2,13 +2,17 @@
 #
 #   a change under android/  -> releases the phone app
 #   a change under macos/    -> releases the Mac app
-#   a change under core/     -> releases BOTH, because it changed both
+#   a change under windows/  -> releases the PC app
+#   a change under core/     -> releases the phone and the Mac, because it changed both
 #
-# Both apps land on ONE release per commit, tagged v0.1.<commit-count>, so a version means the
-# same commit everywhere. A release may legitimately carry only one app's assets; both updaters
-# know to look back for the newest release that actually contains a build of theirs.
+# The Windows app has its own core (a port — Windows cannot consume the Kotlin one), so it rides on
+# `windows/` alone. It is held to the same evidence: the same interop vectors and the same spec suite.
 #
-# Never push broken code to main: both devices install these themselves.
+# Every app lands on ONE release per commit, tagged v0.1.<commit-count>, so a version means the same
+# commit everywhere. A release may legitimately carry only one app's assets; each updater knows to
+# look back for the newest release that actually contains a build of theirs.
+#
+# Never push broken code to main: every device installs these itself.
 name: Release
 
 on:
@@ -24,6 +28,7 @@ jobs:
     outputs:
       android: ${{ steps.filter.outputs.android }}
       macos: ${{ steps.filter.outputs.macos }}
+      windows: ${{ steps.filter.outputs.windows }}
       version_name: ${{ steps.version.outputs.version_name }}
       version_code: ${{ steps.version.outputs.version_code }}
     steps:
@@ -57,12 +62,21 @@ jobs:
             macos:
               - *shared
               - 'macos/**'
+            windows:
+              # The Windows app carries its own core, so `core/` does not release it — but the interop
+              # vectors are shared with it, and a change to them changes its wire.
+              - 'windows/**'
+              - 'core/protocol-vectors.json'
+              - '.github/workflows/release.yml'
 
   # The release exists before either app uploads to it, so two concurrent jobs cannot race to
   # create the same tag.
   create-release:
     needs: plan
-    if: needs.plan.outputs.android == 'true' || needs.plan.outputs.macos == 'true'
+    if: >
+      needs.plan.outputs.android == 'true' ||
+      needs.plan.outputs.macos == 'true' ||
+      needs.plan.outputs.windows == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -244,6 +258,68 @@ jobs:
             "babymonitor-v$VERSION_NAME-macos.zip" \
             "babymonitor-v$VERSION_NAME-macos.dmg" \
             checksums.txt --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+
+  windows:
+    needs: [plan, create-release]
+    if: needs.plan.outputs.windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # The same spec suite the phone and the Mac run, against the Windows port of the monitor —
+      # including the interop vectors that pin the wire. A port that has drifted cannot reach a
+      # release.
+      - name: Run the spec suite
+        run: dotnet test windows/tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj --nologo
+
+      # Self-contained and unpackaged: the folder holds everything, including the Windows App SDK. That
+      # is what lets the updater (UPD-5) apply a version by swapping files rather than running an
+      # installer — no elevation, no MSIX identity, and no dialog for a parent to answer at 3am.
+      - name: Build the app
+        run: >
+          dotnet publish windows/src/BabyMonitor.App/BabyMonitor.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --output windows/build/x64
+          -p:Platform=x64
+          -p:Version=$env:VERSION_NAME
+          -p:InformationalVersion=$env:VERSION_NAME
+          --nologo
+        env:
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+
+      # UPD-3: the .zip is what the UPDATER consumes, and its SHA-256 ships beside it. A download that
+      # does not match is discarded rather than run — the one thing standing between a truncated
+      # download and a PC that will not monitor tonight.
+      - name: Package and checksum
+        shell: pwsh
+        run: |
+          $zip = "babymonitor-v$env:VERSION_NAME-windows.zip"
+          Compress-Archive -Path windows/build/x64/* -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File -FilePath checksums-windows.txt -Encoding ascii
+          Get-Content checksums-windows.txt
+        env:
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+
+      # Its own checksum file, deliberately: the Mac's job writes `checksums.txt`, and these two jobs
+      # run at the same time. Appending to one shared file would be a race whose loser publishes a
+      # release whose checksum is missing — and a missing checksum is an update that is discarded
+      # rather than installed (UPD-3). Two files cannot race.
+      - name: Upload the Windows app
+        shell: bash
+        run: |
+          gh release upload "v$VERSION_NAME" \
+            "babymonitor-v$VERSION_NAME-windows.zip" \
+            checksums-windows.txt --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}

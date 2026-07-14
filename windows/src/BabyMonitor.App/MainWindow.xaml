@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ONE WINDOW, TWO SHAPES (WIN-14).
+
+  The video surface below lives in ONE place in the tree and is shared by both shapes. That is not
+  tidiness — it is the whole reason the shapes can be the same window: the decoder, the swap chain and
+  every frame already pushed into it survive a change of shape, so switching cannot black the picture
+  out or make the feed reconnect. Move MediaPlayerElement inside either chrome layer and that promise
+  is gone.
+
+  What fades and what does not is the ethic of this screen (LIVE-11w): the *controls* follow the
+  pointer, because a PC has one; the *state* never does. Status, level, warnings and a ringing alarm
+  are on screen whatever the pointer is doing.
+-->
+<Window
+    x:Class="BabyMonitor.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Baby Monitor">
+
+    <Grid x:Name="Root" Background="#000000">
+
+        <!-- WIN-13: the platform's own shortcuts, and accelerators rather than a KeyDown handler —
+             they fire wherever the focus happens to be, which is the point of a shortcut. -->
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="M" Modifiers="Control" Invoked="OnToggleShapeAccelerator" />
+            <KeyboardAccelerator Key="F11" Invoked="OnFullScreenAccelerator" />
+            <KeyboardAccelerator Key="Escape" Invoked="OnEscapeAccelerator" />
+        </Grid.KeyboardAccelerators>
+
+        <!-- The picture. One surface, both shapes, never rebuilt. -->
+        <MediaPlayerElement x:Name="Video"
+                            AreTransportControlsEnabled="False"
+                            Stretch="UniformToFill"
+                            IsTapEnabled="False" />
+
+        <!-- =====================  THE FULL SHAPE (WIN-6)  ===================== -->
+        <Grid x:Name="ViewerChrome" Visibility="Collapsed">
+
+            <!-- The drag region under the caption buttons, so the window moves like any other. -->
+            <Border x:Name="TitleBarDrag" Height="36" VerticalAlignment="Top" Background="Transparent" />
+
+            <Grid Padding="16,44,16,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Row 0 — what the feed is doing (LIVE-4, LIVE-6). NEVER fades. -->
+                <Border Grid.Row="0"
+                        Background="{StaticResource ChromeBrush}"
+                        CornerRadius="10"
+                        BorderThickness="1"
+                        BorderBrush="#22FFFFFF"
+                        Padding="14,10">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Ellipse x:Name="StatusDot" Grid.Column="0"
+                                     Width="9" Height="9" Margin="0,0,10,0"
+                                     VerticalAlignment="Center" Fill="Gray" />
+                            <TextBlock x:Name="StatusLineText" Grid.Column="1"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="LevelText" Grid.Column="2"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="#B0FFFFFF"
+                                       VerticalAlignment="Center"
+                                       ToolTipService.ToolTip="How far above this room's usual loudness it is right now" />
+                        </Grid>
+
+                        <!-- LIVE-6 / ALRM-12: loudness above the room's own baseline, with the point where
+                             the alarm would ring marked on it. Zero means "as loud as this room usually is",
+                             so a calm room reads as an empty bar — and that emptiness is what a parent
+                             learns to trust. -->
+                        <Grid x:Name="LevelBar" Height="6" HorizontalAlignment="Stretch">
+                            <Rectangle RadiusX="3" RadiusY="3" Fill="#25FFFFFF" />
+                            <Rectangle x:Name="LevelFill" RadiusX="3" RadiusY="3"
+                                       HorizontalAlignment="Left" Width="0" Fill="#4CD964" />
+                            <Rectangle x:Name="LevelMark" Width="2" Height="12"
+                                       HorizontalAlignment="Left" Fill="#E6FFFFFF"
+                                       Visibility="Collapsed" />
+                        </Grid>
+
+                        <!-- BG-12w: if Windows would not promise to stay awake, say so. -->
+                        <TextBlock x:Name="SleepWarning"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="#FFB74D"
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed"
+                                   Text="&#xE7BA;  Windows would not promise to stay awake — the PC may sleep and stop monitoring" />
+
+                        <!-- LIVE-13: the camera lives on your network, and this PC is not on one. -->
+                        <StackPanel x:Name="NetworkWarning" Orientation="Horizontal" Spacing="8"
+                                    Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="#FFB74D"
+                                       TextWrapping="Wrap"
+                                       Text="This PC is offline — the camera can only be reached on its own network" />
+                            <HyperlinkButton x:Name="NetworkSettingsLink"
+                                             Content="Open network settings"
+                                             Padding="0"
+                                             FontSize="12"
+                                             Click="OnOpenNetworkSettings" />
+                        </StackPanel>
+
+                        <!-- WIN-20: Windows may simply not have an H.265 decoder. A black rectangle that
+                             never explains itself is the kind of silence this app refuses. -->
+                        <StackPanel x:Name="VideoWarning" Orientation="Horizontal" Spacing="8"
+                                    Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="#FFB74D"
+                                       TextWrapping="Wrap"
+                                       Text="Windows can't decode this camera's video — sound and the alarm still work" />
+                            <HyperlinkButton x:Name="HevcLink"
+                                             Content="Install HEVC Video Extensions"
+                                             Padding="0"
+                                             FontSize="12"
+                                             Click="OnInstallHevc" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Row 2 — banners: things that must be READ. Never fade. -->
+                <StackPanel Grid.Row="2" Spacing="10" Margin="0,0,0,12">
+
+                    <!-- WIN-11: the PC slept, the monitor was down, and this is where it says so. -->
+                    <Border x:Name="OutageBanner" Visibility="Collapsed"
+                            Background="#E6B26A00" CornerRadius="10" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="OutageText" Grid.Column="0"
+                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Dismiss" Margin="12,0,0,0"
+                                    Click="OnDismissOutage" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ALRM-4: a ringing alarm, and the one control that stops it. -->
+                    <Border x:Name="AlarmBanner" Visibility="Collapsed"
+                            Background="#E6C62828" CornerRadius="10" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="AlarmText" Grid.Column="0"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Acknowledge" Margin="12,0,0,0"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Click="OnAcknowledge" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ALRM-15/16: one yes/no moves this camera's learned tuning a step. Dismissing
+                         learns nothing, and must stay just as easy — a question that punishes you for
+                         ignoring it is a question that gets wrong answers. -->
+                    <Border x:Name="FeedbackBanner" Visibility="Collapsed"
+                            Background="{StaticResource ChromeBrush}" CornerRadius="10"
+                            BorderThickness="1" BorderBrush="#22FFFFFF" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Was the baby crying?" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <Button Content="Yes" Style="{StaticResource AccentButtonStyle}" Click="OnCryYes" />
+                                <Button Content="No, false alarm" Click="OnCryNo" />
+                                <HyperlinkButton Content="Dismiss" Click="OnCryDismiss" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- WIN-8: asked once, plainly, and never turned on for you. -->
+                    <Border x:Name="StartupBanner" Visibility="Collapsed"
+                            Background="{StaticResource ChromeBrush}" CornerRadius="10"
+                            BorderThickness="1" BorderBrush="#22FFFFFF" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center"
+                                       Text="Start Baby Monitor with Windows, so a PC that restarts overnight comes back watching?" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
+                                <Button Content="Start with Windows" Style="{StaticResource AccentButtonStyle}"
+                                        Click="OnEnableStartup" />
+                                <Button Content="Not now" Click="OnDeclineStartup" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- Row 3 — the controls (BG-11, LIVE-2, LIVE-10). These follow the pointer. -->
+                <Border x:Name="ControlBar" Grid.Row="3"
+                        HorizontalAlignment="Center"
+                        Background="{StaticResource ChromeBrush}"
+                        CornerRadius="24"
+                        BorderThickness="1"
+                        BorderBrush="#22FFFFFF"
+                        Padding="8,6"
+                        PointerEntered="OnChromePointerEntered"
+                        PointerExited="OnChromePointerExited">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button x:Name="StartButton" Click="OnStart"
+                                Background="Transparent" BorderThickness="0" CornerRadius="20"
+                                ToolTipService.ToolTip="Start monitoring">
+                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE768;" FontSize="15" />
+                        </Button>
+                        <Button x:Name="StopButton" Click="OnStop"
+                                Background="Transparent" BorderThickness="0" CornerRadius="20"
+                                ToolTipService.ToolTip="Stop monitoring…">
+                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE71A;" FontSize="15" />
+                        </Button>
+
+                        <Rectangle Width="1" Height="20" Fill="#33FFFFFF" Margin="4,0" />
+
+                        <!-- LIVE-2: muted draws latched — a changed glyph is never the only clue. -->
+                        <Button x:Name="MuteButton" Click="OnToggleMute"
+                                Background="Transparent" BorderThickness="0" CornerRadius="20">
+                            <FontIcon x:Name="MuteIcon" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                      Glyph="&#xE767;" FontSize="15" />
+                        </Button>
+
+                        <!-- LIVE-10: the camera's three night-vision modes. The mode lives on the camera. -->
+                        <DropDownButton x:Name="NightVisionButton"
+                                        Background="Transparent" BorderThickness="0" CornerRadius="20"
+                                        ToolTipService.ToolTip="Night vision">
+                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE708;" FontSize="15" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="Top">
+                                    <RadioMenuFlyoutItem x:Name="NightOff" Text="Off" GroupName="nv" Click="OnNightVision" />
+                                    <RadioMenuFlyoutItem x:Name="NightAuto" Text="Auto" GroupName="nv" Click="OnNightVision" />
+                                    <RadioMenuFlyoutItem x:Name="NightOn" Text="On" GroupName="nv" Click="OnNightVision" />
+                                    <MenuFlyoutSeparator x:Name="NightErrorSeparator" Visibility="Collapsed" />
+                                    <MenuFlyoutItem x:Name="NightError" IsEnabled="False" Visibility="Collapsed" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+
+                        <Rectangle Width="1" Height="20" Fill="#33FFFFFF" Margin="4,0" />
+
+                        <Button Click="OnMakeMini"
+                                Background="Transparent" BorderThickness="0" CornerRadius="20"
+                                ToolTipService.ToolTip="Mini window (Ctrl+M)">
+                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE73F;" FontSize="15" />
+                        </Button>
+                        <Button Click="OnShowSettings"
+                                Background="Transparent" BorderThickness="0" CornerRadius="20"
+                                ToolTipService.ToolTip="Alerts and settings">
+                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE713;" FontSize="15" />
+                        </Button>
+
+                        <!-- LIVE-9w: the rare actions live behind a menu rather than on the bar. -->
+                        <DropDownButton Background="Transparent" BorderThickness="0" CornerRadius="20"
+                                        ToolTipService.ToolTip="More">
+                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE712;" FontSize="15" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="Top">
+                                    <MenuFlyoutItem Text="Switch camera…" Click="OnSwitchCamera" />
+                                    <MenuFlyoutItem Text="Sign out" Click="OnSignOut" />
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="AboutItem" IsEnabled="False" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- =====================  THE MINI SHAPE (WIN-5)  ===================== -->
+        <Grid x:Name="MiniChrome" Visibility="Collapsed">
+            <!-- The whole tile drags the window: it has no title bar to grab. -->
+            <Border x:Name="MiniDragRegion" Background="Transparent" />
+
+            <Grid Padding="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Only with the pointer over it (WIN-15): it is never a mystery tile. -->
+                <Grid x:Name="MiniTopControls" Grid.Row="0" Opacity="0">
+                    <Button Click="OnHideWindow" HorizontalAlignment="Left"
+                            Width="26" Height="26" Padding="0" CornerRadius="13"
+                            Background="#99000000" BorderThickness="0"
+                            ToolTipService.ToolTip="Close (monitoring carries on)">
+                        <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE711;" FontSize="11" />
+                    </Button>
+                    <Button Click="OnMakeFull" HorizontalAlignment="Right"
+                            Width="26" Height="26" Padding="0" CornerRadius="13"
+                            Background="#99000000" BorderThickness="0"
+                            ToolTipService.ToolTip="Make it full (Ctrl+M)">
+                        <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE740;" FontSize="11" />
+                    </Button>
+                </Grid>
+
+                <!-- The state of the feed — always, pointer or no pointer. Everything else here comes
+                     and goes; this does not. A tile showing a calm picture while the feed died an hour
+                     ago is the exact failure this project exists to prevent. -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="#B3000000" CornerRadius="11" Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse x:Name="MiniStatusDot" Width="8" Height="8"
+                                     VerticalAlignment="Center" Fill="Gray" />
+                            <TextBlock x:Name="MiniStatusText"
+                                       Style="{StaticResource CaptionTextBlockStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                        <!-- Always reachable, pointer or not: an alarm you must first find the controls
+                             for is an alarm that rings longer than it should. -->
+                        <Button x:Name="MiniAcknowledge" Click="OnAcknowledge" Visibility="Collapsed"
+                                Background="#E6C62828" BorderThickness="0" CornerRadius="12"
+                                Padding="10,4" Content="Acknowledge" FontSize="12" />
+                        <Button x:Name="MiniMute" Click="OnToggleMute" Opacity="0"
+                                Width="26" Height="26" Padding="0" CornerRadius="13"
+                                Background="#99000000" BorderThickness="0">
+                            <FontIcon x:Name="MiniMuteIcon" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                      Glyph="&#xE767;" FontSize="11" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <!-- A ringing alarm is unmistakable, even at postage-stamp size. -->
+            <Border x:Name="MiniAlarmBorder" BorderThickness="0" BorderBrush="#E6C62828" CornerRadius="8"
+                    IsHitTestVisible="False" />
+        </Grid>
+
+        <!-- =====================  SIGN IN (AUTH-1)  ===================== -->
+        <ScrollViewer x:Name="LoginPanel" Visibility="Collapsed" Background="#0B0B0F">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Width="360" Spacing="16" Padding="0,48">
+                <!-- WIN-17 / UI-3: the app's own mark — the same one the phone and the Mac show. Its
+                     source is set from disk in the code-behind: this app is unpackaged, and an
+                     ms-appx URI is a packaged app's idea. -->
+                <Image x:Name="AppMark" Width="64" Height="64" HorizontalAlignment="Center" />
+                <TextBlock Text="Baby Monitor" Style="{StaticResource TitleTextBlockStyle}"
+                           HorizontalAlignment="Center" />
+                <TextBlock x:Name="LoginSubtitle" HorizontalAlignment="Center"
+                           TextAlignment="Center" TextWrapping="Wrap"
+                           Foreground="#B0FFFFFF"
+                           Text="Sign in to the Mi account that owns the camera" />
+
+                <Border Background="#12FFFFFF" CornerRadius="12" Padding="20" BorderThickness="1"
+                        BorderBrush="#1AFFFFFF">
+                    <StackPanel Spacing="12">
+                        <!-- Credentials -->
+                        <StackPanel x:Name="CredentialsGroup" Spacing="12">
+                            <TextBox x:Name="UsernameBox" Header="Mi account"
+                                     PlaceholderText="Email, phone or Mi ID" />
+                            <PasswordBox x:Name="PasswordBox" Header="Password" />
+                            <ComboBox x:Name="RegionBox" Header="Server region" HorizontalAlignment="Stretch" />
+                            <TextBlock Text="The region the camera is registered in."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="#8CFFFFFF" />
+                        </StackPanel>
+
+                        <!-- AUTH-3: a captcha, and a fresh one if the code is rejected. -->
+                        <StackPanel x:Name="CaptchaGroup" Spacing="12" Visibility="Collapsed">
+                            <Image x:Name="CaptchaImage" Height="56" HorizontalAlignment="Left" />
+                            <TextBox x:Name="CaptchaBox" Header="Captcha" />
+                        </StackPanel>
+
+                        <!-- AUTH-4: the code, and where it went. -->
+                        <StackPanel x:Name="CodeGroup" Spacing="12" Visibility="Collapsed">
+                            <TextBox x:Name="CodeBox" Header="Verification code" />
+                        </StackPanel>
+
+                        <Button x:Name="SignInButton" Click="OnSignIn"
+                                Style="{StaticResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch" Content="Sign in" />
+                        <HyperlinkButton x:Name="StartOverLink" Content="Start over" Click="OnStartOver"
+                                         Visibility="Collapsed" HorizontalAlignment="Center" />
+                        <ProgressRing x:Name="LoginBusy" IsActive="False" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- AUTH-9: words, never the gateway's raw JSON. -->
+                <InfoBar x:Name="LoginError" IsOpen="False" Severity="Error" IsClosable="False" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- =====================  CHOOSE A CAMERA (CAM-1)  ===================== -->
+        <Grid x:Name="CamerasPanel" Visibility="Collapsed" Background="#0B0B0F">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="400" Spacing="16">
+                <TextBlock Text="Choose a camera" Style="{StaticResource TitleTextBlockStyle}"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="The camera you pick is the one this PC will watch."
+                           Foreground="#B0FFFFFF" HorizontalAlignment="Center" />
+
+                <ProgressRing x:Name="CamerasBusy" IsActive="True" HorizontalAlignment="Center" />
+
+                <ListView x:Name="CamerasList" SelectionMode="Single"
+                          ItemClick="OnCameraChosen" IsItemClickEnabled="True"
+                          Background="#12FFFFFF" CornerRadius="12" />
+
+                <!-- CAM-5 / APP-3: readable, with a way to retry — never a dead end. -->
+                <InfoBar x:Name="CamerasError" IsOpen="False" Severity="Warning" IsClosable="False">
+                    <InfoBar.ActionButton>
+                        <Button Content="Try again" Click="OnReloadCameras" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+
+                <HyperlinkButton Content="Sign out" Click="OnSignOut" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

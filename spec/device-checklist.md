@@ -3,10 +3,10 @@
 Manual verification for `[device]` criteria — run against a real, reachable C100 camera before
 calling a release done. Each step names the criteria it verifies.
 
-Steps 1–25 are the **Android** checklist, run on a real phone. The **macOS** checklist follows,
-and covers only what differs: the monitor itself is the same code, proven by the same tests on
-both platforms, so what needs a human is the shell — and the places where a Mac can do less than
-a phone.
+Steps 1–25 are the **Android** checklist, run on a real phone. The **macOS** and **Windows**
+checklists follow, and cover only what differs: the monitor itself behaves the same everywhere,
+proven by the same spec suite on all three platforms, so what needs a human is the shell — and the
+places where a desktop can do less than a phone.
 
 1. **Live playback (LIVE-1):** open the app (signed in, camera selected). Video renders and
    room audio is audible within a few seconds.
@@ -267,3 +267,132 @@ M10b. **The update does not ask for a password (AUTH-6m):** the step above must 
 M11. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. Within a few
      check cycles the app reports that it can no longer check for updates. Monitoring is
      completely unaffected. Restore the token — the complaint clears.
+
+
+---
+
+# Windows checklist
+
+Run on a real PC with a reachable camera. The shared behaviour (crying detection, reconnect,
+watchdog, alarm timing) is not re-verified here — the same spec suite runs against the Windows port,
+criterion for criterion. What follows is the shell, and the honesty about what a PC cannot do.
+
+W1. **The tray is the app (WIN-1, WIN-2, BG-2w):** launch it. A tray icon appears and shows the
+    state; its menu names the camera and reads live/reconnecting/stopped in words. Unplug the camera
+    — the icon and the menu both change within seconds. The menu opens with either mouse button and
+    dismisses when you click away, like every other tray menu.
+
+W2. **Closing a window is not exiting (WIN-7, WIN-9, BG-5):** with audio playing, close the window
+    (the X, and again with Alt-F4). Audio keeps playing, the tray icon stays, and the first close
+    says where the app went. Reopen from the tray — the feed is live immediately, with no reconnect
+    in the log. Only Exit ends the app.
+
+W3. **Mute keeps the alarm working (WIN-4, LIVE-3, LIVE-2):** mute from the tray menu. The speaker
+    goes silent and the menu item shows checked ("Muted"). Make noise at the camera — the level
+    indicator still moves and, with the alarm on, it still rings. In the window, the mute button
+    draws latched and the status line gains "· muted".
+
+W4. **Mini shape floats (WIN-5, BG-7w):** put the window in its mini shape. It stays on top of other
+    apps, including a maximised one. Move and resize it (it keeps the video's shape), exit and
+    relaunch — it comes back where it was, in the shape it was in. Close it — monitoring carries on.
+
+W4a. **One window, two shapes (WIN-14, WIN-15):** with the feed live, switch full → mini and back,
+    from the window's own control, from the tray menu, and from the keyboard. Each time: **the
+    picture never blacks out, audio never stutters, and the log shows no reconnect.** Move and
+    resize each shape and switch back and forth: each remembers its own size and position, and still
+    does after a relaunch. Hover the mini — its controls and an explicit "make it full" control
+    appear; move the pointer away — they go, leaving the picture and the feed state.
+
+W4b. **The mini fades, but never over a warning (WIN-16, WIN-18):** with the feed live and the
+    pointer away, the mini goes translucent and the window underneath is readable through it; move
+    the pointer over it — instantly solid. Turn fading off in settings — it stays solid. Turn it back
+    on, set it faint, then **unplug the camera**: as soon as the feed is not live the mini goes fully
+    opaque by itself and stays that way with the pointer nowhere near it. Same with a ringing alarm.
+    Turn Settings → Accessibility → Visual effects → Transparency effects **off**: no fading at all,
+    and the app's surfaces draw solid.
+
+W4c. **Controls follow the pointer (LIVE-11w):** in the full shape, move the pointer over the video —
+    the buttons are there. Move it away (or leave it still) for a few seconds — the buttons fade out,
+    while the status line and the level indicator stay. Move the pointer — the buttons are back
+    immediately, with no click. Trigger an alarm and repeat: the alarm banner and its Acknowledge
+    never fade.
+
+W4d. **Paste works (WIN-13):** on the sign-in screen, copy a password from a password manager and
+    press Ctrl-V in the password field — it pastes. Ctrl-C, Ctrl-X and Ctrl-A work too, Tab moves
+    between fields, Enter submits. F11 goes full screen and Esc leaves it.
+
+W4e. **It looks like a Windows app (WIN-17, WIN-18, UI-1, UI-3):** the app has its own icon in the
+    taskbar, Alt-Tab, the tray and Explorer — never a generic placeholder, and **the same mark the
+    phone and the Mac show** (UI-3). Every screen renders dark. Turn the system's animation effects
+    off — nothing animates.
+
+W4f. **No black bars (WIN-19):** with the feed live, look at the edges of the picture in both shapes
+    — the video fills the window, with no black band above or below it. Drag a corner: the window
+    keeps the camera's shape. Go full screen (F11): there the screen's shape wins and any unused area
+    is black, which is expected.
+
+W4g. **Offline is said out loud (LIVE-13):** disable every network adapter (Wi-Fi and Ethernet).
+    Within a couple of seconds the window warns that this PC is offline and that the camera can only
+    be reached on its own network, and offers a link that opens Network & internet settings. Turn the
+    network back on — the warning goes by itself.
+
+W5. **Stop and start (WIN-3, BG-11, BG-3w):** Stop from the tray menu — it asks for confirmation;
+    cancel and nothing changes; confirm and audio, alarm and connection all stop, without opening a
+    window. Start again from the menu.
+
+W6. **Alarm audibility (ALRM-4, WIN-21):** mute the feed, turn the PC's output volume down, and play
+    a crying clip at the camera for ~3 s. It is still audible, it rings until acknowledged, and the
+    tray icon is unmistakable while it rings. There is no vibrate control anywhere in settings.
+
+W7. **Idle sleep is held off (BG-12w, WIN-10):** set the PC to sleep after 1 minute of inactivity.
+    Start monitoring and leave it alone for 5 minutes without touching anything. It does not sleep and
+    audio never stops. Stop monitoring — it sleeps normally again. (`powercfg /requests` names the app
+    for exactly as long as it should.)
+
+W7a. **The display stays awake, but only while watched (LIVE-14, WIN-10):** set the display to turn
+    off after 1 minute. With the window open and the feed live, leave the PC alone for 3 minutes — the
+    screen stays on. Close the window (monitoring carries on): the screen now turns off on its normal
+    timeout. Reopen it and unplug the camera so the feed leaves "Live": the screen turns off again.
+
+W8. **Sleep is the honest one (BG-12w, WIN-11):** the step that matters most, because it is where the
+    PC is weaker than the phone and must say so.
+    a. Before relying on it overnight, the app states plainly that a sleeping PC stops the monitor.
+       Find that message. If a parent could miss it, it is not good enough.
+    b. While monitoring, put the PC to sleep (Start → Sleep, or close a laptop's lid) for 2 minutes.
+       Wake it. The app reports that monitoring was **down**, and for **how long** — it does not simply
+       reconnect as though nothing happened.
+    c. With the watchdog armed, the sleep gap is treated as a real outage (WATCH-2), not as a live
+       feed that happened to be quiet.
+
+W9. **Restart (BG-13w, WIN-8):** while monitoring, restart the PC. On next launch the app says
+    monitoring stopped and resumes in one click. The app offers — once, and without ever having turned
+    it on for you — to start with Windows; decline it and it does not ask again, and settings still
+    show it off. Turn it on in settings and restart again — the app comes back by itself and monitoring
+    resumes. Turn it off — it does not.
+
+W10. **No H.265 decoder (WIN-20):** on a PC **without** the HEVC Video Extensions installed (or with
+     them removed), open the live feed. The app says in plain words that Windows cannot decode this
+     camera's video and points at the free extension — and **audio keeps playing, the level meter keeps
+     moving, and the crying alarm still fires.** Install the extension and reopen: the picture appears.
+     This is the one place a PC is weaker than the Mac, and a black rectangle with no explanation would
+     be exactly the kind of silence this app exists to prevent.
+
+W11. **Updates never interrupt (UPD-3, UPD-5, UPD-7):** with monitoring running, publish a newer
+     release. The app downloads and verifies it, says it is ready, and **does not restart**. Monitoring
+     is untouched. Stop monitoring — the update applies and the app comes back on the new version.
+     Confirm it under About (UPD-6, LIVE-15).
+
+W11a. **The update actually lands (UPD-5, both halves):** with an update staged and monitoring still
+     running, exit the app and start it again — it installs the staged version *before* monitoring
+     starts, relaunches, and comes back live on the new version. Check About. Without this half the app
+     would never update at all: it starts monitoring the instant it launches, so "monitoring is
+     stopped" never comes around by itself.
+
+W11b. **The update does not ask for anything (AUTH-6w):** the step above must complete with **no
+     prompt of any kind** — the updated app reads its own stored session in silence and comes straight
+     back up live. A monitor that stopped at a dialog after an overnight update, with nobody awake to
+     answer it, would be a monitor that failed exactly when it mattered.
+
+W12. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. Within a few check
+     cycles the app reports that it can no longer check for updates. Monitoring is completely
+     unaffected. Restore the token — the complaint clears.

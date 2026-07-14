@@ -42,6 +42,11 @@ its sibling: they are two answers to one hazard, not one platform getting less.
   Opening the menu never interrupts monitoring. (See MACOS-1.)
 - **BG-3m** `[macos]` `[device]` The menu bar menu offers Stop, which ends monitoring (audio,
   alarm, connection) without opening any window. (See MACOS-3.)
+- **BG-2w** `[windows]` `[device]` The same, in the tray: while monitoring, the notification-area
+  icon shows the current feed state at a glance and its menu names the camera. Opening the menu
+  never interrupts monitoring. (See WIN-1.)
+- **BG-3w** `[windows]` `[device]` The tray menu offers Stop, which ends monitoring (audio, alarm,
+  connection) without opening any window. (See WIN-3.)
 
 ## Glancing at the baby without ceremony
 
@@ -55,6 +60,10 @@ its sibling: they are two answers to one hazard, not one platform getting less.
   over other work, across spaces and over full-screen apps, so checking the baby never means
   finding and raising a window. A locked Mac must be unlocked first; the app never suggests
   otherwise.
+- **BG-7w** `[windows]` `[device]` A PC cannot draw over the Windows lock screen either, and gets
+  the same answer: while the PC is unlocked, the always-on-top mini window (WIN-5) floats over
+  other work, so checking the baby never means going to find a window. A locked PC must be
+  unlocked first; the app never suggests otherwise.
 
 ## The OS suspending the monitor overnight
 
@@ -74,4 +83,15 @@ its sibling: they are two answers to one hazard, not one platform getting less.
 - **BG-13** `[macos]` `[device]` If the Mac restarts, or the app is quit, while monitoring, the
   app says so the next time it starts and resumes monitoring in one click. To make that rare, it
   offers to open at login (MACOS-8). A restart never leaves the parent believing the monitor is
+  still running.
+- **BG-12w** `[windows]` `[device]` Because a sleeping PC runs nothing at all, the app asks Windows
+  to stay awake for as long as monitoring is running, so an idle PC does not suspend the monitor. If
+  Windows refuses, the app says so rather than appearing to monitor. **It cannot prevent sleep the
+  user asks for** — the lid, the power button, Start → Sleep — and nothing an app can do will change
+  that. So the app states this plainly before a parent relies on it overnight, and on wake it
+  reports that monitoring was down **and for how long** — it never resumes quietly, as though the
+  night had been covered. (See WIN-10, WIN-11.)
+- **BG-13w** `[windows]` `[device]` If the PC restarts, or the app is exited, while monitoring, the
+  app says so the next time it starts and resumes monitoring in one click. To make that rare, it
+  offers to start with Windows (WIN-8). A restart never leaves the parent believing the monitor is
   still running.

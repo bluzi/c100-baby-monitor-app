@@ -52,6 +52,11 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   window: video full-bleed, the same two rows of overlaid controls, the same rare actions behind a
   menu, the same always-visible acknowledge (MACOS-6). Which controls appear, and when, is the
   shared decision (BG-11, WATCH-11) — the phone's button row and the Mac's cannot disagree.
+- **LIVE-9w** `[windows]` `[device]` A PC has no orientation to lock either, so the same intent
+  lands as a window, exactly as on the Mac (LIVE-9m): video edge to edge, the same two rows of
+  overlaid controls, the same rare actions behind a menu, the same always-visible acknowledge
+  (WIN-6). Which controls appear, and when, is the shared decision (BG-11, WATCH-11) — the phone's
+  button row, the Mac's and the PC's cannot disagree.
 - **LIVE-11** `[android]` `[device]` The controls are shown or hidden **only** by tapping the **video**: each
   tap toggles them. They never hide on their own — a parent watching the room is never made to
   tap to get them back. Tapping the controls themselves uses the control and never hides them:
@@ -63,17 +68,23 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   alarm are always on screen**, whatever the pointer is doing. The rule is the phone's rule
   (LIVE-11) against the same hazard: a parent must never have to go looking for the state of the
   monitor, and a control that hides is never one that matters.
+- **LIVE-11w** `[windows]` `[device]` A PC has a pointer too, so it follows LIVE-11m exactly: the
+  controls are there whenever the pointer is over the window and fade a few seconds after it leaves
+  or stops moving, any movement brings them straight back, and the status line, the level indicator
+  and any warning or ringing alarm are **always** on screen whatever the pointer is doing.
 - **LIVE-13** `[device]` The camera is reachable only on its own network. While the device has no
   connection to that network, the live feed warns in plain words that the camera cannot be
   reached without it, and offers the shortest route to fixing it — on Android `[android]` tapping
-  the warning opens the system's Wi-Fi panel; on macOS `[macos]` it opens Network settings. The
-  warning disappears once the network is back. (A Mac may sit on the camera's network over
-  Ethernet, so the Mac warns about having *no* network rather than about not being on Wi-Fi: the
-  hazard is a camera that cannot be reached, not a particular radio being off.)
+  the warning opens the system's Wi-Fi panel; on macOS `[macos]` it opens Network settings; on
+  Windows `[windows]` it opens Network & internet settings. The warning disappears once the network
+  is back. (A Mac or a PC may sit on the camera's network over Ethernet, so both warn about having
+  *no* network rather than about not being on Wi-Fi: the hazard is a camera that cannot be reached,
+  not a particular radio being off.)
 - **LIVE-14** `[device]` While the live feed is on screen and the feed is live, the display stays
   awake — watching the baby never ends in a sleeping screen. When the feed is not live (or the
-  live feed is left), the display may sleep normally again. On macOS this is the display only;
-  keeping the *machine* from suspending the monitor is BG-12, and is a separate promise.
+  live feed is left), the display may sleep normally again. On macOS and Windows this is the display
+  only; keeping the *machine* from suspending the monitor is BG-12 / BG-12w, and is a separate
+  promise.
 - **LIVE-15** `[device]` The app shows the running version (on the live feed's menu, under About)
   — enough to tell at a glance whether an update landed (UPD-6).
 - **LIVE-10** `[device]` The live feed has a night-vision control offering the camera's three modes — off,

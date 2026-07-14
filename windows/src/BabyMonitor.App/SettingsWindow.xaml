@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Settings (ALRM, WATCH, WIN-8/16, UPD-3).
+
+  Every alarm value here is read from and written back to the core's Settings — there is deliberately
+  no second settings model on this side to drift out of step with the phone's. The clamping, the
+  defaults and the legacy migrations all happen in the core.
+
+  A monitor's settings are read at 3am by someone who has been awake for twenty hours, so every switch
+  says what it *is*, and every one that could be misunderstood says what happens if it is wrong.
+-->
+<Window
+    x:Class="BabyMonitor.App.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Baby Monitor — Settings">
+
+    <ScrollViewer Padding="24,40,24,24" Background="#0B0B0F">
+        <StackPanel Spacing="20" MaxWidth="620" HorizontalAlignment="Stretch">
+
+            <!-- ===== The crying alarm (ALRM-1/2/11/16) ===== -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Crying alarm" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
+                        BorderBrush="#1AFFFFFF">
+                    <StackPanel Spacing="14">
+                        <ToggleSwitch x:Name="AlarmToggle" Header="Alarm when the baby cries"
+                                      OnContent="On" OffContent="Off" Toggled="OnAlarmToggled" />
+
+                        <!-- A ContentControl, not a StackPanel: only a Control carries IsEnabled, and
+                             disabling it is what greys the whole group out while the alarm is off. -->
+                        <ContentControl x:Name="AlarmGroup"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch">
+                            <StackPanel Spacing="14">
+                                <Slider x:Name="SensitivitySlider"
+                                        Header="Sensitivity (higher = quieter crying sets it off)"
+                                        Minimum="1" Maximum="10" StepFrequency="1" TickFrequency="1"
+                                        ValueChanged="OnSensitivityChanged" />
+
+                                <!-- ALRM-16/17: the learned tuning is visible and resettable — never hidden. -->
+                                <StackPanel x:Name="CalibrationRow" Orientation="Horizontal" Spacing="8"
+                                            Visibility="Collapsed">
+                                    <TextBlock x:Name="CalibrationText"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="#FFB74D" VerticalAlignment="Center" />
+                                    <HyperlinkButton Content="Reset" Padding="0" Click="OnResetCalibration" />
+                                </StackPanel>
+
+                                <ComboBox x:Name="CrySound" Header="Sound" HorizontalAlignment="Stretch"
+                                          SelectionChanged="OnCrySoundChanged" />
+                                <Slider x:Name="CryVolume" Header="Volume"
+                                        Minimum="0.2" Maximum="1.0" StepFrequency="0.05"
+                                        ValueChanged="OnCryVolumeChanged" />
+                                <Button Content="Preview" Click="OnPreviewCry" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </ContentControl>
+
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap"
+                                   Text="The alarm rings until you acknowledge it, and keeps working while the feed is muted." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ===== The feed watchdog (WATCH-1/9/10) ===== -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Feed watchdog" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
+                        BorderBrush="#1AFFFFFF">
+                    <StackPanel Spacing="14">
+                        <ToggleSwitch x:Name="WatchdogToggle" Header="Alarm if the feed goes down"
+                                      OnContent="On" OffContent="Off" Toggled="OnWatchdogToggled" />
+
+                        <!-- WATCH-9/10: the watchdog guards the crying alarm, so it is armed only while the
+                             crying alarm could itself ring. Say so rather than look broken. -->
+                        <InfoBar x:Name="WatchdogInactive" IsOpen="False" Severity="Warning" IsClosable="False"
+                                 Message="Inactive while the crying alarm is off — it is what guards that alarm." />
+
+                        <ContentControl x:Name="WatchdogGroup"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch">
+                            <StackPanel Spacing="14">
+                                <Slider x:Name="GraceSlider" Header="Grace period (seconds)"
+                                        Minimum="5" Maximum="120" StepFrequency="5"
+                                        ValueChanged="OnGraceChanged" />
+                                <ComboBox x:Name="FeedSound" Header="Sound" HorizontalAlignment="Stretch"
+                                          SelectionChanged="OnFeedSoundChanged" />
+                                <Slider x:Name="FeedVolume" Header="Volume"
+                                        Minimum="0.2" Maximum="1.0" StepFrequency="0.05"
+                                        ValueChanged="OnFeedVolumeChanged" />
+                                <Button Content="Preview" Click="OnPreviewFeed" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </ContentControl>
+
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap"
+                                   Text="If audio stops arriving for longer than the grace period, this rings — a monitor that has quietly died must never be mistaken for a quiet baby." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ===== The mini window (WIN-16) ===== -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Mini window" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
+                        BorderBrush="#1AFFFFFF">
+                    <StackPanel Spacing="14">
+                        <ToggleSwitch x:Name="FadeToggle" Header="Fade it when the pointer is away"
+                                      OnContent="On" OffContent="Off" Toggled="OnFadeToggled" />
+                        <Slider x:Name="OpacitySlider" Header="How solid it stays when faded"
+                                Minimum="0.25" Maximum="1.0" StepFrequency="0.05"
+                                ValueChanged="OnOpacityChanged" />
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap"
+                                   Text="The mini window floats over your other work. It never fades while an alarm is ringing, while the feed is not live, or while there is anything else to tell you — only when there is genuinely nothing to see." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ===== Starting up (WIN-8) ===== -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Startup" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
+                        BorderBrush="#1AFFFFFF">
+                    <StackPanel Spacing="14">
+                        <ToggleSwitch x:Name="StartupToggle" Header="Start Baby Monitor with Windows"
+                                      OnContent="On" OffContent="Off" Toggled="OnStartupToggled" />
+                        <InfoBar x:Name="StartupError" IsOpen="False" Severity="Warning" IsClosable="False" />
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap"
+                                   Text="A PC that restarts overnight comes back to a running monitor. Monitoring still has to be started — the app never starts watching without being asked." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ===== Updates (UPD-3/4/5) ===== -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Updates" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
+                        BorderBrush="#1AFFFFFF">
+                    <StackPanel Spacing="14">
+                        <TextBlock x:Name="UpdateStatusText" />
+
+                        <StackPanel x:Name="TokenGroup" Spacing="8">
+                            <PasswordBox x:Name="TokenBox" Header="GitHub token" PlaceholderText="github_pat_…" />
+                            <Button Content="Save token" Style="{StaticResource AccentButtonStyle}"
+                                    Click="OnSaveToken" HorizontalAlignment="Left" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="TokenStored" Orientation="Horizontal" Spacing="8"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="A token is stored for this Windows user."
+                                       Foreground="#8CFFFFFF" VerticalAlignment="Center" />
+                            <Button Content="Remove" Click="OnRemoveToken" />
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap"
+                                   Text="Baby Monitor updates itself from its private repository, which needs a fine-grained GitHub token with read-only access to Contents. Updates are downloaded and verified in the background and installed only while monitoring is stopped — the app will never restart itself while it is watching the baby." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- ===== What a PC cannot do (WIN-11) ===== -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="What this PC cannot do" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
+                        BorderBrush="#1AFFFFFF">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="A sleeping PC cannot monitor."
+                                   Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap"
+                                   Text="While monitoring, the app stops Windows from going to sleep on its own. But closing a laptop's lid, pressing the power button, or choosing Sleep stops the monitor — no app can prevent that. If the PC does sleep, you will be told that monitoring was down and for how long." />
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap"
+                                   Text="Windows does not always include an H.265 decoder. Without the free HEVC Video Extensions there is no picture — but sound, the level meter, the crying alarm and the watchdog all keep working. Sound is what monitoring means." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <TextBlock x:Name="VersionText" Foreground="#8CFFFFFF" HorizontalAlignment="Center"
+                       Style="{StaticResource CaptionTextBlockStyle}" />
+        </StackPanel>
+    </ScrollViewer>
+</Window>

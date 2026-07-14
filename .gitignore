@@ -12,6 +12,11 @@ captures/
 secrets/
 .DS_Store
 
+# .NET (the Windows app)
+bin/
+obj/
+*.user
+
 # Local AI/editor tooling configs (argent init artifacts — machine-specific)
 .claude/
 .codex/

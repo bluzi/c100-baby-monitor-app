@@ -164,9 +164,12 @@ public sealed class MissClient : IDisposable
             {
                 payload = Crypto.ChachaDecode(encPayload, Key);
             }
-            catch (ArgumentException)
+            catch (Exception e) when (e is not OperationCanceledException)
             {
-                continue; // a packet that will not decrypt is skipped, never fatal
+                // PROTO-23: a packet that will not decrypt is skipped, never fatal. Deliberately every
+                // exception and not just the one ChachaDecode throws today — the rule is about the
+                // stream surviving a bad packet, not about which exception a decoder happens to raise.
+                continue;
             }
 
             var frame = Miss.FrameFromPacket(header, payload);

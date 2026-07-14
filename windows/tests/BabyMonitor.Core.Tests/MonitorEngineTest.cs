@@ -87,6 +87,39 @@ public class MonitorEngineTest : IDisposable
         Assert.True(_ringer.Acknowledged > 0);
     }
 
+    [Fact(DisplayName = "LIVE-5 a cloud that times out is retried — it never quietly ends the night")]
+    public async Task ATimingOutCloudIsRetried()
+    {
+        // The failure this pins is the quietest one there is. .NET reports an HTTP timeout as a
+        // TaskCanceledException, and the engine treats an OperationCanceledException as "the user
+        // stopped monitoring" — so a single slow answer from Mi Cloud would unwind the reconnect loop
+        // for good: still "running", still saying "connecting", never reconnecting, and never saying a
+        // word about it. The monitor would look exactly like a monitor that was working.
+        var engine = new MonitorEngine(
+            _store,
+            _ringer,
+            new NullMedia(),
+            new NullSockets(),
+            new ScriptedHttp(_ => throw new IOException("http: GET … timed out"))); // what the client now raises
+
+        engine.Start();
+
+        for (var i = 0; i < 200; i++)
+        {
+            if (MonitorHub.Status.Value.StartsWith("reconnecting", StringComparison.Ordinal))
+            {
+                Assert.True(MonitorHub.Running.Value); // still monitoring, and still trying
+                engine.Stop();
+                return;
+            }
+
+            await Task.Delay(50);
+        }
+
+        engine.Stop();
+        Assert.Fail($"a timed-out cloud was not retried (status: {MonitorHub.Status.Value})");
+    }
+
     [Fact(DisplayName = "LIVE-5 a camera that never answers is retried, and the status says so")]
     public async Task ItKeepsTryingAndSaysSo()
     {

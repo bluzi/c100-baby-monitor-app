@@ -10,15 +10,29 @@ public sealed class StreamWatchdog
     private bool _firedThisOutage;
     private bool _wasArmed;
 
+    // Written by whichever thread applies settings, read by the watchdog's tick — the reads must see
+    // the writes, or a watchdog the parent has just armed guards nothing.
+    private volatile bool _enabled;
+    private long _graceMs;
+
     public StreamWatchdog(bool enabled = false, long graceMs = 30_000)
     {
         Enabled = enabled;
         GraceMs = graceMs;
     }
 
-    public bool Enabled { get; set; }
+    public bool Enabled
+    {
+        get => _enabled;
+        set => _enabled = value;
+    }
 
-    public long GraceMs { get; set; }
+    /// <summary>C# has no `volatile long`, so the barrier is asked for explicitly.</summary>
+    public long GraceMs
+    {
+        get => Interlocked.Read(ref _graceMs);
+        set => Interlocked.Exchange(ref _graceMs, value);
+    }
 
     /// <summary>
     /// WATCH-9: the watchdog guards the crying alarm, so it is armed only while the crying alarm could

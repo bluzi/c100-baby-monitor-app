@@ -44,13 +44,13 @@ public interface IMiHttp
 
 public sealed class SystemMiHttp : IMiHttp, IDisposable
 {
-    private const int TimeoutMs = 20_000;
+    private const int DefaultTimeoutMs = 20_000;
 
     private static readonly Lazy<SystemMiHttp> Instance = new(() => new SystemMiHttp());
 
     private readonly HttpClient _client;
 
-    public SystemMiHttp()
+    public SystemMiHttp(int timeoutMs = DefaultTimeoutMs)
     {
         var handler = new HttpClientHandler
         {
@@ -58,7 +58,7 @@ public sealed class SystemMiHttp : IMiHttp, IDisposable
             UseCookies = false, // PROTO-9: exactly the cookies we set, and no others
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
         };
-        _client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(TimeoutMs) };
+        _client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(timeoutMs) };
         _client.DefaultRequestHeaders.TryAddWithoutValidation(
             "User-Agent",
             "Android-7.1.1-1.0.0-ONEPLUS A3010-136-A7CBC1CD53B7-app-cmp-2020");
@@ -92,23 +92,41 @@ public sealed class SystemMiHttp : IMiHttp, IDisposable
                 };
         }
 
-        using var response = await _client
-            .SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-            .ConfigureAwait(false);
-
-        var collected = new List<KeyValuePair<string, string>>();
-        foreach (var (name, values) in response.Headers)
+        try
         {
-            collected.AddRange(values.Select(v => new KeyValuePair<string, string>(name, v)));
-        }
+            using var response = await _client
+                .SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+                .ConfigureAwait(false);
 
-        foreach (var (name, values) in response.Content.Headers)
+            var collected = new List<KeyValuePair<string, string>>();
+            foreach (var (name, values) in response.Headers)
+            {
+                collected.AddRange(values.Select(v => new KeyValuePair<string, string>(name, v)));
+            }
+
+            foreach (var (name, values) in response.Content.Headers)
+            {
+                collected.AddRange(values.Select(v => new KeyValuePair<string, string>(name, v)));
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+            return new RawResponse((int)response.StatusCode, url, collected, bytes);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            collected.AddRange(values.Select(v => new KeyValuePair<string, string>(name, v)));
+            // **A timeout is not a cancellation, and the difference is a night of monitoring.**
+            //
+            // HttpClient reports its own timeout as a TaskCanceledException — which IS an
+            // OperationCanceledException. The monitor treats one of those as "the user stopped
+            // monitoring" and unwinds the reconnect loop for good: no retry, no error, no alarm,
+            // nothing in the log but silence. One slow answer from Mi Cloud at 2am would have ended
+            // the night's monitoring, and the app would have gone on looking like it was watching.
+            //
+            // On the JVM the same event surfaces as SocketTimeoutException — an IOException — and is
+            // simply retried. So it is made to look like one here. (The sockets already do this; the
+            // HTTP client was the one place it was missed.)
+            throw new IOException($"http: {method} {url} timed out");
         }
-
-        var bytes = await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
-        return new RawResponse((int)response.StatusCode, url, collected, bytes);
     }
 
     public void Dispose() => _client.Dispose();

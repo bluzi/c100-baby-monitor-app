@@ -49,7 +49,8 @@ public sealed class MonitorEngine
     private volatile MissClient? _client;
     private volatile AlarmSchedule _schedule = new(Windowed: false);
 
-    private LevelMeter _meter = new();
+    /// <summary>Replaced by the connection loop, read by the audio thread — hence volatile.</summary>
+    private volatile LevelMeter _meter = new();
 
     /// <summary>ALRM-16: learned steps for the current camera, applied on top of the sensitivity dial.</summary>
     private volatile int _calibrationSteps;
@@ -649,10 +650,14 @@ public sealed class MonitorEngine
 
         using var inner = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
+        // Both consumers take the session's token, and that is deliberate: when the connection ends —
+        // a user Stop, a camera switch, a dropped feed — the backlog is DROPPED, not drained. A
+        // stopped monitor that pushed its last second of buffered audio through the analysis tap could
+        // ring the crying alarm about a room it is no longer watching.
         var audioTask = Task.Run(
             async () =>
             {
-                await foreach (var f in audioQueue.Reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
+                await foreach (var f in audioQueue.Reader.ReadAllAsync(inner.Token).ConfigureAwait(false))
                 {
                     // A failing audio path must throw rather than play silence: a parent must never
                     // mistake a broken speaker for a quiet room. This kills the connection, and the
@@ -666,7 +671,7 @@ public sealed class MonitorEngine
             async () =>
             {
                 var catchup = new VideoCatchup();
-                await foreach (var f in videoQueue.Reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
+                await foreach (var f in videoQueue.Reader.ReadAllAsync(inner.Token).ConfigureAwait(false))
                 {
                     var backlog = Interlocked.Decrement(ref videoBacklog);
                     if (catchup.Admit(Hevc.IsKeyframe(f.Data), backlog))

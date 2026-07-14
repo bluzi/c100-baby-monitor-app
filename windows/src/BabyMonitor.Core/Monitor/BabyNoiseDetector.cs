@@ -28,6 +28,12 @@ public sealed class BabyNoiseDetector
     private readonly long _sustainMs;
     private readonly double _minCoverage;
 
+    // Written by whichever thread applies settings, read by the audio thread on every window. The
+    // reads must see the writes: a parent who turns the alarm on and watches it not arm has a monitor
+    // that is lying to them.
+    private volatile bool _enabled;
+    private volatile bool _suppressed;
+    private double _thresholdDb;
     private long _snoozeUntilMs = long.MinValue;
 
     public BabyNoiseDetector(long sustainMs = 2000, double minCoverage = 0.6)
@@ -37,12 +43,25 @@ public sealed class BabyNoiseDetector
         ThresholdDb = CryCalibration.EffectiveThresholdDb(Settings.SensitivityDefault, 0);
     }
 
-    public bool Enabled { get; set; }
+    public bool Enabled
+    {
+        get => _enabled;
+        set => _enabled = value;
+    }
 
-    public double ThresholdDb { get; set; }
+    /// <summary>C# has no `volatile double`, so the barrier is asked for explicitly.</summary>
+    public double ThresholdDb
+    {
+        get => Volatile.Read(ref _thresholdDb);
+        set => Volatile.Write(ref _thresholdDb, value);
+    }
 
     /// <summary>True while an alarm is sounding unacknowledged — nothing new may trigger (ALRM-5).</summary>
-    public bool Suppressed { get; set; }
+    public bool Suppressed
+    {
+        get => _suppressed;
+        set => _suppressed = value;
+    }
 
     /// <summary>
     /// Is this window the sound of a baby crying *in this room* (ALRM-3)?

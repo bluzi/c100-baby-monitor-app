@@ -34,6 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // UPD-5, the "or at the next launch" half. This must happen BEFORE anything else: the app
+        // starts monitoring almost immediately, and once it does, an update may not be applied. If
+        // a previous run staged one and then found the monitor running, this is its moment — the
+        // only one where installing costs nothing, because nothing is being watched yet.
+        if installStagedFromEarlierRun() { return } // we are relaunching; do not set the app up
+
         state = AppState()
         Log.info("app", "Baby Monitor \(Self.version) starting — screen=\(state.ui.screen)")
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -443,6 +449,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let failing = await updater.isFailingPersistently
             Log.warn("update", "check failed: \(error.localizedDescription)")
             state.updateStatus = failing ? .failing(reason: error.localizedDescription) : .idle
+        }
+    }
+
+    /// UPD-5: apply an update a previous run staged but could not install because the monitor was
+    /// running. Returns true when the app is about to relaunch into the new version.
+    ///
+    /// Synchronous, and first: everything after it in `applicationDidFinishLaunching` would build
+    /// an app that is about to be replaced, and starting a monitor we are seconds from tearing down
+    /// would be a camera connection made and dropped for nothing.
+    private func installStagedFromEarlierRun() -> Bool {
+        guard let staged = StagedUpdate.find(newerThan: Self.version) else { return false }
+        Log.warn("update", "a staged update (\(staged.version)) is waiting — installing it now, before monitoring starts")
+        do {
+            try StagedUpdate.install(staged)
+            return true
+        } catch {
+            // A failed install must never keep the monitor from coming up. Carry on with the old
+            // version: an outdated monitor beats no monitor.
+            Log.error("update", "could not install the staged update: \(error.localizedDescription)")
+            return false
         }
     }
 

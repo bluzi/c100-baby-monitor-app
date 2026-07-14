@@ -87,6 +87,7 @@ actor Updater {
     /// UPD-4: how many checks in a row have failed. The UI complains once this is no longer a blip.
     var isFailingPersistently: Bool { consecutiveFailures >= 3 }
 
+
     // MARK: - GitHub
 
     /// The newest release that actually contains a **macOS** build.
@@ -202,24 +203,11 @@ actor Updater {
 
     // MARK: - Applying
 
-    /// UPD-5: only ever called with monitoring stopped. Swaps the bundle and relaunches — which is
-    /// safe precisely *because* nothing is being monitored at the time.
+    /// UPD-5: only ever called with monitoring stopped. Delegates to the synchronous installer.
     func install() throws {
         guard let staged else { return }
-        let current = Bundle.main.bundleURL
-
-        // replaceItemAt is atomic: either the new bundle is in place or the old one still is.
-        // A half-written app bundle would be a Mac that cannot monitor tonight.
-        _ = try FileManager.default.replaceItemAt(current, withItemAt: staged.bundle)
-        Log.warn("update", "installed \(staged.version) — relaunching")
-
-        let relaunch = Process()
-        relaunch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        relaunch.arguments = ["-n", current.path]
-        try relaunch.run()
-
+        try StagedUpdate.install(staged)
         self.staged = nil
-        DispatchQueue.main.async { NSApplication.shared.terminate(nil) }
     }
 
     private func isNewer(_ candidate: String, than current: String) -> Bool {
@@ -258,5 +246,93 @@ private final class RedirectAuthStripper: NSObject, URLSessionTaskDelegate {
         var stripped = request
         stripped.setValue(nil, forHTTPHeaderField: "Authorization")
         completionHandler(stripped)
+    }
+}
+
+/// Staged updates on disk: finding them, checking them, and swapping them in.
+///
+/// Deliberately **synchronous and outside the actor**. This runs at launch, on the main thread,
+/// before anything else — and an actor here forced a semaphore, which deadlocked the app, because
+/// a `Task` created inside a `@MainActor` method inherits MainActor and cannot run while the main
+/// thread waits on it. It is directory listing and a file swap. It does not need concurrency.
+enum StagedUpdate {
+    private static let teamID = "Q3X5Y6A98J"
+    private static let prefix = "BabyMonitorUpdate-"
+
+    /// **The other half of UPD-5**, and the half that makes the first half survivable.
+    ///
+    /// An update applies "when monitoring is stopped, or at the next launch". Without the second
+    /// clause the app never updates at all: it starts monitoring the moment it launches, so
+    /// "monitoring is stopped" never comes around on its own, and a staged update held only in
+    /// memory is discarded on every restart. The app would sit on one version forever, dutifully
+    /// re-downloading the new one each time and throwing it away — which is exactly what it did.
+    static func find(newerThan currentVersion: String) -> (version: String, bundle: URL)? {
+        let temp = FileManager.default.temporaryDirectory
+        let entries = (try? FileManager.default.contentsOfDirectory(
+            at: temp, includingPropertiesForKeys: nil
+        )) ?? []
+
+        var best: (version: String, bundle: URL)?
+        for dir in entries where dir.lastPathComponent.hasPrefix(prefix) {
+            let version = String(dir.lastPathComponent.dropFirst(prefix.count))
+            let app = dir.appendingPathComponent("BabyMonitor.app")
+            guard FileManager.default.fileExists(atPath: app.path),
+                  isNewer(version, than: currentVersion),
+                  isNewer(version, than: best?.version ?? "0")
+            else { continue }
+
+            // Its checksum was verified when it was downloaded, but it has been on disk since. An
+            // updater is the one component allowed to replace the running code, so it does not take
+            // that on trust: the bundle must still carry our signature.
+            guard signedByUs(app) else {
+                Log.error("update", "a staged bundle is not signed by us — discarding it")
+                try? FileManager.default.removeItem(at: dir)
+                continue
+            }
+            best = (version, app)
+        }
+        return best
+    }
+
+    /// Swaps the bundle and relaunches. Only ever called when nothing is being monitored — at
+    /// launch before the monitor starts, or once the user has stopped it (UPD-5).
+    static func install(_ update: (version: String, bundle: URL)) throws {
+        let current = Bundle.main.bundleURL
+        // Atomic: either the new bundle is in place or the old one still is. A half-written app
+        // bundle would be a Mac that cannot monitor tonight.
+        _ = try FileManager.default.replaceItemAt(current, withItemAt: update.bundle)
+        Log.warn("update", "installed \(update.version) — relaunching")
+
+        let relaunch = Process()
+        relaunch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        relaunch.arguments = ["-n", current.path]
+        try relaunch.run()
+        NSApplication.shared.terminate(nil)
+    }
+
+    private static func signedByUs(_ app: URL) -> Bool {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code
+        else { return false }
+
+        var requirement: SecRequirement?
+        let text = "identifier \"com.bluzi.babymonitor\" and anchor apple generic and "
+            + "certificate leaf[subject.OU] = \"\(teamID)\""
+        guard SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess,
+              let requirement
+        else { return false }
+
+        return SecStaticCodeCheckValidity(code, [], requirement) == errSecSuccess
+    }
+
+    private static func isNewer(_ candidate: String, than current: String) -> Bool {
+        let a = candidate.split(separator: ".").compactMap { Int($0) }
+        let b = current.split(separator: ".").compactMap { Int($0) }
+        for i in 0..<max(a.count, b.count) {
+            let x = i < a.count ? a[i] : 0
+            let y = i < b.count ? b[i] : 0
+            if x != y { return x > y }
+        }
+        return false
     }
 }

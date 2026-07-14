@@ -193,6 +193,14 @@ M10. **Updates never interrupt (UPD-3, UPD-5, UPD-7):** with monitoring running,
      Monitoring is untouched. Stop monitoring — the update applies. Confirm the new version under
      About (UPD-6, LIVE-15).
 
+M10a. **The update actually lands (UPD-5, both halves):** the step above proves the update WAITS.
+     This proves it eventually arrives. With the update staged and monitoring still running, quit
+     the app and reopen it — it installs the staged version *before* monitoring starts, relaunches,
+     and comes back live on the new version. Check About.
+     Without this half the app would never update at all: it starts monitoring the instant it
+     launches, so "monitoring is stopped" never comes around by itself, and it would sit on one
+     version forever, re-downloading the new one and throwing it away. It did exactly that.
+
 M10b. **The update does not ask for a password (AUTH-6m):** the step above must complete with **no
      Keychain prompt at all** — the updated app reads its own stored session in silence and comes
      straight back up live. If a password box appears, the signing is wrong (certificate,

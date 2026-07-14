@@ -37,6 +37,9 @@ only about the shell around it.
   so the baby is visible while working. It shows the video and the feed state, it can be moved and
   resized, and its position is remembered. Closing it never stops monitoring; it is a view, not the
   monitor (BG-7m).
+- **MACOS-12** `[device]` While a window is open, the app can be reached the way every other app can
+  — Cmd-Tab and Mission Control find it. With no window open it recedes into the menu bar and stops
+  cluttering the switcher. A window a parent has to go hunting for is a window they will not check.
 
 ## Starting up
 

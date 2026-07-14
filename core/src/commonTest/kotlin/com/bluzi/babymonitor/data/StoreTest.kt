@@ -27,6 +27,18 @@ private class MarkingSecretBox : SecretBox {
         if (sealed.startsWith("SEALED:")) sealed.removePrefix("SEALED:").reversed() else null
 }
 
+/** A secret store that says no — an invalidated Keystore key, a Keychain that declines. */
+private class RefusingSecretBox : SecretBox {
+    override fun seal(plain: String): String? = null
+    override fun open(sealed: String): String? = null
+}
+
+/** A secret store that fails the other way: by throwing (which the Android Keystore really does). */
+private class ThrowingSecretBox : SecretBox {
+    override fun seal(plain: String): String = error("keystore key invalidated")
+    override fun open(sealed: String): String? = null
+}
+
 private fun sampleSession() = Session(
     userId = "100001",
     cUserId = "CU1",
@@ -55,6 +67,31 @@ class StoreTest {
         assertTrue(stored.contains("SEALED:"))
         assertFalse(stored.contains("PT-secret"))
         assertFalse(stored.contains("ST-secret"))
+    }
+
+    @Test
+    fun `AUTH-6 a secret store that refuses drops the session — it never crashes and never falls back to plaintext`() {
+        // This is not hypothetical. A Keychain that declined to store the token once raised an
+        // ObjC exception straight through Kotlin and killed the whole monitor. A storage failure
+        // must cost a sign-in, never the monitor.
+        val refusing = MemoryKv()
+        val store = AppStore(refusing, RefusingSecretBox())
+        store.saveSession(sampleSession())
+
+        assertNull(store.loadSession())
+        val stored = refusing.map.values.joinToString()
+        assertFalse(stored.contains("PT-secret"))
+        assertFalse(stored.contains("ST-secret"))
+    }
+
+    @Test
+    fun `AUTH-6 a secret store that throws drops the session rather than taking the monitor down`() {
+        val throwing = MemoryKv()
+        val store = AppStore(throwing, ThrowingSecretBox())
+        store.saveSession(sampleSession()) // must not propagate
+
+        assertNull(store.loadSession())
+        assertFalse(throwing.map.values.joinToString().contains("PT-secret"))
     }
 
     @Test

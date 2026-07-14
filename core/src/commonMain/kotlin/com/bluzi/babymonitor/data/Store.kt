@@ -17,9 +17,21 @@ interface KeyValueStore {
     fun remove(key: String)
 }
 
-/** Encryption seam for secrets — Android Keystore in production, passthrough fake in tests. */
+/**
+ * Encryption seam for secrets — Android Keystore on the phone, the Keychain on the Mac,
+ * passthrough fake in tests.
+ *
+ * **Failure is a null, never an exception.** Both are real: a Keystore key can be invalidated by an
+ * OS update, and a Keychain can refuse. But an implementation on the other side of a language
+ * bridge cannot throw something this side can catch — an ObjC exception raised in Swift unwinds
+ * straight through Kotlin and kills the process. It did, once: a keychain that declined to store a
+ * token took the whole monitor down with it. So the contract is a value, which cannot be misused.
+ */
 interface SecretBox {
-    fun seal(plain: String): String
+    /** Null when the secret could not be sealed. The caller must then NOT persist it (AUTH-6). */
+    fun seal(plain: String): String?
+
+    /** Null when the secret could not be read back — a lost session, never a crash. */
     fun open(sealed: String): String?
 }
 
@@ -208,12 +220,18 @@ class AppStore(private val kv: KeyValueStore, private val box: SecretBox) {
      * back to plaintext — the user simply signs in again.
      */
     fun saveSession(s: Session) {
-        try {
-            kv.put(KEY_SESSION, box.seal(Codecs.sessionToJson(s)))
+        val sealed = try {
+            box.seal(Codecs.sessionToJson(s))
         } catch (e: Exception) {
-            Log.w("data", "could not encrypt session, not persisting it: ${e.message}", e)
-            kv.remove(KEY_SESSION)
+            Log.w("data", "could not encrypt session: ${e.message}", e)
+            null
         }
+        if (sealed == null) {
+            Log.w("data", "the secret store refused the session — not persisting it")
+            kv.remove(KEY_SESSION)
+            return
+        }
+        kv.put(KEY_SESSION, sealed)
     }
 
     fun loadSession(): Session? =
@@ -279,4 +297,7 @@ class AppStore(private val kv: KeyValueStore, private val box: SecretBox) {
         kv.remove(KEY_SESSION)
         kv.remove(KEY_DEVICE)
     }
+
+    /** CAM-4: switching camera forgets the choice, not the account — the picker comes back. */
+    fun clearDevice() = kv.remove(KEY_DEVICE)
 }

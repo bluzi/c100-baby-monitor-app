@@ -24,6 +24,11 @@ kotlin {
                 extraOpts("-libraryPath", "$opusPrefix/lib")
             }
         }
+        // What Xcode links against. Static, so the shipped .app carries no dylib of ours.
+        binaries.framework {
+            baseName = "BabyMonitorCore"
+            isStatic = true
+        }
     }
     // Future shells plug in here and get the whole monitor for free:
     //   jvm()        -> Windows/Linux desktop (reuses jvmMain's sockets + HTTP)

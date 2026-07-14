@@ -124,6 +124,10 @@ jobs:
     # A macOS runner bills at 10x on a private repo. A build takes minutes; anything approaching
     # this cap means something is hung, and a hung job must not quietly cost a fortune.
     timeout-minutes: 45
+    env:
+      # The `secrets` context cannot be read from a step's `if`, so notarisation's "do we have
+      # credentials?" question is answered once, here, where secrets ARE allowed.
+      HAS_NOTARY_KEY: ${{ secrets.APPLE_API_KEY_P8 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -182,7 +186,7 @@ jobs:
       # So: give it 15 minutes, and if Apple has not answered, ship anyway. The only consequence is
       # a right-click on a fresh install.
       - name: Notarize and staple
-        if: ${{ secrets.APPLE_API_KEY_P8 != '' }}
+        if: env.HAS_NOTARY_KEY == 'true'
         continue-on-error: true
         run: |
           printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/key.p8"

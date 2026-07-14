@@ -282,10 +282,17 @@ W1. **The tray is the app (WIN-1, WIN-2, BG-2w):** launch it. A tray icon appear
     — the icon and the menu both change within seconds. The menu opens with either mouse button and
     dismisses when you click away, like every other tray menu.
 
-W2. **Closing a window is not exiting (WIN-7, WIN-9, BG-5):** with audio playing, close the window
-    (the X, and again with Alt-F4). Audio keeps playing, the tray icon stays, and the first close
-    says where the app went. Reopen from the tray — the feed is live immediately, with no reconnect
-    in the log. Only Exit ends the app.
+W2. **Closing a window is not exiting (WIN-7, WIN-9, WIN-12, BG-5):** with audio playing, close the
+    window (the X, and again with Alt-F4). Audio keeps playing, the tray icon stays, and the first
+    close says where the app went. With the window closed, Alt-Tab and the taskbar no longer show the
+    app — it has receded into the tray; reopen it from the tray and it is back in both, like any other
+    app. The feed is live immediately, with no reconnect in the log. Only Exit ends the app.
+
+W2a. **The full shape (WIN-6, LIVE-9w):** the video fills the window edge to edge, with the status and
+    the level indicator overlaid along the top and the buttons along the bottom. Switching camera,
+    signing out and the version live behind the "…" menu rather than on the bar. Compare it against
+    the phone and the Mac: **the same controls, in the same states** — if one offers Stop and another
+    does not, one of them is wrong (that decision is shared code).
 
 W3. **Mute keeps the alarm working (WIN-4, LIVE-3, LIVE-2):** mute from the tray menu. The speaker
     goes silent and the menu item shows checked ("Muted"). Make noise at the camera — the level

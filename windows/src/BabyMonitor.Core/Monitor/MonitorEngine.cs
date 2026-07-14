@@ -83,7 +83,13 @@ public sealed class MonitorEngine
 
     public void Start()
     {
-        if (_connTask is { IsCompleted: false })
+        // BG-11: `Running` — not the task — is what "already monitoring" means. A stopped monitor's
+        // connection loop is still unwinding for a moment (the goodbye to the camera is given a whole
+        // second), and a parent who presses Stop and changes their mind lands inside exactly that
+        // moment. Keying this off the task alone would answer "already monitoring" and do nothing,
+        // leaving them looking at a Start button that does not start. The loop below still waits for
+        // that teardown before it touches anything.
+        if (_connTask is { IsCompleted: false } && MonitorHub.Running.Value)
         {
             if (MonitorHub.Status.Value != Statuses.MonitorFailed)
             {

@@ -119,6 +119,11 @@ Certificate, profile and entitlement are a set; drop any one and it breaks, loud
 - Version is shared: `versionCode` = commit count on main, `versionName = 0.1.<versionCode>`.
 - **Android:** signed APK published as GitHub Release `v0.1.<n>`. Keep **exactly one `.apk` asset
   per release** — Obtainium needs to resolve a single APK or silent background updates stop working.
+  The Mac's `.dmg`/`.zip`/`checksums.txt` on the same release are harmless: Obtainium ignores every
+  asset that does not end in `.apk`. And a macOS-only release, which carries no APK at all, is
+  handled by Obtainium's **"Fallback to older releases"** setting (on by default) — it exists for
+  exactly this case, and walks back to the last release that has an APK. If that setting is ever
+  turned off, a macOS-only release would stall the phones on "no suitable release".
   Signing keystore: `~/keystores/c100-baby-monitor-release.jks` (never commit it; losing it means
   phones must uninstall/reinstall). CI signs via repo secrets `KEYSTORE_BASE64`,
   `KEYSTORE_PASSWORD`, `KEY_ALIAS`, injected as `BM_KEYSTORE_FILE` / `BM_KEYSTORE_PASSWORD` /

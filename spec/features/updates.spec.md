@@ -15,7 +15,9 @@ needed. So the rules below are about restraint as much as delivery.
   releases both, because it changed both.
 - **UPD-2** `[android]` `[device]` The phone updates itself from the published release (Obtainium
   watches the repository). Exactly one `.apk` asset per Android release — Obtainium must be able to
-  resolve a single APK or silent background updates stop working.
+  resolve a single APK or silent background updates stop working. A release that carries the Mac's
+  assets too changes nothing (they are not APKs), and a release carrying **no** APK — a macOS-only
+  change — must leave the phone on its current version rather than stalling it.
 - **UPD-3** `[macos]` `[device]` The Mac updates itself: it checks for a newer release on launch and
   periodically while running, downloads it in the background, and verifies it before it is ever run.
   A download that does not match the checksum published with the release is discarded, not installed.

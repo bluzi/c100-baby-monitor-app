@@ -271,7 +271,7 @@ final class AppState: ObservableObject {
         )
         ui = BabyMonitor.shared.state()
         BabyMonitor.shared.onStateChange { [weak self] state in
-            Task { @MainActor in self?.apply(state) }
+            Task { @MainActor [weak self] in self?.apply(state) }
         }
         observeAccessibility()
         observeNetwork()
@@ -283,9 +283,13 @@ final class AppState: ObservableObject {
     // MARK: - The network (LIVE-13)
 
     private func observeNetwork() {
+        // The `[weak self]` is captured again by the Task, not read out of the enclosing closure's
+        // capture. Reaching into the outer one from inside a concurrently-executing body is a
+        // warning at -Onone and an **error** at -O, so a build that is fine on this machine is a
+        // release that does not compile at all. (It was. That is why this comment exists.)
         network.pathUpdateHandler = { [weak self] path in
             let down = path.status != .satisfied
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.networkDown != down else { return }
                 self.networkDown = down
                 Log.info("app", "network is \(down ? "down — the camera cannot be reached" : "back")")

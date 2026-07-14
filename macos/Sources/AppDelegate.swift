@@ -394,7 +394,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         Task { await self.checkForUpdate() }
         // Every 6 hours. This is a monitor, not a package manager — checking harder buys nothing.
         updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
-            Task { await self?.checkForUpdate() }
+            Task { [weak self] in await self?.checkForUpdate() }
         }
     }
 

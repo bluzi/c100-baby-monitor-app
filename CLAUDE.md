@@ -275,6 +275,12 @@ From this repo:
   `Authorization` header comes with it** ("Only one auth mechanism allowed"). The updater must
   **strip `Authorization` on a cross-host redirect** — in `URLSession` that means implementing
   `willPerformHTTPRedirection` and returning a request with the header removed.
+- **A Mac debug build does not prove a Mac release build.** `-Onone` *warns* where `-O` **errors** —
+  notably "reference to captured var 'self' in concurrently-executing code", which is what you get
+  by reading an outer closure's `[weak self]` from inside a nested `Task` (capture it again:
+  `Task { @MainActor [weak self] in … }`). The app ran perfectly here and the release workflow could
+  not compile it at all. **`./macos/build.sh release` before pushing anything that touches
+  `macos/`** — it is the only local build that proves the thing CI ships.
 - **`Dispatchers.IO` is not public API on Kotlin/Native.** The monitor's socket reads block, so
   `appleMain` runs them on a dedicated thread pool; putting them on `Dispatchers.Default` would let
   a couple of stalled reads starve the watchdog tick that is supposed to notice the stall.

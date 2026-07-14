@@ -54,12 +54,13 @@ swiftc $SWIFT_FLAGS \
 sed -e "s/__VERSION_NAME__/$VERSION_NAME/" -e "s/__VERSION_CODE__/$VERSION_CODE/" \
   "$ROOT/macos/Resources/Info.plist" > "$APP/Contents/Info.plist"
 
-# MACOS-17: the icon. Committed rather than generated at build time — regenerate it with
-# ./macos/make-icon.sh after changing tools/make-icon.swift.
+# MACOS-17 / UI-3: the icon. One mark for every platform, generated from brand/icon.swift and
+# committed — regenerate with ./brand/build.sh, which writes Android's launcher icon from the same
+# description in the same run.
 if [ -f "$ROOT/macos/Resources/AppIcon.icns" ]; then
   cp "$ROOT/macos/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 else
-  echo "!! macos/Resources/AppIcon.icns is missing — run ./macos/make-icon.sh" >&2
+  echo "!! macos/Resources/AppIcon.icns is missing — run ./brand/build.sh" >&2
 fi
 
 # The Kotlin framework is static, so nothing to embed — the binary carries the monitor, libopus and

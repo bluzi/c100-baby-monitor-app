@@ -37,6 +37,11 @@ a phone.
    keyboard open on the sign-in screen, the focused field and the Sign in button stay visible;
    the keyboard's action key moves username → password and submits from the password field;
    opening the server-region menu leaves the keyboard up.
+8c. **The icon (UI-3):** find the app in the launcher, in recents, and in Android's app settings —
+    it shows the app's own mark (the waveform on its night-blue field), never a placeholder. With a
+    themed-icon launcher (Android 13+), it tints cleanly rather than turning into a blob. Hold it
+    against the Mac's icon in the Dock: **it is the same mark.**
+
 8a. **Autofocus (AUTH-11):** open the sign-in screen — the username field is already focused
     with the keyboard up. Sign in so Xiaomi demands a verification code — the code field is
     focused the same way, and typing immediately fills it.
@@ -192,9 +197,9 @@ M4d. **Paste works (MACOS-13):** on the sign-in screen, copy a password from a p
     menu lists them. Check the menu bar while the window is focused: App (About, Settings ⌘,, Hide,
     Quit), Edit, View, Window — the standard set. Cmd-, opens settings from anywhere.
 
-M4e. **It looks like a Mac app (MACOS-17, UI-1):** the app has its own icon in the switcher, the
-    Dock (while a window is open), About, and the Finder — never a generic placeholder. Every screen
-    renders dark.
+M4e. **It looks like a Mac app (MACOS-17, UI-1, UI-3):** the app has its own icon in the switcher,
+    the Dock (while a window is open), Mission Control, About, and the Finder — never a generic
+    placeholder, and **the same mark the phone shows** (UI-3). Every screen renders dark.
 
 M4g. **No black bars (MACOS-19):** with the feed live, look at the edges of the picture in the full
     shape and in the mini shape — the video fills the window completely, with no black band above or

@@ -168,6 +168,10 @@ core/                 THE MONITOR. Kotlin Multiplatform: JVM (Android) + Kotlin/
   commonTest/           The spec suite. Runs on BOTH targets.
   protocol-vectors.json Interop vectors from the proven c100 TS impl; compiled into the tests
 
+brand/                THE APP ICON, for every platform. icon.swift is the one description of the
+                      mark; ./brand/build.sh renders it into macOS's .icns AND Android's adaptive
+                      icon. Never export an icon per platform — that is how they stop matching.
+
 android/              The Android shell: MediaCodec, AudioTrack, foreground service, Compose
 macos/                The macOS shell: AppKit + SwiftUI, menu bar, VideoToolbox, Keychain, updater
   Sources/
@@ -179,8 +183,15 @@ macos/                The macOS shell: AppKit + SwiftUI, menu bar, VideoToolbox,
     MiniView.swift      The mini shape: the floating tile's chrome
     Design.swift        Glass, controls, level bar, pointer tracking
     Preview.swift       Visual harness (BM_UI_PREVIEW=…) — dead code in a real run
-  tools/make-icon.swift The app icon, drawn in code (./macos/make-icon.sh regenerates it)
 ```
+
+**The icon is shared, and generated (UI-3).** One mark, on the Mac and on the phone, and on
+whatever ships next: `brand/icon.swift` holds the colours and the geometry, and `./brand/build.sh`
+renders *both* `macos/Resources/AppIcon.icns` and Android's adaptive-icon vectors from them in one
+run. The outputs are committed, so a normal build never regenerates them — but they are outputs.
+Editing `ic_launcher_foreground.xml` by hand, or exporting a new `.icns` from a design tool, is how
+the two platforms quietly stop being the same app. `./brand/build.sh --preview` draws what each
+platform's mask will actually show, side by side.
 
 ## Architecture conventions
 

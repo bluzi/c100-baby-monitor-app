@@ -58,3 +58,7 @@ one is a bug, not a gap. Silence must never be mistaken for a calm baby.
 
 - **UI-1** `[device]` The app renders in a dark theme suitable for use in a dark room at night.
 - **UI-2** `[device]` All user-facing text is in English.
+- **UI-3** `[device]` The app has **one icon**, and it is the same mark on every platform it ships
+  on — wherever the OS shows an app: the Dock, Mission Control and the switcher on a Mac; the
+  launcher, recents and settings on a phone. It is never a generic placeholder, and a new platform
+  takes the same mark rather than inventing one. One monitor, one face.

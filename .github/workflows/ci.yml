@@ -50,11 +50,23 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - uses: microsoft/setup-msbuild@v2
+
+      # MSBuild from Visual Studio, not `dotnet publish` — the Windows App SDK's PRI-generation MSBuild
+      # task ships with VS's MSBuild, not the .NET SDK's, so `dotnet` cannot find it (MSB4062). Same
+      # command the release job runs, so the publish path is proven here too.
       - name: Publish the Windows app
-        run: >
-          dotnet publish windows/src/BabyMonitor.App/BabyMonitor.App.csproj
-          --configuration Release --runtime win-x64 --output windows/build/x64
-          -p:Platform=x64 --nologo
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE 'windows\build\x64'
+          msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
+            /t:Restore /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /nologo
+          msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
+            /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 `
+            /p:SelfContained=true /p:PublishDir="$out/" /nologo
+          if (-not (Test-Path (Join-Path $out 'BabyMonitor.exe'))) {
+            throw "publish did not produce BabyMonitor.exe in $out"
+          }
 
       # Prove the installer packages. A wrong Source: path or a typo in the .iss otherwise sails
       # through PR CI and fails on main — in the release job, after the release already exists, leaving

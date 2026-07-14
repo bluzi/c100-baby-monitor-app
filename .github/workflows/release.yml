@@ -288,25 +288,36 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      # MSBuild from Visual Studio, on PATH — see the build step for why the .NET CLI's own MSBuild
+      # will not do.
+      - uses: microsoft/setup-msbuild@v2
+
       # The same spec suite the phone and the Mac run, against the Windows port of the monitor —
       # including the interop vectors that pin the wire. A port that has drifted cannot reach a
-      # release.
+      # release. (This is pure net8.0 — `dotnet test` is right for it.)
       - name: Run the spec suite
         run: dotnet test windows/tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj --nologo
 
-      # Self-contained and unpackaged: the folder holds everything, including the Windows App SDK. That
-      # is what lets the updater (UPD-5) apply a version by swapping files rather than running an
-      # installer — no elevation, no MSIX identity, and no dialog for a parent to answer at 3am.
+      # Built with **MSBuild from Visual Studio**, not `dotnet publish`. The Windows App SDK generates a
+      # resources.pri at build time, and the MSBuild task that does it
+      # (Microsoft.Build.Packaging.Pri.Tasks) ships with VS's MSBuild, not with the .NET SDK's — under
+      # `dotnet` the task's assembly is looked for in the SDK tree, where it does not exist, and the
+      # build fails (MSB4062). VS's MSBuild finds it in the VS tree. Everything else is the same:
+      # self-contained and unpackaged, so the output folder is the whole app — what the updater swaps
+      # (UPD-5) and what the setup installs, with no MSIX identity and no dialog to answer at 3am.
       - name: Build the app
-        run: >
-          dotnet publish windows/src/BabyMonitor.App/BabyMonitor.App.csproj
-          --configuration Release
-          --runtime win-x64
-          --output windows/build/x64
-          -p:Platform=x64
-          -p:Version=$env:VERSION_NAME
-          -p:InformationalVersion=$env:VERSION_NAME
-          --nologo
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE 'windows\build\x64'
+          msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
+            /t:Restore /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /nologo
+          msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
+            /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 `
+            /p:SelfContained=true /p:PublishDir="$out/" `
+            /p:Version=$env:VERSION_NAME /p:InformationalVersion=$env:VERSION_NAME /nologo
+          if (-not (Test-Path (Join-Path $out 'BabyMonitor.exe'))) {
+            throw "publish did not produce BabyMonitor.exe in $out"
+          }
         env:
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}
 

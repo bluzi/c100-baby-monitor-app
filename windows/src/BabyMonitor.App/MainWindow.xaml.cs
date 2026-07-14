@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using BabyMonitor.App.Services;
 using BabyMonitor.Core.Monitor;
@@ -62,6 +63,7 @@ public sealed partial class MainWindow : Window
     private bool _camerasLoaded;
     private bool _busy;
     private string? _nightVision;
+    private bool _exiting;
 
     public MainWindow()
     {
@@ -90,9 +92,16 @@ public sealed partial class MainWindow : Window
             _state.SystemDidWake();
             if (_state.SleepOutage != null)
             {
-                ShowWindow(); // DESK-21: the outage is surfaced, not swallowed. Put it where it is seen.
+                // DESK-21: the outage is surfaced, not swallowed. It is a full sentence — how long the
+                // monitor was down — and the mini tile has no room for it, so come up full to say it.
+                ApplyShape(DesktopShell.ShapeFull);
+                ShowWindow();
             }
         });
+
+        // A second launch (Start-menu shortcut while we sit in the tray) does not start a second
+        // monitor — it asks us to come forward. The listener fires off the UI thread, so hop onto it.
+        SingleInstance.OnActivated(() => DispatcherQueue.TryEnqueue(ShowWindow));
 
         AppWindow.Closing += OnWindowClosing;
         AppWindow.Changed += OnWindowChanged;
@@ -422,6 +431,22 @@ public sealed partial class MainWindow : Window
     {
         Log.Info("app", "exiting on the user's request — monitoring ends here");
         _state.Stop();
+        Shutdown();
+    }
+
+    /// <summary>
+    /// Every path that actually ends the process goes through here — user Exit, and the "Restart now"
+    /// hand-off to an update. It sets <see cref="_exiting"/> *before* asking the app to exit, because
+    /// `Application.Exit()` closes the window through <see cref="OnWindowClosing"/>, which otherwise
+    /// cancels the close and leaves the app running: Exit that does not exit, and an update restart
+    /// that leaves the old process alive beside the new one. It also removes the tray icon by hand —
+    /// the process dies too fast for Windows to reap it, so without this a dead icon lingers, showing
+    /// the last state it had, until the user waves the mouse over it (a tray icon that lies — DESK-1).
+    /// </summary>
+    private void Shutdown()
+    {
+        _exiting = true;
+        RememberFrame(); // DESK-9: keep where each shape was, even when the way out is Exit
         _tray.Dispose();
         Application.Current.Exit();
     }
@@ -477,11 +502,11 @@ public sealed partial class MainWindow : Window
             }
             else if (shape == DesktopShell.ShapeMini)
             {
-                AppWindow.Resize(new SizeInt32(360, 202));
+                AppWindow.Resize(Scaled(360, 202));
             }
             else
             {
-                AppWindow.Resize(new SizeInt32(1100, 700));
+                AppWindow.Resize(Scaled(1100, 700));
             }
         }
         finally
@@ -524,7 +549,9 @@ public sealed partial class MainWindow : Window
         }
 
         var size = sender.Size;
-        var chrome = _shape == DesktopShell.ShapeMini ? 0 : 32; // the title bar's own height
+        // The title bar's own height, in physical pixels — so it scales with the display like the
+        // window it sits on (32 DIPs at 100%, 48 at 150%). Getting this wrong tilts the aspect fit.
+        var chrome = _shape == DesktopShell.ShapeMini ? 0 : (int)Math.Round(32 * Scale);
         var wanted = (int)Math.Round(((size.Width / _state.VideoAspect) + chrome));
         if (Math.Abs(wanted - size.Height) <= 2)
         {
@@ -545,6 +572,11 @@ public sealed partial class MainWindow : Window
     /// <summary>DESK-13 / DESK-6: closing the window closes the window. Monitoring does not notice.</summary>
     private void OnWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        if (_exiting)
+        {
+            return; // a real exit is under way (Shutdown) — let the window actually close
+        }
+
         args.Cancel = true;
         HideWindow();
     }
@@ -583,6 +615,15 @@ public sealed partial class MainWindow : Window
 
     private void OnPointerExited(object sender, PointerRoutedEventArgs e)
     {
+        // PointerExited bubbles. Moving the pointer off one of the tile's own buttons raises it on that
+        // child, and it bubbles here — so without this guard the tile would fade and drop its controls
+        // while the pointer is still sitting on it (DESK-10/11: the moment the pointer is over it, it is
+        // solid). Only a pointer leaving Root itself is the pointer leaving the window.
+        if (!ReferenceEquals(e.OriginalSource, sender))
+        {
+            return;
+        }
+
         _pointerInside = false;
         _chromeTimer.Stop();
         _chromeTimer.Start();
@@ -716,17 +757,24 @@ public sealed partial class MainWindow : Window
             _ = LoadCamerasAsync();
         }
 
-        // BG-8: an expired session sends the user back to sign-in rather than looping "connection lost".
-        if (_state.SessionExpired && screen == "login")
+        // AUTH-8 / BG-8: an expired session routes the parent back to sign-in (AppState does that), and
+        // the reason it carried is shown there once, so the screen is never a bare form with no
+        // explanation for why the watch ended.
+        if (screen == "login" && _state.TakeSessionExpiredMessage() is { } expired)
         {
-            ShowLoginError("Your session expired — please sign in again.");
+            ShowLoginError(expired);
         }
 
         var color = StatusColor();
         StatusDot.Fill = new SolidColorBrush(color);
         MiniStatusDot.Fill = new SolidColorBrush(color);
         StatusLineText.Text = _state.StatusLine;
-        MiniStatusText.Text = _state.Muted ? $"{_state.StatusText} · muted" : _state.StatusText;
+
+        // DESK-22 in the mini tile: with no HEVC decoder the picture is a black square, and the
+        // VideoWarning that explains it lives in the (collapsed) full chrome. A tile too small for the
+        // full sentence still must not be a silent black square, so the status line says it plainly.
+        var miniStatus = _state.VideoUnavailable ? "No video — needs HEVC support" : _state.StatusText;
+        MiniStatusText.Text = _state.Muted ? $"{miniStatus} · muted" : miniStatus;
         LevelText.Text = _state.Running ? $"{(int)_state.Level} dB" : string.Empty;
 
         UpdateLevelBar();
@@ -762,6 +810,8 @@ public sealed partial class MainWindow : Window
         StartupBanner.Visibility = _state.StartupOfferPending && viewer
             ? Visibility.Visible
             : Visibility.Collapsed;
+        StartupErrorText.Text = _state.StartupError ?? string.Empty;
+        StartupErrorText.Visibility = _state.StartupError != null ? Visibility.Visible : Visibility.Collapsed;
 
         SleepWarning.Visibility = _state.SleepUnprotected ? Visibility.Visible : Visibility.Collapsed;
         NetworkWarning.Visibility = _state.NetworkDown ? Visibility.Visible : Visibility.Collapsed;
@@ -880,11 +930,29 @@ public sealed partial class MainWindow : Window
     }
 
     private void OnOpenNetworkSettings(object sender, RoutedEventArgs e) =>
-        _ = Launcher.LaunchUriAsync(new Uri("ms-settings:network"));
+        OpenUri("ms-settings:network"); // LIVE-13: the shortest route back to the camera's network
 
     /// <summary>DESK-22: the shortest route to a picture — the free extension, in the Store.</summary>
     private void OnInstallHevc(object sender, RoutedEventArgs e) =>
-        _ = Launcher.LaunchUriAsync(new Uri("ms-windows-store://pdp/?ProductId=9n4wgh0z6vhq"));
+        OpenUri("ms-windows-store://pdp/?ProductId=9n4wgh0z6vhq");
+
+    /// <summary>
+    /// Hand a URI to the shell's own handler. Not <c>Launcher.LaunchUriAsync</c>: in an unpackaged app
+    /// that can silently no-op, and both callers are dead-end escapes a parent is relying on — the way
+    /// back to the camera's network (LIVE-13) and the way to a picture (DESK-22). `UseShellExecute`
+    /// launches the protocol handler the boring, certain way.
+    /// </summary>
+    private static void OpenUri(string uri)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+        }
+        catch (Exception e)
+        {
+            Log.Warn("ui", $"could not open {uri}: {e.Message}");
+        }
+    }
 
     // --- night vision (LIVE-10) ----------------------------------------------
 
@@ -967,6 +1035,15 @@ public sealed partial class MainWindow : Window
             }
 
             await HandleSignInStepAsync(step);
+        }
+        catch (Exception ex)
+        {
+            // This is an async void handler: an exception here has nowhere to go but the global
+            // last-resort handler, and the parent would be left staring at a spinner. A gateway can
+            // return a malformed captcha PNG (LoadImageAsync throws) among other things — so any failure
+            // becomes a readable error with the fields still editable (AUTH-9).
+            Log.Warn("ui", $"sign-in failed: {ex.Message}");
+            ShowLoginError("Something went wrong signing in. Please try again.");
         }
         finally
         {
@@ -1217,7 +1294,7 @@ public sealed partial class MainWindow : Window
         if (_updater.Staged != null && Updater.Install(_updater.Staged))
         {
             _state.Stop(); // they asked for this restart; the watch resumes on the other side
-            Application.Current.Exit();
+            Shutdown();    // same clean exit as user Exit: tray icon removed, close not cancelled
         }
     }
 
@@ -1297,4 +1374,19 @@ public sealed partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hWnd);
+
+    /// <summary>
+    /// `AppWindow.Resize` takes physical pixels; XAML lays out in DIPs. On a 150% laptop — the common
+    /// case — a tile asked for "360×202" comes out 240×135 effective, and the bottom row (Acknowledge
+    /// included, the one control that must never be unreachable) is clipped. So every default size is
+    /// scaled by the window's DPI first. Stored frames are physical in and physical out, so they are
+    /// left alone.
+    /// </summary>
+    private double Scale => Math.Max(1.0, GetDpiForWindow(_hwnd) / 96.0);
+
+    private SizeInt32 Scaled(int width, int height) =>
+        new((int)Math.Round(width * Scale), (int)Math.Round(height * Scale));
 }

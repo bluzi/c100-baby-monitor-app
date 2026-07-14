@@ -1,8 +1,11 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using BabyMonitor.App.Services;
 using BabyMonitor.Core.Data;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using WinRT.Interop;
 using Log = BabyMonitor.App.Services.Logging.Log;
 
 namespace BabyMonitor.App;
@@ -11,6 +14,7 @@ public sealed partial class SettingsWindow : Window
 {
     private readonly AppState _state;
     private readonly List<string> _sounds;
+    private readonly PropertyChangedEventHandler _onStateChanged;
 
     /// <summary>
     /// True while the controls are being filled in, so echoing a control's own value straight back at
@@ -33,13 +37,23 @@ public sealed partial class SettingsWindow : Window
 
         Title = "Baby Monitor — Settings";
         ExtendsContentIntoTitleBar = false;
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(640, 860));
+
+        // Physical pixels, so scale by the window's DPI — 640×860 as-is is only 427×573 effective at
+        // 150%, which crops the dialog on the common laptop.
+        var hwnd = WindowNative.GetWindowHandle(this);
+        var scale = Math.Max(1.0, GetDpiForWindow(hwnd) / 96.0);
+        AppWindow.Resize(new Windows.Graphics.SizeInt32((int)(640 * scale), (int)(860 * scale)));
 
         CrySound.ItemsSource = state.AlarmSounds.Select(s => s.Label).ToList();
         FeedSound.ItemsSource = state.AlarmSounds.Select(s => s.Label).ToList();
         VersionText.Text = $"Baby Monitor {state.Version}"; // LIVE-15 / UPD-6
 
-        _state.PropertyChanged += (_, _) => DispatcherQueue.TryEnqueue(Load);
+        // AppState raises PropertyChanged ~20 times a second while the feed is live (the level meter).
+        // The subscription MUST be dropped when this window closes — otherwise Load() keeps firing on a
+        // window whose XAML tree is gone, throwing 20 times a second forever, and leaking the window.
+        _onStateChanged = (_, _) => DispatcherQueue.TryEnqueue(Load);
+        _state.PropertyChanged += _onStateChanged;
+        Closed += (_, _) => _state.PropertyChanged -= _onStateChanged;
         Load();
     }
 
@@ -212,4 +226,7 @@ public sealed partial class SettingsWindow : Window
         Log.Warn("update", "update token removed — the app will no longer update itself");
         Load();
     }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hWnd);
 }

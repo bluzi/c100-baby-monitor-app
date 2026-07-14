@@ -29,6 +29,7 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
     private readonly Queue<Sample> _queue = new();
 
     private MediaStreamSource? _source;
+    private MediaSource? _mediaSource;
     private MediaStreamSourceSampleRequest? _pendingRequest;
     private MediaStreamSourceSampleRequestDeferral? _pendingDeferral;
 
@@ -61,10 +62,17 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
     {
         try
         {
+            // The old pipeline goes first, and outside the lock (it touches the player). Without this,
+            // every reconnect leaks a decoder + COM graph — and, worse, the previous TearDown latched
+            // _torn, so a renderer reused across a reconnect would drop every frame forever and the
+            // picture would be black for the rest of the night while the status read "Live".
+            ReleasePipeline();
+
             lock (_lock)
             {
                 _queue.Clear();
                 _firstPtsMs = -1;
+                _torn = false; // this is a fresh pipeline; it accepts frames again
 
                 // The camera sends its parameter sets in their own access units, so every keyframe we
                 // hand to Media Foundation gets them prepended — an in-band stream is what its H.265
@@ -95,7 +103,8 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
                 _source = source;
             }
 
-            Player.Source = MediaSource.CreateFromMediaStreamSource(_source);
+            _mediaSource = MediaSource.CreateFromMediaStreamSource(_source);
+            Player.Source = _mediaSource;
             Log.Info("video", $"Media Foundation H.265 pipeline built ({width}x{height})");
             return true;
         }
@@ -162,6 +171,23 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
 
     public void TearDown()
     {
+        ReleasePipeline();
+        Log.Info("video", "video pipeline torn down");
+    }
+
+    /// <summary>
+    /// Let go of the current Media Foundation pipeline: mark it torn so no more frames are queued,
+    /// complete any request left hanging, detach the player, and unsubscribe and dispose the source
+    /// objects. Called both on a clean tear-down and at the head of every <see cref="Configure"/> — a
+    /// reconnect builds a fresh pipeline, and the old one must be fully released or it leaks (a decoder
+    /// per reconnect, all night) and, until <see cref="Configure"/> clears <c>_torn</c> again, the
+    /// screen stays black.
+    /// </summary>
+    private void ReleasePipeline()
+    {
+        MediaStreamSource? source;
+        MediaSource? mediaSource;
+
         lock (_lock)
         {
             _torn = true;
@@ -178,19 +204,28 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
             }
 
             _pendingDeferral = null;
+            source = _source;
+            mediaSource = _mediaSource;
+            _source = null;
+            _mediaSource = null;
         }
 
         try
         {
             Player.Source = null;
+
+            if (source != null)
+            {
+                source.SampleRequested -= OnSampleRequested;
+                source.Starting -= OnStarting;
+            }
+
+            mediaSource?.Dispose();
         }
         catch (Exception e)
         {
             Log.Warn("video", $"could not release the video source: {e.Message}");
         }
-
-        _source = null;
-        Log.Info("video", "video pipeline torn down");
     }
 
     public void Dispose()

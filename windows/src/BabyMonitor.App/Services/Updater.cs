@@ -1,9 +1,8 @@
 using System.Diagnostics;
-using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text.Json;
+using BabyMonitor.Core.Update;
 using Log = BabyMonitor.App.Services.Logging.Log;
 
 namespace BabyMonitor.App.Services;
@@ -32,24 +31,25 @@ public sealed record UpdateStatus(UpdateState State, string? Version = null, str
 /// The self-updater (spec/features/updates.spec.md). It works the way the Mac's does: a fine-grained,
 /// read-only GitHub token, the REST API, and the release assets.
 ///
+/// The *decisions* — which asset is ours, which line of the checksum file to read, which version is
+/// newer — and everything that touches the disk live in <see cref="BabyMonitor.Core.Update"/>, where
+/// the spec suite runs them on every machine. What is left here is the part that genuinely needs the
+/// network and the process: talk to GitHub, download bytes, hand over to the new build.
+///
 /// **UPD-5 is the whole design.** It downloads, verifies, and then *waits*: the update is applied when
-/// monitoring is stopped, or at the next launch. Never mid-session, and never on its own initiative. A
-/// baby monitor that restarts itself at 3am is precisely the failure this project exists to prevent.
+/// monitoring is stopped, or at the next launch. Never mid-session, and never on its own initiative.
 ///
 /// **UPD-4:** a token expires, and an app that has silently stopped updating looks exactly like an app
-/// that is up to date — for months. So repeated failures are reported, not swallowed.
+/// that is up to date — for months. So a failed check is reported, not swallowed.
 /// </summary>
 public sealed class Updater : IDisposable
 {
     private const string Owner = "bluzi";
     private const string Repo = "c100-baby-monitor-app";
-    private const string AssetSuffix = "-windows.zip";
-    private const string ChecksumAsset = "checksums-windows.txt";
 
     private readonly HttpClient _http;
     private readonly string _currentVersion;
-
-    private int _consecutiveFailures;
+    private readonly UpdateStaging _staging = new(AppPaths.StagingRoot);
 
     public Updater(string currentVersion)
     {
@@ -58,9 +58,14 @@ public sealed class Updater : IDisposable
         // The gotcha that costs an afternoon: a private repo's release asset is a 302 to S3, and S3
         // rejects the request outright ("Only one auth mechanism allowed") if our Authorization header
         // follows the redirect. So we follow redirects ourselves and strip the header across hosts.
+        //
+        // No total Timeout: HttpClient.Timeout bounds the *whole* operation, download included, so a
+        // five-minute cap would fail a large update on a slow line — and then fail it again at every
+        // launch, so a house with slow broadband would silently never update. The per-request budgets
+        // below are inactivity timeouts, which is what URLSession gives the Mac for free.
         _http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
         {
-            Timeout = TimeSpan.FromMinutes(5), // the app is tens of megabytes; a slow line is not a failure
+            Timeout = Timeout.InfiniteTimeSpan,
         };
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("BabyMonitor", currentVersion));
     }
@@ -68,16 +73,13 @@ public sealed class Updater : IDisposable
     /// <summary>The version that is downloaded, verified and waiting (UPD-7), if any.</summary>
     public StagedUpdate? Staged { get; private set; }
 
-    /// <summary>UPD-4: how many checks in a row have failed. The UI complains once this is no longer a blip.</summary>
-    public bool IsFailingPersistently => _consecutiveFailures >= 3;
-
     public static string CurrentVersion =>
         Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion.Split('+')[0] ?? "0.0.0";
 
     /// <summary>
     /// One check. Returns the staged version when a newer one is ready to install, null when we are
-    /// already current. Throws when the check itself failed — the caller counts those (UPD-4).
+    /// already current. Throws when the check itself failed — the caller reports those (UPD-4).
     /// </summary>
     public async Task<string?> CheckAsync(CancellationToken ct = default)
     {
@@ -89,85 +91,41 @@ public sealed class Updater : IDisposable
             throw new NoTokenException();
         }
 
-        try
+        if (!UpdateRules.CanCheck(_currentVersion))
         {
-            var release = await LatestReleaseAsync(token, ct).ConfigureAwait(false);
-            if (!IsNewer(release.Version, _currentVersion))
-            {
-                _consecutiveFailures = 0;
-                return null;
-            }
-
-            Staged = await DownloadAsync(release, token, ct).ConfigureAwait(false);
-            _consecutiveFailures = 0;
-            return release.Version;
-        }
-        catch (Exception)
-        {
-            _consecutiveFailures++;
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// UPD-5, the "or at the next launch" half — and the half that makes the first half survivable.
-    ///
-    /// Without it the app would never update at all: it starts monitoring the moment it launches, so
-    /// "monitoring is stopped" never comes around on its own, and a staged update held only in memory
-    /// would be discarded on every restart. The app would sit on one version forever, dutifully
-    /// re-downloading the new one each time and throwing it away.
-    /// </summary>
-    public static StagedUpdate? FindStaged(string currentVersion)
-    {
-        try
-        {
-            if (!Directory.Exists(AppPaths.StagingRoot))
-            {
-                return null;
-            }
-
-            StagedUpdate? best = null;
-            foreach (var dir in Directory.GetDirectories(AppPaths.StagingRoot))
-            {
-                var version = Path.GetFileName(dir);
-                var exe = Path.Combine(dir, "BabyMonitor.exe");
-                if (!File.Exists(exe) ||
-                    !IsNewer(version, currentVersion) ||
-                    (best != null && !IsNewer(version, best.Version)))
-                {
-                    continue;
-                }
-
-                best = new StagedUpdate(version, dir);
-            }
-
-            return best;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            Log.Warn("update", $"could not look for a staged update: {e.Message}");
+            // A dev build (0.0.0) is older than every release; checking would "find an update" every
+            // time and offer to copy CI's latest over the tree you are building.
             return null;
         }
+
+        var release = await LatestReleaseAsync(token, ct).ConfigureAwait(false);
+        if (release == null)
+        {
+            return null; // no release newer than us carries a Windows build: we are current
+        }
+
+        var zip = await DownloadAssetAsync(release.AssetId, token, ct).ConfigureAwait(false);
+        Staged = await Task.Run(() => _staging.Stage(zip, release.Version, release.Sha256), ct)
+            .ConfigureAwait(false);
+        return release.Version;
     }
 
     /// <summary>
-    /// **UPD-10, and it must run before anything else exists.**
+    /// UPD-10, and it must run before anything else exists — before the engine, before the tray, and
+    /// above all before the monitor connects to a camera it would have to drop again to relaunch.
     ///
-    /// A version the last run put in place takes over here — before the engine, before the tray, and
-    /// above all before the monitor connects to the camera. Do this later and the app makes a camera
-    /// connection, starts a watch, and tears both down seconds afterwards to relaunch: a stream
-    /// established and dropped for nothing, and a tray icon that flashes at a parent for no reason.
-    ///
-    /// Returns true when this process has handed over to the new version and should now exit.
+    /// A version the last run staged is re-verified, laid out, and handed control here. Returns true
+    /// when this process has handed over and should now exit.
     /// </summary>
     public static bool ApplyStagedAtLaunch()
     {
-        var staged = FindStaged(CurrentVersion);
+        var staging = new UpdateStaging(AppPaths.StagingRoot);
+        var staged = staging.Find(CurrentVersion);
         if (staged == null)
         {
             // Nothing newer is waiting, so whatever is left beside us is this version or older: the
-            // update landed, and the folder it came out of is just disk now.
-            CleanStaging(CurrentVersion);
+            // update landed, and the folders it came out of are just disk now.
+            staging.Clean(CurrentVersion);
             return false;
         }
 
@@ -180,18 +138,21 @@ public sealed class Updater : IDisposable
     /// monitor starts, or when the user has just asked for the restart.
     ///
     /// Windows will not let a running program overwrite itself, so the swap is done **by the new
-    /// version**: we start the staged executable, hand it our process id and where we live, and exit.
-    /// It waits for us to go, replaces the files, and starts the installed app again.
+    /// version**: we re-verify and lay out the staged build, start it with our process id and where we
+    /// live, and — only once we have seen it survive its first moment — exit. It waits for us to go,
+    /// swaps the files, and starts the installed app again.
     /// </summary>
     public static bool Install(StagedUpdate staged)
     {
         try
         {
+            var staging = new UpdateStaging(AppPaths.StagingRoot);
             var installDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
-            var stagedExe = Path.Combine(staged.Directory, "BabyMonitor.exe");
+            var appDir = staging.Open(staged); // re-verifies the digest; throws (and discards) if it rotted
+            var stagedExe = Path.Combine(appDir, "BabyMonitor.exe");
 
-            Log.Warn("update", $"installing {staged.Version} — handing over to the staged build and exiting");
-            Process.Start(new ProcessStartInfo
+            Log.Warn("update", $"installing {staged.Version} — handing over to the staged build");
+            var child = Process.Start(new ProcessStartInfo
             {
                 FileName = stagedExe,
                 UseShellExecute = false,
@@ -202,6 +163,17 @@ public sealed class Updater : IDisposable
                     Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 },
             });
+
+            // Did the new build actually come up? An unsigned, freshly-downloaded exe under LocalAppData
+            // is exactly what Defender quarantines; a bad extract dies the same way. If it is gone
+            // within its first second, we never handed over — so stay up and keep monitoring on the old
+            // version, which is the stated preference. It will try again next launch.
+            if (child != null && child.WaitForExit(3000) && child.ExitCode != 0)
+            {
+                Log.Error("update", $"the staged build exited immediately (code {child.ExitCode}) — staying on {CurrentVersion}");
+                return false;
+            }
+
             return true;
         }
         catch (Exception e)
@@ -214,42 +186,8 @@ public sealed class Updater : IDisposable
     }
 
     /// <summary>
-    /// Throw away every staged build this version has already outgrown.
-    ///
-    /// Each update leaves its staging folder behind (the process doing the swap is *running* from it,
-    /// so it cannot delete itself). Left alone, a monitor kept running for a year would quietly
-    /// accumulate a year of app folders — and a full disk is a stopped monitor, which is the same
-    /// reason the log is capped.
-    /// </summary>
-    public static void CleanStaging(string currentVersion)
-    {
-        try
-        {
-            if (!Directory.Exists(AppPaths.StagingRoot))
-            {
-                return;
-            }
-
-            foreach (var dir in Directory.GetDirectories(AppPaths.StagingRoot))
-            {
-                if (IsNewer(Path.GetFileName(dir), currentVersion))
-                {
-                    continue; // still ahead of us: it is waiting to be installed
-                }
-
-                Directory.Delete(dir, recursive: true);
-                Log.Info("update", $"removed the staged build {Path.GetFileName(dir)} — this app is it now");
-            }
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            Log.Warn("update", $"could not tidy the staging folder: {e.Message}");
-        }
-    }
-
-    /// <summary>
-    /// The other side of <see cref="Install"/>: we are the staged build, started by the old one. Wait
-    /// for it to exit, replace it, and start it again. Returns true when this process's whole job was
+    /// The other side of <see cref="Install"/>: we are the new build, started by the old one. Wait for
+    /// it to exit, swap the files, and start it again. Returns true when this process's whole job was
     /// the swap and it should now exit.
     /// </summary>
     public static bool TryApplyStagedUpdate(string[] args)
@@ -260,60 +198,70 @@ public sealed class Updater : IDisposable
         }
 
         var installDir = args[1];
-        var oldPid = int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
 
         try
         {
-            WaitForExit(oldPid);
-            CopyOver(AppContext.BaseDirectory, installDir);
+            if (int.TryParse(args[2], System.Globalization.CultureInfo.InvariantCulture, out var oldPid))
+            {
+                WaitForExit(oldPid);
+            }
 
-            var exe = Path.Combine(installDir, "BabyMonitor.exe");
-            Process.Start(new ProcessStartInfo { FileName = exe, UseShellExecute = false });
+            UpdateStaging.Swap(AppContext.BaseDirectory, installDir);
+            StartInstalled(installDir);
             return true;
         }
         catch (Exception e)
         {
-            // The old version is still on disk and still works. Start it again and leave it alone —
-            // an update that cannot be applied must never cost a night of monitoring.
+            // The swap rolls itself back, so the old version is still on disk and still works. Start it
+            // again and leave it alone — an update that cannot be applied must never cost a night.
             Log.Error("update", $"could not apply the update: {e.Message}", e);
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = Path.Combine(installDir, "BabyMonitor.exe"),
-                    UseShellExecute = false,
-                });
-            }
-            catch (Exception restart)
-            {
-                Log.Error("update", $"and could not restart the installed build: {restart.Message}", restart);
-            }
-
+            StartInstalled(installDir);
             return true;
         }
     }
 
     public void Dispose() => _http.Dispose();
 
+    private static void StartInstalled(string installDir)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = Path.Combine(installDir, "BabyMonitor.exe"),
+                UseShellExecute = false,
+            });
+        }
+        catch (Exception e)
+        {
+            Log.Error("update", $"could not restart the installed build: {e.Message}", e);
+        }
+    }
+
     /// <summary>
-    /// The newest release that actually contains a **Windows** build.
+    /// The newest release that actually contains a **Windows** build, or null when we are current.
     ///
     /// Not `/releases/latest`. Releases are path-filtered: a change under `android/` publishes only an
     /// APK, so the newest release may legitimately have no Windows build in it. That does not mean the
     /// updater is broken and it must not be reported as one — an updater that cries wolf is one nobody
-    /// reads. It means this PC is already current, and we keep looking back for the last release that
-    /// was ours.
+    /// reads.
+    ///
+    /// So we walk back from newest and **stop at the first release that is not newer than us** — our
+    /// own release is necessarily in the list, so reaching it means "already current", not "broken".
+    /// That is correct regardless of how many Android/Mac releases sit on top of ours, which a fixed
+    /// page count is not: thirty releases of other-platform work is a few weeks, and past that a
+    /// count-limited scan would report a false failure and never look further.
     /// </summary>
-    private async Task<Release> LatestReleaseAsync(string token, CancellationToken ct)
+    private async Task<Release?> LatestReleaseAsync(string token, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=30");
+            $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=50");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
 
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await SendAsync(request, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             throw new UpdaterException(HttpFailureMessage((int)response.StatusCode));
@@ -329,83 +277,56 @@ public sealed class Updater : IDisposable
                 continue;
             }
 
+            var tag = release.GetProperty("tag_name").GetString() ?? string.Empty;
+            var version = tag.StartsWith('v') ? tag[1..] : tag;
+
+            // The list is newest-first, and our own release is in it. The first release that is not
+            // strictly newer than us is us (or older): everything past it is older still, so we are
+            // current and there is nothing to report.
+            if (!UpdateRules.IsNewer(version, _currentVersion))
+            {
+                return null;
+            }
+
             if (!release.TryGetProperty("assets", out var assets))
             {
                 continue;
             }
 
             var app = assets.EnumerateArray().FirstOrDefault(a =>
-                a.GetProperty("name").GetString()?.EndsWith(AssetSuffix, StringComparison.Ordinal) == true);
+                UpdateRules.IsOurAsset(a.GetProperty("name").GetString() ?? string.Empty));
             if (app.ValueKind == JsonValueKind.Undefined)
             {
-                continue; // an Android-only or Mac-only release: this PC is already current
+                continue; // a newer Android-only or Mac-only release: not ours, keep looking back
             }
 
-            // Our own checksum file, not the Mac's: the two release jobs run at the same time, and a
-            // shared file would be a race whose loser publishes a build with no checksum — which this
-            // updater would then discard (UPD-3) rather than install, forever.
             var sums = assets.EnumerateArray().FirstOrDefault(a =>
-                a.GetProperty("name").GetString() == ChecksumAsset);
+                a.GetProperty("name").GetString() == UpdateRules.ChecksumAsset);
             if (sums.ValueKind == JsonValueKind.Undefined)
             {
-                throw new UpdaterException("The release did not publish a usable checksum.");
+                // A newer Windows build with no checksum yet — a half-finished upload. Do not fail the
+                // whole check on it (that would be a red warning for a release that is still landing);
+                // skip it and take the last good Windows release, which we update to next time anyway.
+                Log.Warn("update", $"release {version} has a Windows build but no checksum yet — skipping it");
+                continue;
             }
 
-            var tag = release.GetProperty("tag_name").GetString() ?? string.Empty;
-            var version = tag.StartsWith('v') ? tag[1..] : tag;
-            var assetName = app.GetProperty("name").GetString()!;
-
-            // UPD-3: the checksum is published alongside the build, and a download that does not match
-            // it is discarded rather than run. It is the one thing standing between a truncated
-            // download and a PC that will not monitor tonight.
             var sumsText = System.Text.Encoding.UTF8.GetString(
                 await DownloadAssetAsync(sums.GetProperty("id").GetInt64(), token, ct).ConfigureAwait(false));
 
-            var line = sumsText
-                .Split('\n')
-                .FirstOrDefault(l => l.Contains(AssetSuffix, StringComparison.Ordinal));
-            var sha = line?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            var sha = UpdateRules.Sha256For(sumsText);
             if (sha == null)
             {
-                throw new UpdaterException("The release did not publish a usable checksum.");
+                Log.Warn("update", $"release {version} published a checksum file with no line for our zip — skipping it");
+                continue;
             }
 
-            return new Release(version, app.GetProperty("id").GetInt64(), sha, assetName);
+            return new Release(version, app.GetProperty("id").GetInt64(), sha);
         }
 
-        throw new UpdaterException("No release carries a Windows build yet.");
-    }
-
-    private async Task<StagedUpdate> DownloadAsync(Release release, string token, CancellationToken ct)
-    {
-        var data = await DownloadAssetAsync(release.AssetId, token, ct).ConfigureAwait(false);
-
-        var digest = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
-        if (!string.Equals(digest, release.Sha256, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new UpdaterException("The downloaded update did not match its checksum and was discarded.");
-        }
-
-        var directory = Path.Combine(AppPaths.StagingRoot, release.Version);
-        if (Directory.Exists(directory))
-        {
-            Directory.Delete(directory, recursive: true);
-        }
-
-        Directory.CreateDirectory(directory);
-
-        var zipPath = Path.Combine(AppPaths.StagingRoot, release.AssetName);
-        await File.WriteAllBytesAsync(zipPath, data, ct).ConfigureAwait(false);
-        ZipFile.ExtractToDirectory(zipPath, directory, overwriteFiles: true);
-        File.Delete(zipPath);
-
-        // The zip may hold the app folder at its root or one level down; find the executable either way.
-        var exe = Directory.GetFiles(directory, "BabyMonitor.exe", SearchOption.AllDirectories).FirstOrDefault()
-            ?? throw new UpdaterException("The downloaded update has no BabyMonitor.exe in it.");
-
-        var root = Path.GetDirectoryName(exe)!;
-        Log.Info("update", $"staged {release.Version} — it will install when monitoring is stopped");
-        return new StagedUpdate(release.Version, root);
+        // Everything the page held is newer than us but none of it is a Windows build with a checksum.
+        // We are as current as a Windows build can be; not a failure.
+        return null;
     }
 
     private async Task<byte[]> DownloadAssetAsync(long id, string token, CancellationToken ct)
@@ -425,7 +346,7 @@ public sealed class Updater : IDisposable
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             }
 
-            using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+            using var response = await SendAsync(request, ct).ConfigureAwait(false);
 
             if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location != null)
             {
@@ -444,6 +365,25 @@ public sealed class Updater : IDisposable
         }
 
         throw new UpdaterException("GitHub redirected the download too many times.");
+    }
+
+    /// <summary>
+    /// One request, with an *inactivity* budget rather than a total one: a stall is a failure, a slow
+    /// line is not. `HttpClient.Timeout` is off (infinite) precisely so this can be the only clock.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        budget.CancelAfter(TimeSpan.FromMinutes(2));
+        try
+        {
+            return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, budget.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (budget.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            throw new UpdaterException("GitHub did not respond in time.");
+        }
     }
 
     private static string HttpFailureMessage(int status) => status is 401 or 403
@@ -469,38 +409,8 @@ public sealed class Updater : IDisposable
         Thread.Sleep(500);
     }
 
-    private static void CopyOver(string from, string to)
-    {
-        foreach (var source in Directory.GetFiles(from, "*", SearchOption.AllDirectories))
-        {
-            var relative = Path.GetRelativePath(from, source);
-            var target = Path.Combine(to, relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(source, target, overwrite: true);
-        }
-    }
-
-    private static bool IsNewer(string candidate, string current)
-    {
-        var a = candidate.Split('.').Select(p => int.TryParse(p, out var n) ? n : 0).ToArray();
-        var b = current.Split('.').Select(p => int.TryParse(p, out var n) ? n : 0).ToArray();
-        for (var i = 0; i < Math.Max(a.Length, b.Length); i++)
-        {
-            var x = i < a.Length ? a[i] : 0;
-            var y = i < b.Length ? b[i] : 0;
-            if (x != y)
-            {
-                return x > y;
-            }
-        }
-
-        return false;
-    }
-
-    private sealed record Release(string Version, long AssetId, string Sha256, string AssetName);
+    private sealed record Release(string Version, long AssetId, string Sha256);
 }
-
-public sealed record StagedUpdate(string Version, string Directory);
 
 public sealed class UpdaterException : Exception
 {

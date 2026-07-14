@@ -26,7 +26,7 @@ places where a desktop can do **less** than a phone (sleep, and the lock screen)
   area that looks the same whether the monitor is live or dead is the failure this whole project is
   built against, so the fault states are loud and the working state is quiet. (Connecting and
   reconnecting are the monitor working, not failing, and stay quiet.)
-- **DESK-2** **The status menu offers what the app can actually do right now, and nothing else.**
+- **DESK-2** `[device]` **The status menu offers what the app can actually do right now, and nothing else.**
   There are three situations and they are genuinely different, so the menu is:
   - **Not signed in** — it says so, and offers to sign in. Mute, Show Camera and the rest are not
     dimmed, they are *absent*: a menu describing a monitor that does not exist is a menu that lies.
@@ -50,12 +50,17 @@ places where a desktop can do **less** than a phone (sleep, and the lock screen)
 - **DESK-4** `[device]` Mute in the status menu is the same mute as everywhere else (LIVE-2): it
   silences the speaker only. **Level monitoring and the crying alarm keep working while muted**
   (LIVE-3), and the menu says which state it is in rather than what clicking would do.
-- **DESK-5** `[device]` Sign-in and the camera picker **carry their own way out**, on the screen
-  itself. Closing that window does not end the app — that is right for a monitor (DESK-13) and wrong
-  for a parent who has decided not to use the app at all, and the way out must be where they are
-  looking rather than behind a status icon they have not learned yet. Nothing is being monitored on
-  either screen, so quitting there is only quitting: it ends no watch, and asks nothing (BG-14).
-- **DESK-6** Quitting is the only thing that ends the app — and, because the app watches until it is
+- **DESK-5** `[device]` **Sign-in and the camera picker are dialogs, not the monitor.** They have no
+  video to float and they have fields to type into, so they are never worn as a tile — the window is
+  full whatever shape it was last in (DESK-9) — and on a Mac they take the shape of the system's own
+  authorisation panel: borderless, with no traffic lights.
+  Which is exactly why they **carry their own way out**, on the screen itself. Closing the window does
+  not end the app — that is right for a monitor (DESK-13) and wrong for a parent who has decided not
+  to use the app at all, and a panel with no close button would leave them nothing to press. The way
+  out must be where they are looking, not behind a status icon they have not learned yet. Nothing is
+  being monitored on either screen, so quitting there is only quitting: it ends no watch, and asks
+  nothing (BG-14).
+- **DESK-6** `[device]` Quitting is the only thing that ends the app — and, because the app watches until it is
   quit (BG-14), it is the only thing that ends the watch. Closing a window never does (BG-5). The app
   never quits or restarts itself: not on an update (UPD-5), not on an error.
 
@@ -73,18 +78,24 @@ are looking at, or close one to be rid of the other.
 - **DESK-8** `[device]` In its **mini** shape it is small and always on top, sitting where the user
   left it. It floats over other applications — over full-screen and maximised windows, and on a Mac
   across spaces — so the baby is visible while working (BG-17). It shows the video, the feed state,
-  and **mute — always, not only on hover**: a tile is too small to spend words on "muted", so the
-  mute control itself carries it, latched and unmistakable (LIVE-2), and is always there to be
-  clicked. Acknowledge, close, and the control that makes it full again appear with the pointer
-  (DESK-10). It can be moved and resized, and it keeps the video's shape while resizing.
+  and two controls that are **always there, not only on hover**:
+  - **mute**, because a tile is too small to spend words on "muted", so the mute control itself
+    carries it, latched and unmistakable (LIVE-2);
+  - **acknowledge**, whenever an alarm is ringing — an alarm you must first go hunting for the
+    controls to silence is an alarm that rings longer than it should, and LIVE-17's rule holds here
+    too: what needs attention never hides.
+
+  Close, and the control that makes it full again, appear with the pointer (DESK-10). It can be moved
+  and resized, and it keeps the video's shape while resizing.
 - **DESK-9** Switching shape is one action, available from the window, from the status menu and from
   the keyboard, and it goes both ways. **It never restarts the stream**: the picture does not black
   out, no reconnect happens, and audio is not interrupted — because it is the same window and the
   same feed. Each shape remembers its own size and position, separately, across relaunches.
 - **DESK-10** `[device]` The mini shape says what it will do before it is clicked: with the pointer
-  over it, its controls and an explicit "make it full" control appear; with the pointer away, they
-  are gone and only the picture and the feed state remain. It is never a mystery tile that does
-  something surprising when clicked.
+  over it, close and an explicit "make it full" control appear; with the pointer away, they are gone
+  and the picture, the feed state and the always-on controls (DESK-8) remain. It is never a mystery
+  tile that does something surprising when clicked. Crossing the pointer over one of its own controls
+  is not leaving it — the tile does not flicker, and never fades out from under the pointer.
 - **DESK-11** `[device]` **The mini shape fades out of the way.** While the pointer is elsewhere it
   is translucent, so the work underneath stays readable; the moment the pointer is over it, it is
   fully opaque again. How faint it goes is a setting, and fading can be turned off entirely; it is
@@ -101,15 +112,20 @@ are looking at, or close one to be rid of the other.
 - **DESK-13** `[device]` Closing the window closes the window and nothing else: monitoring, audio
   and the alarm carry on, and the status icon remains (BG-5). Reopening it shows the ongoing feed
   without restarting the stream, in the shape it was last in.
-- **DESK-14** `[device]` While the window is open in its **full** shape, the app can be reached the
-  way every other app can — the switcher finds it (Cmd-Tab and Mission Control on a Mac; Alt-Tab and
-  the taskbar on a PC), and on a Mac it has a Dock icon. With it closed the app recedes into the
-  status area and stops cluttering the switcher. A window a parent has to go hunting for is a window
-  they will not check.
-- **DESK-15** `[device]` **The mini shape stays out of the switcher** — out of Mission Control on a
-  Mac, out of Alt-Tab and the taskbar on a PC. It is already on top of everything; listing it among
-  the windows a user is trying to see *past* makes it clutter twice over. The full shape is a normal
-  window and appears there normally (DESK-14).
+- **DESK-14** `[device]` **While a window is open, the app can be reached the way every other app
+  can** — the switcher finds it, and on a Mac it has a Dock icon. With every window closed the app
+  recedes into the status area and stops cluttering the switcher: a monitor watching quietly in the
+  background is not an application anyone is trying to switch to. A window a parent has to go hunting
+  for is a window they will not check.
+- **DESK-15** `[device]` **The mini tile is never listed among the windows.** It is already on top of
+  everything; listing it among the windows a user is trying to see *past* makes it clutter twice
+  over. So it stays out of Mission Control and the window cycles on a Mac, and out of Alt-Tab and the
+  taskbar on a PC.
+  The two desktops draw the line in different places because they switch different things: a Mac
+  switches *apps*, so with only the tile up the app is still in Cmd-Tab and still in the Dock (which
+  is right — it is how you reach it); Windows switches *windows*, so the tile itself is excluded and
+  the full window is what Alt-Tab shows. Either way the promise is the same: the tile is reachable,
+  and it is never in the way.
 
 ## A desktop app behaves like the desktop it is on
 
@@ -123,8 +139,8 @@ are looking at, or close one to be rid of the other.
   expect: entering and leaving full screen, closing the window (and only the window — DESK-6), and
   submitting the form that is on screen.
 - **DESK-17** `[device]` The app has an icon of its own — **the same mark as the phone's** (UI-3) —
-  wherever the OS shows one: the switcher, the Dock or the taskbar, the status area, the window, the
-  About box, and the file manager.
+  wherever the OS shows one: the switcher, the Dock or the taskbar, the status area, the window, and
+  the file manager.
 - **DESK-18** `[device]` The app respects the system's own display settings: with transparency
   reduced or off it draws solid surfaces instead of translucent ones (and the mini shape does not
   fade — DESK-11); with motion reduced or animations off it changes shape and reveals controls

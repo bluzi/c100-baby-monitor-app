@@ -28,7 +28,7 @@ public sealed record TrayItem(
 /// Hand-rolled on Win32 rather than taken from a package, because everything it needs is Win32: a
 /// real `Shell_NotifyIcon`, a real `TrackPopupMenu`, and a real window procedure. That buys the
 /// behaviour a Windows user already knows — either mouse button opens the menu, clicking away
-/// dismisses it, the icon survives an Explorer restart — which is the whole point of DESK-16.
+/// dismisses it, the icon survives an Explorer restart — which is what DESK-2 asks for.
 ///
 /// It also owns the app's hidden message window, which is where **the sleep and wake broadcasts
 /// arrive** (DESK-21). A monitor that cannot notice the machine slept is a monitor that lies about
@@ -305,7 +305,7 @@ public sealed class TrayIcon : IDisposable
                 }
 
                 Fill(submenu, item.Children);
-                AppendMenu(menu, MfPopup, submenu, item.Text);
+                AppendMenu(menu, MfPopup, submenu, Escape(item.Text));
                 continue;
             }
 
@@ -321,9 +321,16 @@ public sealed class TrayIcon : IDisposable
             }
 
             _commands.Add(item.Action ?? (() => { }));
-            AppendMenu(menu, flags, new IntPtr(_commands.Count), item.Text);
+            AppendMenu(menu, flags, new IntPtr(_commands.Count), Escape(item.Text));
         }
     }
+
+    /// <summary>
+    /// A single `&amp;` in a Win32 menu string is a keyboard mnemonic — the next character is underlined
+    /// and swallowed. Camera names are user data (DESK-2's submenu), so "Nursery &amp; Hall" would show as
+    /// "Nursery Hall". Doubling restores the literal ampersand.
+    /// </summary>
+    private static string? Escape(string? text) => text?.Replace("&", "&&");
 
     private void Send(uint message)
     {

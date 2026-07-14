@@ -56,7 +56,15 @@ public static class Program
 
         if (Updater.TryApplyStagedUpdate(args))
         {
-            return; // we were the swap; the installed build is starting now
+            return; // we were the swap; the installed build is starting now — no mutex, it hands over
+        }
+
+        // One monitor per machine. A second launch (the Start-menu shortcut, while we sit in the tray)
+        // must not start a second engine, and must not run the swap below under a running instance —
+        // it raises the existing window instead, and this process exits.
+        if (!SingleInstance.TryAcquire())
+        {
+            return;
         }
 
         // UPD-10's other half, and the one that makes the first half survivable: a version the last

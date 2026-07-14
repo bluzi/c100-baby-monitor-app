@@ -182,10 +182,13 @@ D1b. **The camera submenu (DESK-2, CAM-4):** with two cameras on the account, op
      app switches to it within seconds (the status line names the new camera), and reopening the
      submenu shows the checkmark has moved. "Choose camera…" at the bottom still opens the picker.
 
-D1c. **A way out on the sign-in screen (DESK-5):** on the sign-in screen and on the camera picker
-     there is a Quit / Exit control on the screen itself. Use it: the app goes **without asking**,
-     because nothing was being monitored. (Closing that window instead only hides the app — which is
-     right for a monitor, and is exactly why the way out has to be on the screen.)
+D1c. **Sign-in is a dialog, and it carries its own way out (DESK-5):** sign out while the window is
+     in its mini shape — the sign-in screen comes up **full**, never as a tile (on a Mac, as a
+     borderless panel with no traffic lights). On it, and on the camera picker, there is a Quit / Exit
+     control on the screen itself. Use it: the app goes **without asking**, because nothing was being
+     monitored. (Closing that window instead only hides the app — which is right for a monitor, and is
+     exactly why the way out has to be on the screen: a panel with no close button leaves nothing else
+     to press.)
 
 D2. **Closing a window is not quitting (DESK-13, DESK-6, DESK-14, BG-5):** with audio playing, close
     the window (on a PC, once with the X and once with Alt-F4). Audio keeps playing and the status
@@ -213,13 +216,19 @@ D4a. **One window, two shapes (DESK-9, DESK-10, DESK-15):** with the feed live, 
      and back, from the window's own control, from the status menu, and from the keyboard. Each
      time: **the picture never blacks out, audio never stutters, and the log shows no reconnect.**
      Move and resize each shape and switch back and forth: each remembers its own size and position,
-     and still does after a relaunch. Hover the mini — its close, acknowledge and "make it full"
-     controls appear; move the pointer away — they go, leaving the picture, the feed state **and
-     mute** (DESK-8), which is always there because a tile has no room to say "muted" in words
-     (LIVE-2). While the tile is up, look for it in the switcher — Mission Control on a Mac, Alt-Tab
-     and the taskbar on a PC: **it is in none of them** (DESK-15). It is already on top of
-     everything; it must not clutter the list of windows you are trying to see past. The full
-     window, when open, *is* there.
+     and still does after a relaunch. Hover the mini — its close and "make it full" controls appear;
+     move the pointer away — they go, leaving the picture, the feed state **and mute** (DESK-8),
+     which is always there because a tile has no room to say "muted" in words (LIVE-2). Now trigger
+     an alarm with the pointer nowhere near the tile: **Acknowledge is on it, without hovering**
+     (DESK-8) — an alarm you have to go looking for the controls to silence rings longer than it
+     should. Run the pointer back and forth across the tile's own buttons: it must not flicker, and
+     must never fade out from under the pointer (DESK-10).
+     While the tile is up, look for it in the switcher — Mission Control on a Mac, Alt-Tab and the
+     taskbar on a PC: **it is not listed among the windows** (DESK-15). It is already on top of
+     everything; it must not clutter the list of windows you are trying to see past. The full window,
+     when open, *is* there. (On a Mac the *app* is still in Cmd-Tab and the Dock while only the tile
+     is up — that is how you reach it, and it is right. On a PC the tile itself is what must not
+     appear.)
 
 D4b. **Switching to the tile does not leave it stuck bright (DESK-11):** with fading on, click the
      mini-window control in the full window and then **do not move the mouse at all**. The tile flies
@@ -250,8 +259,8 @@ D4e. **Paste works (DESK-16):** on the sign-in screen, copy a password from a pa
      screen and Esc leaves it.
 
 D4f. **It looks like a native app (DESK-17, DESK-18, UI-1, UI-3):** the app has its own icon
-     everywhere the OS shows one — the switcher, the Dock / taskbar, the status area, About, and the
-     Finder / Explorer — never a generic placeholder, and **the same mark the phone shows** (UI-3).
+     everywhere the OS shows one — the switcher, the Dock / taskbar, the status area, the window, and
+     the Finder / Explorer — never a generic placeholder, and **the same mark the phone shows** (UI-3).
      Hold the three side by side if you can. Every screen renders dark. Turn the system's animations
      off (Mac: Reduce Motion) — nothing animates.
 

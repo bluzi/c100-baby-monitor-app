@@ -38,7 +38,9 @@ jobs:
         run: dotnet test windows/tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj --nologo
 
   # The shell itself, which does need Windows. It only has to compile: what it *does* is verified by
-  # the spec suite above (the decisions are all in the core) and by the device checklist.
+  # the spec suite above (the decisions are all in the core) and by the device checklist. It publishes
+  # and packages the way the release job does, so the whole path — publish → installer — is proven on
+  # a PR rather than discovered on main, after create-release has already cut the tag.
   windows-app:
     runs-on: windows-latest
     steps:
@@ -48,7 +50,21 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Build the Windows app
+      - name: Publish the Windows app
         run: >
-          dotnet build windows/src/BabyMonitor.App/BabyMonitor.App.csproj
-          --configuration Release -p:Platform=x64 --nologo
+          dotnet publish windows/src/BabyMonitor.App/BabyMonitor.App.csproj
+          --configuration Release --runtime win-x64 --output windows/build/x64
+          -p:Platform=x64 --nologo
+
+      # Prove the installer packages. A wrong Source: path or a typo in the .iss otherwise sails
+      # through PR CI and fails on main — in the release job, after the release already exists, leaving
+      # exactly the half-release (a tag with no assets) this is meant to prevent.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DAppVersion=0.0.0-ci" `
+            "/Fbabymonitor-ci-windows-setup" `
+            "/O$($PWD.Path)" `
+            windows\installer\BabyMonitor.iss

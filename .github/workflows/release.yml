@@ -82,11 +82,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Create the release
         run: |
-          gh release create "v$VERSION_NAME" --title "v$VERSION_NAME" --generate-notes \
+          # --target pins the tag to THIS commit. Without it gh cuts the tag at the branch head at job
+          # time, so a second push while this runs would point v0.1.N at commit N+1 while it carries
+          # commit N's binaries.
+          gh release create "v$VERSION_NAME" --title "v$VERSION_NAME" --target "$GITHUB_SHA" --generate-notes \
             || echo "release already exists"
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+          GITHUB_SHA: ${{ github.sha }}
 
   android:
     needs: [plan, create-release]
@@ -259,12 +263,14 @@ jobs:
         env:
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}
 
+      # Checksum first, for the same reason the Windows job does it: a truncated upload should never
+      # leave an app asset with no checksum beside it, only the reverse (which the updater skips).
       - name: Upload the Mac app
         run: |
+          gh release upload "v$VERSION_NAME" checksums.txt --clobber
           gh release upload "v$VERSION_NAME" \
             "babymonitor-v$VERSION_NAME-macos.zip" \
-            "babymonitor-v$VERSION_NAME-macos.dmg" \
-            checksums.txt --clobber
+            "babymonitor-v$VERSION_NAME-macos.dmg" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}
@@ -351,13 +357,17 @@ jobs:
       # run at the same time. Appending to one shared file would be a race whose loser publishes a
       # release whose checksum is missing — and a missing checksum is an update that is discarded
       # rather than installed (UPD-3). Two files cannot race.
+      # Checksum FIRST, then the zip. If the upload is cut short (a runner evicted, a network blip), a
+      # release that has the checksum but not yet the zip is one the updater simply skips as "no
+      # Windows build here" and falls back to — harmless. The other order leaves a zip with no checksum
+      # beside it, which is the shape a half-finished upload should never be able to leave behind.
       - name: Upload the Windows app
         shell: bash
         run: |
+          gh release upload "v$VERSION_NAME" checksums-windows.txt --clobber
           gh release upload "v$VERSION_NAME" \
             "babymonitor-v$VERSION_NAME-windows.zip" \
-            "babymonitor-v$VERSION_NAME-windows-setup.exe" \
-            checksums-windows.txt --clobber
+            "babymonitor-v$VERSION_NAME-windows-setup.exe" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}

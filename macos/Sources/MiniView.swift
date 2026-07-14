@@ -94,7 +94,7 @@ struct MiniChrome: View {
             Spacer(minLength: 4)
 
             if alarming {
-                // Always reachable, pointer or not (LIVE-9/DESK-8): an alarm you must first find
+                // Always reachable, pointer or not (LIVE-17/DESK-8): an alarm you must first find
                 // the controls for is an alarm that rings longer than it should. Solid red on the
                 // picture, because the picture behind it could be anything.
                 Button { state.acknowledge() } label: {

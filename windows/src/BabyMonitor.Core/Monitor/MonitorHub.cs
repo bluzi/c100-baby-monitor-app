@@ -1,4 +1,5 @@
 using BabyMonitor.Core.Data;
+using BabyMonitor.Core.Logging;
 
 namespace BabyMonitor.Core.Monitor;
 
@@ -6,11 +7,29 @@ namespace BabyMonitor.Core.Monitor;
 /// One observable value. The Kotlin core uses a StateFlow; this is the same idea with the same rule —
 /// setting it to what it already is notifies nobody, so the UI is not woken twenty times a second by
 /// a level that did not move.
+///
+/// **Two things a StateFlow gives you for free, and a naive event does not.**
+///
+/// 1. **A subscriber is never left holding a value older than the one in the box.** `Status` is
+///    written from four threads — the reader (`live`), the watchdog (`the camera stopped sending
+///    audio`), the reconnect loop, and the failure announcer. Commit the value under the lock but
+///    raise the event outside it, and two racing writers can commit in one order and notify in the
+///    other: the box says the feed is dead and the tray was last told `live`. That is DESK-1's exact
+///    failure — a status area that looks the same whether the monitor is live or dead — and it is
+///    reachable on every stall. So a notification carries a version, a stale one is dropped, and the
+///    last thing every subscriber hears is always what the box actually holds.
+/// 2. **A subscriber cannot take the monitor down with it.** Handlers run synchronously on whichever
+///    monitor thread did the write. A UI handler that throws would unwind into `Push`, fault the
+///    audio task and tear down the connection — twenty times a second. The monitor does not die of a
+///    bug in a view.
 /// </summary>
 public sealed class Observable<T>
 {
     private readonly object _lock = new();
+    private readonly object _notifyLock = new();
     private T _value;
+    private long _version;
+    private long _notifiedVersion;
 
     public Observable(T initial) => _value = initial;
 
@@ -36,9 +55,56 @@ public sealed class Observable<T>
                 }
 
                 _value = value;
+                _version++;
             }
 
-            Changed?.Invoke(value);
+            Notify();
+        }
+    }
+
+    /// <summary>
+    /// Deliver the newest value, once, in order. Whoever gets here first does the delivering and keeps
+    /// going until there is nothing newer to deliver; a writer that arrives while that is happening
+    /// leaves its value to be picked up by the loop rather than racing it onto the wire.
+    /// </summary>
+    private void Notify()
+    {
+        lock (_notifyLock)
+        {
+            while (true)
+            {
+                T value;
+                long version;
+                lock (_lock)
+                {
+                    value = _value;
+                    version = _version;
+                }
+
+                if (version == _notifiedVersion)
+                {
+                    return;
+                }
+
+                _notifiedVersion = version;
+
+                // One at a time, and each one guarded. A multicast delegate stops dead at the first
+                // handler that throws — so a view that blew up would not only fail to draw itself, it
+                // would silence every observer registered behind it. The tray is one of those.
+                foreach (var observer in Changed?.GetInvocationList() ?? [])
+                {
+                    try
+                    {
+                        ((Action<T>)observer)(value);
+                    }
+                    catch (Exception e)
+                    {
+                        // A view threw. That stays the view's problem: this is a monitor thread, and
+                        // the watch does not end because a label could not be set.
+                        Log.E("ui", $"an observer threw while handling a change: {e.Message}", e);
+                    }
+                }
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ public static class PowerRequests
     }
 
     private static bool _systemHeld;
+    private static bool _systemOk = true;
     private static bool _displayHeld;
 
     /// <summary>
@@ -38,13 +39,18 @@ public static class PowerRequests
     /// </summary>
     public static bool HoldSystem(bool wanted)
     {
+        // Cache the *result*, not just the intent. This is called on every state tick (~20 Hz), so if
+        // the memoised path returned an unconditional true, a first-call failure would be shown for one
+        // frame and then erased on the very next tick — the app would flash the "may sleep" warning and
+        // then quietly claim to be holding the PC awake, on the one machine the warning exists for.
         if (_systemHeld == wanted)
         {
-            return true;
+            return _systemOk;
         }
 
-        _systemHeld = wanted;
-        var ok = SetThreadExecutionState(Requested()) != 0;
+        var ok = SetThreadExecutionState(Requested(wanted)) != 0;
+        _systemHeld = wanted && ok; // a refused request is not held; do not claim it is
+        _systemOk = ok;
         Log.Info("app", wanted
             ? $"sleep inhibitor {(ok ? "held" : "REFUSED")} — the PC {(ok ? "will not idle-sleep while monitoring" : "may sleep and stop monitoring")}"
             : "sleep inhibitor released — the PC may idle-sleep again");
@@ -67,10 +73,14 @@ public static class PowerRequests
         Log.Debug("app", $"display-wake request {(wanted ? "held" : "released")}");
     }
 
-    private static ExecutionState Requested()
+    /// <summary>
+    /// The combined request for both holds. <paramref name="system"/> lets <see cref="HoldSystem"/> ask
+    /// for a state it has not committed to a field yet — it only commits once it knows Windows agreed.
+    /// </summary>
+    private static ExecutionState Requested(bool? system = null)
     {
         var state = ExecutionState.Continuous;
-        if (_systemHeld)
+        if (system ?? _systemHeld)
         {
             state |= ExecutionState.SystemRequired;
         }

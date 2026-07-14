@@ -15,8 +15,8 @@ needed. So the rules below are about restraint as much as delivery.
   every app it changed, because it changed them.
 - **UPD-2** `[android]` `[device]` The phone updates itself from the published release (Obtainium
   watches the repository). Exactly one `.apk` asset per Android release — Obtainium must be able to
-  resolve a single APK or silent background updates stop working. A release that carries the Mac's
-  assets too changes nothing (they are not APKs), and a release carrying **no** APK — a macOS-only
+  resolve a single APK or silent background updates stop working. A release that carries the desktops'
+  assets too changes nothing (they are not APKs), and a release carrying **no** APK — a desktop-only
   change — must leave the phone on its current version rather than stalling it.
 - **UPD-3** `[desktop]` `[device]` A desktop app updates itself, and it does so **only at
   launch**: it checks for a newer release when it starts, downloads it in the background, and
@@ -61,6 +61,6 @@ needed. So the rules below are about restraint as much as delivery.
   bar's or the tray's menu, and from the live feed's menu — so a parent who wants to know is never
   made to relaunch the app to find out. A manual check behaves exactly like the launch check: verify,
   put it in place, ask once.
-- **UPD-8** `[desktop]` A failed update check never affects monitoring. Checking,
+- **UPD-8** `[desktop]` `[device]` A failed update check never affects monitoring. Checking,
   downloading and verifying happen out of the monitor's way; if any of it fails, the monitor carries
   on and the failure is reported (UPD-4) rather than surfaced as a monitoring problem.

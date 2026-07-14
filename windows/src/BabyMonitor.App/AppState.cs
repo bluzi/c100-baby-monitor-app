@@ -62,7 +62,7 @@ public sealed class AppState : INotifyPropertyChanged
         MonitorHub.CameraName.Changed += _ => Post(Emit);
         MonitorHub.Settings.Changed += _ => Post(Emit);
         MonitorHub.ActiveAlarm.Changed += _ => Post(Emit);
-        MonitorHub.SessionExpired.Changed += _ => Post(Emit);
+        MonitorHub.SessionExpired.Changed += expired => Post(() => OnSessionExpired(expired));
         MonitorHub.PendingCryFeedback.Changed += _ => Post(Emit);
         MonitorHub.CalibrationSteps.Changed += _ => Post(Emit);
 
@@ -115,6 +115,9 @@ public sealed class AppState : INotifyPropertyChanged
         : "The feed is down";
 
     public bool SessionExpired => MonitorHub.SessionExpired.Value;
+
+    /// <summary>AUTH-8: set when an expiry has just sent the parent back to sign-in, shown there once.</summary>
+    public string? SessionExpiredMessage { get; private set; }
 
     public bool AskingCryFeedback => MonitorHub.PendingCryFeedback.Value != null;
 
@@ -318,6 +321,39 @@ public sealed class AppState : INotifyPropertyChanged
         Emit();
     }
 
+    /// <summary>
+    /// AUTH-8: the server refused the stored token while monitoring. The parent must land back on
+    /// sign-in — not sit on a live-looking viewer that is quietly dead, with the only way out three
+    /// levels into a menu. This mirrors the phone exactly (ViewerScreen's session-expired effect):
+    /// forget the session, route to login, and carry the reason so the login screen can state it.
+    /// </summary>
+    private void OnSessionExpired(bool expired)
+    {
+        if (!expired)
+        {
+            Emit();
+            return;
+        }
+
+        Log.Warn("ui", "the session expired — returning to sign-in (AUTH-8)");
+        SessionExpiredMessage = "Your session expired — please sign in again.";
+        Stop();
+        _store.SignOut();
+        _store.SetMonitoring(false);
+        _pendingLogin = null;
+        MonitorHub.SessionExpired.Value = false; // consumed: the routing below is the response to it
+        RefreshRouting();
+        Emit();
+    }
+
+    /// <summary>The login screen shows the expiry message once, then clears it.</summary>
+    public string? TakeSessionExpiredMessage()
+    {
+        var message = SessionExpiredMessage;
+        SessionExpiredMessage = null;
+        return message;
+    }
+
     // --- cameras -------------------------------------------------------------
 
     public async Task<(IReadOnlyList<CameraInfo>? Cameras, string? Error)> LoadCamerasAsync()
@@ -410,7 +446,16 @@ public sealed class AppState : INotifyPropertyChanged
     public void SetStartWithWindows(bool enabled)
     {
         StartupError = StartupRegistry.Set(enabled);
-        Prefs.StartupOfferMade = true;
+
+        // DESK-19: only count the offer as answered if it actually took. If the registry refused (group
+        // policy, a locked-down Run key), marking it answered would hide the banner as though it worked
+        // — and the PC would restart overnight to no monitor (BG-13), silently. A failure keeps the
+        // offer up and shows why.
+        if (StartupError == null)
+        {
+            Prefs.StartupOfferMade = true;
+        }
+
         Emit();
     }
 

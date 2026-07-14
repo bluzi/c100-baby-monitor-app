@@ -174,7 +174,7 @@ class MacShellTest {
     }
 
     @Test
-    fun `DESK-9 signing in or picking a camera is never done in a tile`() {
+    fun `DESK-5 signing in or picking a camera is never done in a tile`() {
         // There is no video to float and there are fields to type into: the window goes full.
         assertEquals(MacShell.SHAPE_FULL, MacShell.windowShape(screen = "login", preferred = MacShell.SHAPE_MINI))
         assertEquals(MacShell.SHAPE_FULL, MacShell.windowShape(screen = "devices", preferred = MacShell.SHAPE_MINI))

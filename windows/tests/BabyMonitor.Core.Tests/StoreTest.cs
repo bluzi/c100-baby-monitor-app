@@ -290,7 +290,7 @@ public class StoreTest
         Assert.Equal(Settings.SoundSiren, reloaded.FeedAlarmSound);
     }
 
-    [Fact(DisplayName = "ALRM-6 each alarm's sound and volume persists on its own")]
+    [Fact(DisplayName = "ALRM-6 each alarm's sound, volume and vibrate persists on its own")]
     public void EachAlarmKeepsItsOwnSettings()
     {
         var settings = new Settings
@@ -299,19 +299,28 @@ public class StoreTest
             FeedAlarmSound = Settings.SoundSoftChime,
             CryAlarmVolume = 0.6,
             FeedAlarmVolume = 1.0,
+            CryAlarmVibrate = true,
+            FeedAlarmVibrate = false,
         };
         var reloaded = Settings.FromJson(settings.ToJson());
         Assert.Equal(Settings.SoundSiren, reloaded.CryAlarmSound);
         Assert.Equal(Settings.SoundSoftChime, reloaded.FeedAlarmSound);
         Assert.Equal(0.6, reloaded.CryAlarmVolume, 9);
         Assert.Equal(1.0, reloaded.FeedAlarmVolume, 9);
+
+        // The flags are dead on a PC (DESK-23) but ALRM-6 is universal, so the port round-trips them
+        // like the phone: the same spec suite, criterion for criterion.
+        Assert.True(reloaded.CryAlarmVibrate);
+        Assert.False(reloaded.FeedAlarmVibrate);
     }
 
-    [Fact(DisplayName = "ALRM-6 a single volume saved by an older version applies to both alarms")]
+    [Fact(DisplayName = "ALRM-6 a single volume and vibrate saved by an older version applies to both alarms")]
     public void LegacyVolumeSeedsBoth()
     {
         var loaded = Settings.FromJson("""{"alarmVolume":0.6,"alarmVibrate":false}""");
         Assert.Equal(0.6, loaded.CryAlarmVolume, 9);
         Assert.Equal(0.6, loaded.FeedAlarmVolume, 9);
+        Assert.False(loaded.CryAlarmVibrate);
+        Assert.False(loaded.FeedAlarmVibrate);
     }
 }

@@ -12,8 +12,8 @@ namespace BabyMonitor.Core.Shell;
 /// parent glances at a dimmed picture of a sleeping baby while the feed has been dead for an hour.
 ///
 /// The *look* of the tile is XAML's business. Whether it is allowed to disappear into the background
-/// is not. (The Mac's shell has the same rules, in its own copy of the core — DESK-11 mirrors DESK-11
-/// deliberately: same hazard, same answer.)
+/// is not. (DESK-11 is one criterion for both desktops, so the Mac's shell decides this the same way
+/// in its own copy of the core, and both suites run the same cases against it.)
 /// </summary>
 public static class DesktopShell
 {

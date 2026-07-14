@@ -184,7 +184,7 @@ public class DesktopShellTest
         Assert.Equal(DesktopShell.ShapeFull, DesktopShell.WindowShape("viewer", DesktopShell.ShapeFull));
     }
 
-    [Fact(DisplayName = "DESK-9 signing in or picking a camera is never done in a tile")]
+    [Fact(DisplayName = "DESK-5 signing in or picking a camera is never done in a tile")]
     public void SignInIsNeverATile()
     {
         // There is no video to float and there are fields to type into: the window goes full.

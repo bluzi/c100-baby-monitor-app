@@ -205,19 +205,25 @@
                     <Border x:Name="StartupBanner" Visibility="Collapsed"
                             Background="{StaticResource ChromeBrush}" CornerRadius="10"
                             BorderThickness="1" BorderBrush="#22FFFFFF" Padding="14,10">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center"
-                                       Text="Start Baby Monitor with Windows, so a PC that restarts overnight comes back watching?" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
-                                <Button Content="Start with Windows" Style="{StaticResource AccentButtonStyle}"
-                                        Click="OnEnableStartup" />
-                                <Button Content="Not now" Click="OnDeclineStartup" />
-                            </StackPanel>
-                        </Grid>
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center"
+                                           Text="Start Baby Monitor with Windows, so a PC that restarts overnight comes back watching?" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
+                                    <Button Content="Start with Windows" Style="{StaticResource AccentButtonStyle}"
+                                            Click="OnEnableStartup" />
+                                    <Button Content="Not now" Click="OnDeclineStartup" />
+                                </StackPanel>
+                            </Grid>
+                            <!-- DESK-19: if the registry refused, say so — the offer stays, and never
+                                 pretends it worked while the PC comes back overnight to no monitor. -->
+                            <TextBlock x:Name="StartupErrorText" Visibility="Collapsed" TextWrapping="Wrap"
+                                       Foreground="#FFF08A8A" FontSize="12" />
+                        </StackPanel>
                     </Border>
                 </StackPanel>
 

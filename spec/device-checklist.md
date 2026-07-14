@@ -193,6 +193,13 @@ M10. **Updates never interrupt (UPD-3, UPD-5, UPD-7):** with monitoring running,
      Monitoring is untouched. Stop monitoring — the update applies. Confirm the new version under
      About (UPD-6, LIVE-15).
 
+M10b. **The update does not ask for a password (AUTH-6m):** the step above must complete with **no
+     Keychain prompt at all** — the updated app reads its own stored session in silence and comes
+     straight back up live. If a password box appears, the signing is wrong (certificate,
+     provisioning profile and entitlement are a set — see CLAUDE.md), and an overnight update would
+     leave the monitor stopped behind a dialog nobody is awake to answer. This is the single most
+     important step on this list.
+
 M11. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. Within a few
      check cycles the app reports that it can no longer check for updates. Monitoring is
      completely unaffected. Restore the token — the complaint clears.

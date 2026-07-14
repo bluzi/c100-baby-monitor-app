@@ -340,7 +340,27 @@ final class AppState: ObservableObject {
         secretBox.clear()
     }
 
+    /// CAM-4: go back to the picker and choose again.
     func switchCamera() { BabyMonitor.shared.switchCamera() }
+
+    /// Switch straight to a named camera, without going through the picker (MACOS-2's camera
+    /// submenu). The engine reads the selected camera when it connects, so stopping it, changing the
+    /// choice and starting it again is all it takes — and the app is watching the new room within
+    /// seconds, which is the point: a parent with two children should not have to visit a settings
+    /// screen to look at the other one.
+    func selectCamera(_ camera: CameraInfo) {
+        guard camera.did != BabyMonitor.shared.selectedCamera()?.did else { return }
+        Log.info("ui", "switching camera to \(camera.name) did=\(camera.did)")
+        BabyMonitor.shared.stop()
+        BabyMonitor.shared.selectCamera(camera: camera)
+        BabyMonitor.shared.start()
+    }
+
+    var selectedCamera: CameraInfo? { BabyMonitor.shared.selectedCamera() }
+
+    func loadCameras(_ done: @escaping ([CameraInfo]) -> Void) {
+        BabyMonitor.shared.loadCameras { list, _ in done(list ?? []) }
+    }
 
     func dismissSleepOutage() { BabyMonitor.shared.clearSleepOutage() }
 

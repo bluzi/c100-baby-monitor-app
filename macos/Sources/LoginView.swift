@@ -19,11 +19,11 @@ struct LoginView: View {
     @State private var password = ""
     @State private var region = "sg"
     @State private var busy = Preview.busy
-    @State private var error: String?
-    @State private var captcha: NSImage?
+    @State private var error: String? = Preview.loginStep == "error" ? "That Mi account or password was not accepted." : nil
+    @State private var captcha: NSImage? = Preview.loginStep == "captcha" ? Preview.captchaImage : nil
     @State private var captchaCode = ""
-    @State private var codeChannel: String?
-    @State private var codeTarget = ""
+    @State private var codeChannel: String? = Preview.loginStep == "code" ? "phone" : nil
+    @State private var codeTarget = Preview.loginStep == "code" ? "•••• 4821" : ""
     @State private var code = ""
     @FocusState private var focus: Field?
 
@@ -40,50 +40,54 @@ struct LoginView: View {
         "i2": "India",
     ]
 
+    /// The view **is** the panel — it does not sit inside a window, it is what the window is sized
+    /// to (`MonitorWindow.Chrome.dialog`). So no spacers, no expanding frames: whatever this view's
+    /// ideal size turns out to be, that is exactly how big the dialog is, and it grows by itself when
+    /// a captcha or an error appears.
     var body: some View {
-        VStack {
-            Spacer(minLength: 0)
-            panel
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(24)
-        .onAppear { focus = .username } // AUTH-11: ready to type, no click first
+        panel
+            .fixedSize()
+            .onAppear { focus = .username } // AUTH-11: ready to type, no click first
     }
 
     // MARK: - The panel
 
+    /// The action row spans the **whole panel**, not the text column — so Quit sits on the panel's
+    /// own left edge, under the icon, where the way out of a dialog belongs. Nesting it in the column
+    /// beside the icon left it floating in the middle of nothing.
     private var panel: some View {
-        HStack(alignment: .top, spacing: 18) {
-            AppMark(size: 64)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 18) {
+                AppMark(size: 64)
 
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .bold))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 13, weight: .bold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(subtitle)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    fields
+
+                    if let error {
+                        // AUTH-9: words, never the gateway's raw JSON.
+                        Label(error, systemImage: "exclamationmark.circle.fill")
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-
-                fields
-
-                if let error {
-                    // AUTH-9: words, never the gateway's raw JSON.
-                    Label(error, systemImage: "exclamationmark.circle.fill")
-                        .font(.callout)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                actions
             }
+
+            actions
         }
         .padding(22)
         .frame(width: 460)
-        .glassSurface(cornerRadius: 14)
+        .panelSurface()
     }
 
     private var title: String {
@@ -154,24 +158,42 @@ struct LoginView: View {
 
     // MARK: - Actions (bottom right, as they are everywhere else on this platform)
 
+    /// The button *becomes* the progress: waiting on Xiaomi takes seconds, and a spinner parked
+    /// anywhere else on the panel makes a parent wonder whether their click landed at all. The answer
+    /// belongs on the thing they clicked. The label keeps its place while it spins so the button does
+    /// not change size, and the button stays prominent rather than greying itself out — a grey button
+    /// with a grey spinner on it reads as "nothing is happening", which is the opposite of the truth.
     private var actions: some View {
         HStack(spacing: 10) {
-            if busy {
-                ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.8)
-            }
+            // A borderless dialog has no traffic lights, so the way out has to be *on* it. Nothing
+            // is being monitored on this screen — there is no camera yet — so Quit here is just
+            // quitting, and does not stop a watch or ask whether you meant to (BG-11m).
+            Button("Quit") { NSApp.terminate(nil) }
+                .disabled(busy)
+
             Spacer()
+
             if captcha != nil || codeChannel != nil {
                 Button("Start Over") { reset() }
                     .keyboardShortcut(.cancelAction)
+                    .disabled(busy)
             }
             Button(action: submit) {
-                Text(primaryTitle).frame(minWidth: 64)
+                ZStack {
+                    Text(primaryTitle).opacity(busy ? 0 : 1)
+                    if busy {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    }
+                }
+                .frame(minWidth: 64)
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-            .disabled(busy || !canSubmit)
+            .disabled(!canSubmit && !busy)
+            .allowsHitTesting(!busy)
+            .accessibilityLabel(busy ? "Working…" : primaryTitle)
         }
         .padding(.top, 2)
     }

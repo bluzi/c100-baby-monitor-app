@@ -158,6 +158,20 @@ M1. **Menu bar is the app (MACOS-1, MACOS-2):** launch it. The menu bar item is 
     live/reconnecting in words. Now break it: trigger an alarm (the icon turns into a red bell) and
     expire the session (an orange warning triangle). Those two, and only those two, change the icon.
 
+M1a. **The menu changes with what the app can do (MACOS-2):** sign out. The menu bar's menu now reads
+    **"Not signed in"** and offers **Sign In…** — Mute, Show Camera and Mini Window are *gone*, not
+    dimmed. Click Sign In… and the dialog appears. Sign in but do not choose a camera: the menu reads
+    "No camera chosen" and offers Choose Camera… and Sign Out. Choose one — the full menu comes back.
+
+M1b. **The camera submenu (MACOS-2, CAM-4):** with two cameras on the account, open the menu bar's
+    menu → Camera. Both are listed and **the one being watched has a checkmark**. Pick the other one:
+    the app switches to it within seconds (the status line names the new camera), and reopening the
+    submenu shows the checkmark has moved. "Choose Camera…" at the bottom still opens the picker.
+
+M1c. **Quit is on the dialogs (MACOS-21):** on the sign-in panel and on the camera picker, there is a
+    **Quit** button at the bottom left — a borderless panel has no traffic lights, so that is the way
+    out. Click it: the app quits **without asking**, because nothing was being monitored.
+
 M2. **Closing a window is not quitting (MACOS-7, MACOS-9, BG-5):** with audio playing, close the
     main window. Audio keeps playing, the menu bar item stays. Reopen from the menu — the feed is
     live immediately, with no reconnect in the log (`log stream --predicate 'process ==

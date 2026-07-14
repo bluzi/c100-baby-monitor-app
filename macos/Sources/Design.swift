@@ -39,7 +39,48 @@ struct GlassSurface: ViewModifier {
     }
 }
 
+/// **The panel material, and why it is not the same as the glass above.**
+///
+/// SwiftUI's materials — and macOS 26's glass — blend with what is behind them *inside the window*.
+/// Over video that is exactly right, and it is what the feed's chrome uses. But a dialog is a
+/// borderless window with **nothing** inside it behind the panel, so the same material comes out as
+/// a flat dark slab: it faithfully blurred the emptiness it was given.
+///
+/// The system's own password prompt is translucent against the *desktop*, and the only thing that
+/// does that is an `NSVisualEffectView` blending `.behindWindow` — the window server samples what is
+/// under the window and blurs it into the window's own backing. There is no SwiftUI equivalent.
+struct PanelBackground: NSViewRepresentable {
+    var cornerRadius: CGFloat = 14
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow // the material the system's own floating panels use
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.wantsLayer = true
+        view.layer?.cornerRadius = cornerRadius
+        view.layer?.cornerCurve = .continuous
+        view.layer?.masksToBounds = true
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.layer?.cornerRadius = cornerRadius
+    }
+}
+
 extension View {
+    /// A dialog's surface: the system's panel material, a hairline, and nothing else — the shadow
+    /// under it belongs to the window (AppKit draws it around the rounded shape), not to us.
+    func panelSurface(cornerRadius: CGFloat = 14) -> some View {
+        background(PanelBackground(cornerRadius: cornerRadius))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
     func glassSurface(cornerRadius: CGFloat = 16, elevated: Bool = true) -> some View {
         modifier(GlassSurface(cornerRadius: cornerRadius, elevated: elevated))
     }

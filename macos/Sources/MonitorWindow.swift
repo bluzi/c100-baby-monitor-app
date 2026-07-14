@@ -40,7 +40,28 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     private let display = DisplayWake()
     private var cancellables = Set<AnyCancellable>()
 
-    /// The shape currently on screen. Nil until the first `apply` — which is what makes the initial
+    /// What the window is dressed as. The *shape* (full or mini) is the user's choice; the **chrome**
+    /// is what that shape has to be given what is inside it, and there is a third case the shape
+    /// enum has no name for:
+    ///
+    ///  - `.video` — the feed, full: a real window with traffic lights, black behind the picture.
+    ///  - `.mini`  — the feed, small: a floating borderless tile.
+    ///  - `.dialog` — **no feed at all**: sign-in, or the camera picker. There is nothing to fill a
+    ///    window with, and the app is asking the parent for something. So the window stops being a
+    ///    window and becomes what a Mac uses to ask: a borderless panel, sized to its own content,
+    ///    floating on its own shadow. It is what the system's own password prompt is, because this
+    ///    is the one screen in the app that asks for a password.
+    private enum Chrome { case video, mini, dialog }
+
+    private var chrome: Chrome {
+        if state.shape == .mini { return .mini }
+        return state.ui.screen == "viewer" ? .video : .dialog
+    }
+
+    private let hosting: NSHostingView<AnyView>
+    private var currentChrome: Chrome?
+
+    /// The shape currently on screen. Nil until the first `refresh` — which is what makes the initial
     /// layout take the same path as every later one.
     private var currentShape: WindowShape?
 
@@ -64,6 +85,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
+        hosting = NSHostingView(rootView: AnyView(RootView().environmentObject(state)))
         super.init()
 
         window.title = "Baby Monitor"
@@ -73,17 +95,20 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         window.acceptsMouseMovedEvents = true // LIVE-11m: the chrome follows the pointer
         window.tabbingMode = .disallowed // one monitor; tabs would be a way to hide it behind itself
 
-        let hosting = NSHostingView(rootView: RootView().environmentObject(state))
-        // The window sizes the content, never the other way round. Left to itself, NSHostingView
-        // hands SwiftUI's ideal size to the window as a constraint — so the window *grew* when an
-        // alarm banner appeared, and would have fought the mini shape for its 384 points. A monitor
-        // window that resizes itself the moment something goes wrong is a monitor window that moves
-        // the Acknowledge button out from under a half-asleep parent's pointer.
-        hosting.sizingOptions = []
+        // Who sizes whom, and it changes with the chrome (see `Chrome`):
+        //
+        //  - the feed: **the window sizes the content**. Left to itself NSHostingView hands SwiftUI's
+        //    ideal size to the window as a constraint, and the window *grew* when an alarm banner
+        //    appeared — a monitor window that resizes itself the moment something goes wrong is one
+        //    that moves the Acknowledge button out from under a half-asleep parent's pointer.
+        //  - the dialog: **the content sizes the window**, because a dialog is exactly as big as what
+        //    it has to say, and what it has to say changes (a captcha appears, an error appears).
+        //
+        // So this is set per chrome, in `configure`, and not once here.
         window.contentView = hosting
 
         observe()
-        apply(shape: state.shape, animated: false)
+        refresh(animated: false)
     }
 
     var isVisible: Bool { window.isVisible }
@@ -117,8 +142,10 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - The two shapes (MACOS-5, MACOS-6, MACOS-14)
 
-    private func apply(shape: WindowShape, animated: Bool) {
-        guard currentShape != shape else { return }
+    private func refresh(animated: Bool) {
+        let shape = state.shape
+        let chrome = self.chrome
+        guard currentShape != shape || currentChrome != chrome else { return }
 
         // Full screen is a shape of its own as far as AppKit is concerned: leave it first, and pick
         // the change back up in windowDidExitFullScreen.
@@ -128,14 +155,19 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        if let old = currentShape {
+        // A dialog's size and place are its own business, not a shape the user chose — so it is
+        // never remembered as one.
+        if let old = currentShape, currentChrome != .dialog {
             Prefs.setFrame(window.frame, for: old) // each shape remembers its own (MACOS-14)
         }
+        let wasDialog = currentChrome == .dialog
         currentShape = shape
+        currentChrome = chrome
 
-        switch shape {
-        case .full: configureFull()
+        switch chrome {
+        case .video: configureVideo()
         case .mini: configureMini()
+        case .dialog: return configureDialog(animated: animated && !wasDialog)
         }
 
         let target = frame(for: shape)
@@ -166,7 +198,8 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         Log.info("ui", "window shape → \(shape.rawValue)")
     }
 
-    private func configureFull() {
+    private func configureVideo() {
+        hosting.sizingOptions = [] // the window sizes the picture, never the other way round
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true // the video runs under the traffic lights (LIVE-9m)
         window.titleVisibility = .hidden
@@ -179,6 +212,42 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         window.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         window.alphaValue = 1
         applyAspectPolicy()
+    }
+
+    /// **The sign-in panel is not a window with a form in it. It is a dialog.** (AUTH-1, MACOS-13.)
+    ///
+    /// Before a camera is chosen there is no picture, so a window full of black around a little card
+    /// is a window pretending to have something in it. The system does not do that: when macOS wants
+    /// a password it puts up a borderless panel, sized to what it has to say, floating on its own
+    /// shadow. This is the one screen in the app that asks a parent for a password, so it is the one
+    /// screen that should look exactly like every other thing on their Mac that has ever asked.
+    ///
+    /// The content sizes the window here — a captcha appears, an error appears, the panel grows, and
+    /// AppKit follows it. That is the opposite of the rule for the feed, and deliberately so.
+    private func configureDialog(animated: Bool) {
+        hosting.sizingOptions = [.intrinsicContentSize, .minSize, .maxSize]
+        window.styleMask = [.borderless, .fullSizeContentView]
+        window.isMovableByWindowBackground = true // no title bar to drag it by, so drag it by itself
+        window.level = .normal
+        window.collectionBehavior = [.fullScreenAuxiliary]
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.hasShadow = true // AppKit draws it around the panel's own rounded shape
+        window.contentResizeIncrements = NSSize(width: 1, height: 1) // no aspect lock on a form
+        window.minSize = .zero
+        window.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        window.alphaValue = 1
+
+        // The panel has just been given its own size by SwiftUI; centre whatever that turned out to
+        // be, on the next turn of the run loop when the size is real.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.currentChrome == .dialog else { return }
+            self.window.setContentSize(self.hosting.fittingSize)
+            self.window.center()
+            self.window.invalidateShadow()
+            self.morphing = false
+        }
+        morphing = animated // a dialog never animates into place; it simply is where it is
     }
 
     // MARK: - The camera's shape (MACOS-19)
@@ -204,7 +273,12 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     /// happen *after* it, or the window snaps to its new height and then animates from there, which
     /// looks exactly as broken as it sounds.
     private func applyAspectConstraints() {
-        guard let shape = currentShape, !window.styleMask.contains(.fullScreen) else { return }
+        guard let shape = currentShape,
+              currentChrome != .dialog, // a sign-in form has no aspect ratio, and no business having one
+              !window.styleMask.contains(.fullScreen)
+        else {
+            return
+        }
 
         switch shape {
         case .mini:
@@ -225,6 +299,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     private func applyAspectPolicy() {
         applyAspectConstraints()
         guard currentShape != nil,
+              currentChrome != .dialog,
               !window.styleMask.contains(.fullScreen),
               state.ui.screen == "viewer" || currentShape == .mini
         else {
@@ -348,9 +423,9 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         .receive(on: RunLoop.main)
         .sink { [weak self] _, _ in
             guard let self else { return }
-            self.apply(shape: self.state.shape, animated: true)
-            // Signing in is not a picture and the feed is: the window is free for one and takes the
-            // camera's shape for the other, and moving between them changes which (MACOS-19).
+            // Both inputs land here: the shape the user asked for, and the screen that decides
+            // whether this is a window at all or a dialog (see `Chrome`).
+            self.refresh(animated: true)
             self.applyAspectPolicy()
         }
         .store(in: &cancellables)
@@ -400,6 +475,9 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     }
 
     private func rememberFrame() {
+        // A dialog centres itself and is gone again; its frame is not a size the user chose for the
+        // monitor, and remembering it as one would give them a 460-point video window later.
+        guard currentChrome != .dialog else { return }
         guard !morphing, let shape = currentShape, window.isVisible else { return }
         guard !window.styleMask.contains(.fullScreen) else { return }
         Prefs.setFrame(window.frame, for: shape)
@@ -408,6 +486,6 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     func windowDidExitFullScreen(_ notification: Notification) {
         guard let pending = pendingShape else { return }
         pendingShape = nil
-        apply(shape: pending, animated: true)
+        refresh(animated: true)
     }
 }

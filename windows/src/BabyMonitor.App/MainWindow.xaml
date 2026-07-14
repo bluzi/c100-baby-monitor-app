@@ -355,7 +355,10 @@
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Ellipse x:Name="MiniStatusDot" Width="8" Height="8"
                                      VerticalAlignment="Center" Fill="Gray" />
-                            <TextBlock x:Name="MiniStatusText"
+                            <!-- Bounded and trimmed: the tile is ~360px and the buttons sit in column 2,
+                                 so a long status must ellipsize rather than grow the pill into them. -->
+                            <TextBlock x:Name="MiniStatusText" MaxWidth="210"
+                                       TextTrimming="CharacterEllipsis"
                                        Style="{StaticResource CaptionTextBlockStyle}" />
                         </StackPanel>
                     </Border>

@@ -817,7 +817,10 @@ public sealed partial class MainWindow : Window
         // appear, so its one status line carries them — a tile too small for the full sentence must
         // still never be a silent black square or a calm-looking tile over a monitor that was down.
         // Priority: a sleep outage to be read (DESK-21) > no decoder (DESK-22) > the feed's own state.
-        var miniStatus = _state.SleepOutage != null ? _state.SleepOutage
+        // Both warnings are SHORT forms — the full sentence lives in the tray menu and the full view;
+        // the tile only has to say enough that the parent knows to look (and the text is trimmed so it
+        // can never grow into the buttons beside it).
+        var miniStatus = _state.SleepOutage != null ? "Monitor was down while asleep"
             : _state.VideoUnavailable ? "No video — needs HEVC support"
             : _state.StatusText;
         MiniStatusText.Text = _state.Muted ? $"{miniStatus} · muted" : miniStatus;

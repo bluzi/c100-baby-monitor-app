@@ -41,7 +41,7 @@ public interface IAudioOutput
 ///
 /// LIVE-7: best-effort by design. <see cref="Push"/> must NEVER throw — video trouble must never take
 /// audio monitoring down with it. Swallow, log, and recover at the next keyframe. On Windows this is
-/// the interface behind which "this PC has no H.265 decoder" (WIN-20) lives, and it is exactly why
+/// the interface behind which "this PC has no H.265 decoder" (DESK-22) lives, and it is exactly why
 /// that is a message rather than a dead monitor.
 /// </summary>
 public interface IVideoOutput

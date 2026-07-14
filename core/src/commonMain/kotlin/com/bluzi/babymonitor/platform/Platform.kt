@@ -18,7 +18,7 @@ expect fun secureRandomBytes(n: Int): ByteArray
  * Each platform supplies the clock that keeps counting under its own kind of suspension: on
  * Android that is elapsed-realtime, which advances through doze. macOS has no equivalent (a
  * sleeping Mac runs nothing at all), so the macOS shell detects sleep explicitly and reports the
- * outage on wake — see MACOS-11.
+ * outage on wake — see DESK-21.
  */
 expect fun elapsedRealtimeMs(): Long
 

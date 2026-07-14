@@ -39,7 +39,7 @@ struct CamerasView: View {
             HStack(spacing: 10) {
                 // Same reason as sign-in: a borderless dialog has no traffic lights, so the way out
                 // lives on it. Nothing is being monitored here — no camera has been chosen — so this
-                // is only quitting, and it ends no watch (BG-11m, MACOS-21).
+                // is only quitting, and it ends no watch (BG-14, DESK-5).
                 Button("Quit") { NSApp.terminate(nil) }
                 Spacer()
                 Button("Sign Out") { state.signOut() } // AUTH-10

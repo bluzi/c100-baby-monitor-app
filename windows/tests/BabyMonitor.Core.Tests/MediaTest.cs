@@ -241,7 +241,7 @@ public class HevcVideoOutputTest : IDisposable
         Assert.Equal(2, renderer.Decoded);
     }
 
-    [Fact(DisplayName = "WIN-19 the camera's picture size reaches the shell, so the window can take its shape")]
+    [Fact(DisplayName = "DESK-12 the camera's picture size reaches the shell, so the window can take its shape")]
     public void TheSizeReachesTheShell()
     {
         (int W, int H)? seen = null;
@@ -256,7 +256,7 @@ public class HevcVideoOutputTest : IDisposable
         Assert.Equal((1920, 1080), renderer.Size);
     }
 
-    [Fact(DisplayName = "WIN-20 a PC with no H.265 decoder says so — and audio monitoring carries on")]
+    [Fact(DisplayName = "DESK-22 a PC with no H.265 decoder says so — and audio monitoring carries on")]
     public void NoDecoderIsSaidOutLoud()
     {
         // This is the one thing a PC can do less than a Mac. A black rectangle that never explains

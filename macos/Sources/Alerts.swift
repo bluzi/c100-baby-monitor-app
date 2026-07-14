@@ -9,7 +9,7 @@ import AppKit
 /// at without a camera, a Mi account and a published release (see `Preview`, `BM_UI_ALERT`).
 @MainActor
 enum Alerts {
-    /// **BG-11m / MACOS-3: quitting is how a Mac stops monitoring, so quitting asks first.**
+    /// **BG-14 / DESK-3: quitting is how a Mac stops monitoring, so quitting asks first.**
     ///
     /// The phone guards its Stop button with a confirmation because a single stray tap must never end
     /// a watch. On a Mac that weight sits on Quit — and the wording has to earn it: not "are you

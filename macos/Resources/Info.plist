@@ -12,7 +12,7 @@
     <string>com.bluzi.babymonitor</string>
     <key>CFBundleExecutable</key>
     <string>BabyMonitor</string>
-    <!-- MACOS-17: the app has an icon of its own, wherever macOS shows one. -->
+    <!-- DESK-17: the app has an icon of its own, wherever macOS shows one. -->
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>NSHumanReadableCopyright</key>
@@ -25,7 +25,7 @@
     <string>__VERSION_CODE__</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
-    <!-- MACOS-1: menu bar only. No Dock icon, no app menu. -->
+    <!-- DESK-1: menu bar only. No Dock icon, no app menu. -->
     <key>LSUIElement</key>
     <true/>
     <key>NSHighResolutionCapable</key>

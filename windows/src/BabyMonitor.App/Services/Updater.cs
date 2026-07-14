@@ -151,8 +151,33 @@ public sealed class Updater : IDisposable
     }
 
     /// <summary>
+    /// **UPD-10, and it must run before anything else exists.**
+    ///
+    /// A version the last run put in place takes over here — before the engine, before the tray, and
+    /// above all before the monitor connects to the camera. Do this later and the app makes a camera
+    /// connection, starts a watch, and tears both down seconds afterwards to relaunch: a stream
+    /// established and dropped for nothing, and a tray icon that flashes at a parent for no reason.
+    ///
+    /// Returns true when this process has handed over to the new version and should now exit.
+    /// </summary>
+    public static bool ApplyStagedAtLaunch()
+    {
+        var staged = FindStaged(CurrentVersion);
+        if (staged == null)
+        {
+            // Nothing newer is waiting, so whatever is left beside us is this version or older: the
+            // update landed, and the folder it came out of is just disk now.
+            CleanStaging(CurrentVersion);
+            return false;
+        }
+
+        Log.Warn("update", $"{staged.Version} is waiting — installing it now, before monitoring starts");
+        return Install(staged);
+    }
+
+    /// <summary>
     /// UPD-5: apply a staged update. Only ever called with monitoring stopped — at launch before the
-    /// monitor starts, or once the user has stopped it.
+    /// monitor starts, or when the user has just asked for the restart.
     ///
     /// Windows will not let a running program overwrite itself, so the swap is done **by the new
     /// version**: we start the staged executable, hand it our process id and where we live, and exit.

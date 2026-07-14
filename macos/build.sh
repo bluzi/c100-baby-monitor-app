@@ -70,7 +70,7 @@ swiftc $SWIFT_FLAGS \
 sed -e "s/__VERSION_NAME__/$VERSION_NAME/" -e "s/__VERSION_CODE__/$VERSION_CODE/" \
   "$ROOT/macos/Resources/Info.plist" > "$APP/Contents/Info.plist"
 
-# MACOS-17 / UI-3: the icon. One mark for every platform, generated from brand/icon.swift and
+# DESK-17 / UI-3: the icon. One mark for every platform, generated from brand/icon.swift and
 # committed — regenerate with ./brand/build.sh, which writes Android's launcher icon from the same
 # description in the same run.
 if [ -f "$ROOT/macos/Resources/AppIcon.icns" ]; then
@@ -101,7 +101,7 @@ fi
 #     Keychain's access list binds to the binary no matter who signed it (measured, twice).
 #  2. Developer ID alone, or a self-signed certificate: ONE password prompt after each update.
 #     Survivable only because an update never applies while monitoring is running (UPD-5), so the
-#     parent is at the machine when it appears. That is AUTH-6m in the spec.
+#     parent is at the machine when it appears. That is AUTH-12 in the spec.
 #  3. Ad-hoc: a prompt after every single build. Development only.
 #
 # The entitlement is attached ONLY alongside the profile. Claim it without one and the kernel
@@ -155,7 +155,7 @@ elif [ -n "$DEV_ID" ]; then
 elif [ -z "${SKIP_SELF_SIGNED:-}" ] && security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SELF_SIGNED"; then
   codesign --force --deep --sign "$SELF_SIGNED" "$APP"
   echo "==> Signed with '$SELF_SIGNED'"
-  echo "   (macOS will ask for your login password once after each update — see AUTH-6m)"
+  echo "   (macOS will ask for your login password once after each update — see AUTH-12)"
 else
   codesign --force --deep --sign - "$APP" 2>/dev/null || true
   echo "!! No signing identity — signed ad-hoc." >&2

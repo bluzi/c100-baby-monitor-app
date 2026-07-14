@@ -2,12 +2,12 @@ import AppKit
 import BabyMonitorCore
 import SwiftUI
 
-/// LIVE-9m / MACOS-6: the full shape. Video full-bleed, two rows of chrome floating on glass above
+/// LIVE-16 / DESK-7: the full shape. Video full-bleed, two rows of chrome floating on glass above
 /// it — status and level along the top, the controls along the bottom — and the rarely-used actions
 /// behind a menu. Which controls exist, and when, is core's decision (BG-11, WATCH-11), so the
 /// Mac's row and the phone's cannot disagree.
 ///
-/// What fades and what does not is the whole ethic of this screen (LIVE-11m): the *controls* follow
+/// What fades and what does not is the whole ethic of this screen (LIVE-17): the *controls* follow
 /// the pointer, because a Mac has one; the *state* never does. Status, level, warnings and a
 /// ringing alarm are on screen whatever the pointer is doing. Silence must never be mistaken for a
 /// calm baby, and neither must an empty window.
@@ -85,7 +85,7 @@ struct ViewerChrome: View {
     @ViewBuilder
     private var banners: some View {
         if let outage = state.ui.sleepOutage {
-            // MACOS-11: the Mac slept, the monitor was down, and this is where it says so.
+            // DESK-21: the Mac slept, the monitor was down, and this is where it says so.
             Banner(symbol: "moon.zzz.fill", title: outage, tint: .orange, prominent: true) {
                 BannerButton(title: "Dismiss", tint: .orange, filled: false) { state.dismissSleepOutage() }
             }
@@ -117,7 +117,7 @@ struct ViewerChrome: View {
             }
         }
         if state.loginOfferPending {
-            // MACOS-8: asked once, plainly, and never turned on for you.
+            // DESK-19: asked once, plainly, and never turned on for you.
             Banner(symbol: "power", title: "Open Baby Monitor at login, so a Mac that restarts overnight comes back watching?") {
                 HStack(spacing: 8) {
                     Button("Open at Login") { state.setOpenAtLogin(true) }
@@ -131,7 +131,7 @@ struct ViewerChrome: View {
 
     // MARK: - Bottom row: the controls (BG-11, LIVE-2, LIVE-10). These follow the pointer.
 
-    /// BG-11m: **there is no Stop here, and there is not meant to be.** On a Mac the app is the
+    /// BG-14: **there is no Stop here, and there is not meant to be.** On a Mac the app is the
     /// monitor: it watches from the moment it opens until it is quit, so an app that is running and
     /// not watching cannot exist — and neither can the screen that would have shown it. Start
     /// survives for the one case that needs it: a monitor that failed on its own (WATCH-11).
@@ -180,8 +180,8 @@ struct ViewerChrome: View {
                 },
                 .info("Baby Monitor \(AppDelegate.version)"), // LIVE-15 / UPD-6
                 .separator,
-                // BG-11m: quitting is how a Mac stops monitoring, so it is offered where stopping
-                // used to be — and it asks first (MACOS-3).
+                // BG-14: quitting is how a Mac stops monitoring, so it is offered where stopping
+                // used to be — and it asks first (DESK-3).
                 .action(title: "Quit Baby Monitor", destructive: true) {
                     NSApp.terminate(nil)
                 },

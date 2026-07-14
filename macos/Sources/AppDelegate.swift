@@ -3,7 +3,7 @@ import BabyMonitorCore
 import Combine
 import SwiftUI
 
-/// MACOS-1/2/9: the app lives in the menu bar. Windows come and go; the menu bar item and the
+/// DESK-1/2/6: the app lives in the menu bar. Windows come and go; the menu bar item and the
 /// monitor behind it do not. **Quit is the only thing that ends the app** — closing a window never
 /// does, because closing a window must never stop a monitor (BG-5).
 @MainActor
@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var relaunchingForUpdate = false
 
     /// The cameras on the account, and which one is being watched — for the menu bar's camera
-    /// submenu (MACOS-2). Held rather than fetched on demand: the device list is a *signed request to
+    /// submenu (DESK-2). Held rather than fetched on demand: the device list is a *signed request to
     /// Xiaomi*, and this menu is rebuilt on every state tick. It is refreshed when the menu opens,
     /// which is the only moment its freshness can matter.
     private var cameras: [CameraInfo] = []
@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         state = AppState()
         Log.info("app", "Baby Monitor \(Self.version) starting — screen=\(state.ui.screen)")
 
-        MainMenu.install() // MACOS-13: and with it, ⌘V
+        MainMenu.install() // DESK-16: and with it, ⌘V
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu = NSMenu()
@@ -82,17 +82,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
         // BG-13: a Mac that restarted overnight comes back with the monitor stopped. Say so, and
         // let one click fix it — the window opens on the viewer with Start right there. Sign-in and
-        // the camera picker live in the same window (MACOS-14).
+        // the camera picker live in the same window (DESK-9).
         monitor.show()
 
         if Preview.active { logMenus() }
         if let path = Preview.snapshotPath { takePreviewSnapshot(to: path) }
     }
 
-    /// Says out loud what the menu bar actually contains — because MACOS-13's whole failure mode was
+    /// Says out loud what the menu bar actually contains — because DESK-16's whole failure mode was
     /// a menu that silently was not there, and "the code looks right" is what let that ship.
     private func logMenus() {
-        // The menu bar's own menu, which is the one that changes with what the app can do (MACOS-2).
+        // The menu bar's own menu, which is the one that changes with what the app can do (DESK-2).
         if let tray = statusItem.menu {
             let items = tray.items.filter { !$0.isSeparatorItem }.map { item -> String in
                 let mark = item.state == .on ? "✓" : ""
@@ -151,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         if wantsSettings { showSettings(nil) }
 
         // BM_UI_TOGGLE: change shape and change back before the picture is taken. The log then says
-        // whether the video surface survived it (MACOS-14) — the one promise of the one-window
+        // whether the video surface survived it (DESK-9) — the one promise of the one-window
         // design that a still picture cannot show.
         if ProcessInfo.processInfo.environment["BM_UI_TOGGLE"] != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.state.toggleShape() }
@@ -166,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         }
     }
 
-    /// MACOS-9: closing the last window is not a reason to quit — the monitor is still running.
+    /// DESK-6: closing the last window is not a reason to quit — the monitor is still running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     /// Clicking the Dock icon (which only exists while a window is open) brings the monitor back.
@@ -175,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return true
     }
 
-    /// MACOS-12: an app with no windows recedes into the menu bar and stops cluttering the switcher;
+    /// DESK-14: an app with no windows recedes into the menu bar and stops cluttering the switcher;
     /// an app with one is reachable by Cmd-Tab and Mission Control like any other.
     private func updateActivationPolicy() {
         let hasWindow = monitor.isVisible || settingsWindow?.isVisible == true
@@ -183,9 +183,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         rebuildMenu(state.ui)
     }
 
-    // MARK: - Menu bar (MACOS-1, MACOS-2)
+    // MARK: - Menu bar (DESK-1, DESK-2)
 
-    /// MACOS-1. **While the monitor is doing its job, this is just the app's mark: a waveform, in
+    /// DESK-1. **While the monitor is doing its job, this is just the app's mark: a waveform, in
     /// the menu bar's own colour.** No moon, no spinner, no grey — a menu bar item that keeps
     /// changing its face is one a parent learns to stop reading.
     ///
@@ -220,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         button.toolTip = ui.statusLine
     }
 
-    /// **MACOS-2: the menu offers what the app can actually do right now, and nothing else.**
+    /// **DESK-2: the menu offers what the app can actually do right now, and nothing else.**
     ///
     /// There are three of them, because there are three genuinely different situations — and putting
     /// Mute and Show Camera in front of someone who has not signed in is the app describing a monitor
@@ -284,13 +284,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     private func buildMonitorMenu(_ menu: NSMenu, _ ui: UiState) {
-        // MACOS-2: what is happening, in words, before anything you can click.
+        // DESK-2: what is happening, in words, before anything you can click.
         let header = NSMenuItem(title: ui.statusLine, action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
 
         if let outage = ui.sleepOutage {
-            // MACOS-11: the Mac slept and the monitor was down. Never a quiet reconnect.
+            // DESK-21: the Mac slept and the monitor was down. Never a quiet reconnect.
             let item = NSMenuItem(title: "⚠︎ \(outage)", action: #selector(dismissOutage), keyEquivalent: "")
             item.target = self
             menu.addItem(item)
@@ -314,13 +314,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             menu.addItem(.separator())
         }
 
-        // MACOS-4 / LIVE-2: says which state it is IN, never what clicking would do.
+        // DESK-4 / LIVE-2: says which state it is IN, never what clicking would do.
         let mute = NSMenuItem(title: ui.muted ? "Muted (sound off)" : "Sound on", action: #selector(toggleMute), keyEquivalent: "")
         mute.target = self
         mute.state = ui.muted ? .on : .off
         menu.addItem(mute)
 
-        // MACOS-2/14: one window, two shapes — so one item shows it and one changes its shape.
+        // DESK-2/9: one window, two shapes — so one item shows it and one changes its shape.
         let show = NSMenuItem(title: "Show Camera", action: #selector(showMonitorWindow(_:)), keyEquivalent: "")
         show.target = self
         menu.addItem(show)
@@ -332,7 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
         menu.addItem(.separator())
 
-        // BG-11m / WATCH-11: there is no Stop on a Mac — quitting is how a Mac stops. Start is here
+        // BG-14 / WATCH-11: there is no Stop on a Mac — quitting is how a Mac stops. Start is here
         // only for a monitor that failed on its own, and whether it appears is core's decision
         // (MacShell.macViewerActions), tested there, so it cannot quietly drift from the window's.
         if ui.canResume {
@@ -356,7 +356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         menu.addItem(.separator())
     }
 
-    /// CAM-4 / MACOS-2: **the account's cameras, with the one being watched checked.**
+    /// CAM-4 / DESK-2: **the account's cameras, with the one being watched checked.**
     ///
     /// The list is whatever was last fetched, and it is refreshed when the menu opens — never on the
     /// state tick. Asking Xiaomi for the device list twenty times a second would be a signed request
@@ -417,8 +417,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         about.target = self
         menu.addItem(about)
 
-        // BG-11m: quitting IS stopping, so this is the control that ends the watch — and it asks
-        // first while the monitor is running (MACOS-3), which `applicationShouldTerminate` handles
+        // BG-14: quitting IS stopping, so this is the control that ends the watch — and it asks
+        // first while the monitor is running (DESK-3), which `applicationShouldTerminate` handles
         // for every route out of the app at once: this item, ⌘Q, the Dock, and the More menu.
         let quit = NSMenuItem(title: "Quit Baby Monitor", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -438,7 +438,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         }
     }
 
-    /// The menu bar menu's items carry their own state; these are the main menu's (MACOS-14).
+    /// The menu bar menu's items carry their own state; these are the main menu's (DESK-9).
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(toggleShape(_:)):
@@ -468,7 +468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         refreshCameraList()
     }
 
-    /// **BG-11m / MACOS-3: quitting is how a Mac stops monitoring, so quitting asks first.**
+    /// **BG-14 / DESK-3: quitting is how a Mac stops monitoring, so quitting asks first.**
     ///
     /// The phone protects its Stop button with a confirmation because a single stray tap must never
     /// end a watch. On a Mac that weight has moved onto Quit — and Quit is reachable by ⌘Q, by the
@@ -493,10 +493,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     @objc func showMonitorWindow(_ sender: Any?) { monitor.show() }
 
-    /// MACOS-7: the window closes; the monitor does not notice.
+    /// DESK-13: the window closes; the monitor does not notice.
     @objc func hideMonitorWindow(_ sender: Any?) { monitor.hide() }
 
-    /// MACOS-14: the same window, worn small — or worn full again.
+    /// DESK-9: the same window, worn small — or worn full again.
     @objc func toggleShape(_ sender: Any?) {
         if !monitor.isVisible { monitor.show() }
         state.toggleShape()
@@ -552,12 +552,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     /// The settings window closed. If it was the last one, the app goes back to being a menu bar
-    /// item (MACOS-12) — and the monitor, as ever, does not notice (BG-5).
+    /// item (DESK-14) — and the monitor, as ever, does not notice (BG-5).
     func windowWillClose(_ notification: Notification) {
         DispatchQueue.main.async { [weak self] in self?.updateActivationPolicy() }
     }
 
-    // MARK: - Sleep and wake (BG-12, MACOS-11)
+    // MARK: - Sleep and wake (BG-12, DESK-21)
 
     private func observeSleepAndWake() {
         let center = NSWorkspace.shared.notificationCenter
@@ -576,7 +576,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.state.systemDidWake()
-                // MACOS-11: the outage is surfaced, not swallowed. Put it where it will be seen.
+                // DESK-21: the outage is surfaced, not swallowed. Put it where it will be seen.
                 if self.state.ui.sleepOutage != nil { self.monitor.show() }
             }
         }

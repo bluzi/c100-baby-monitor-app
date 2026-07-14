@@ -41,7 +41,7 @@ private const val RAMP_STEP_MS = 250L
  *
  * A Mac has no vibration motor and no separate alarm-volume stream. That is a real difference from
  * the phone, and it is not papered over: the alarm plays at the volume the user chose (ALRM-11) on
- * the system's output, and the menu bar icon makes a ringing alarm unmistakable (MACOS-1) so a
+ * the system's output, and the menu bar icon makes a ringing alarm unmistakable (DESK-1) so a
  * muted Mac still *shows* the alarm.
  */
 @OptIn(ExperimentalForeignApi::class)

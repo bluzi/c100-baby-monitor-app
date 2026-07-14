@@ -21,7 +21,7 @@ public static class Clock
     /// and mute the detector. Never use the wall clock for a duration.
     ///
     /// A sleeping PC advances nothing at all (the same gap a Mac has), so the shell detects sleep
-    /// explicitly and reports the outage on wake — see WIN-11.
+    /// explicitly and reports the outage on wake — see DESK-21.
     /// </summary>
     public static long ElapsedRealtimeMs() => Monotonic.ElapsedMilliseconds;
 

@@ -34,7 +34,7 @@ final class KeychainSecretBox: NSObject, SecretBox {
     /// certificate that claims it gets the process SIGKILLed at exec.
     ///
     /// The **login** Keychain is the fallback. It guards the item against the exact binary that
-    /// wrote it, so each update costs one password prompt (AUTH-6m).
+    /// wrote it, so each update costs one password prompt (AUTH-12).
     private static let accessGroup: String? = {
         guard let task = SecTaskCreateFromSelf(nil),
               let groups = SecTaskCopyValueForEntitlement(

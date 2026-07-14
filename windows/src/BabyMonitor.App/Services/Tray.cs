@@ -23,15 +23,15 @@ public sealed record TrayItem(
 }
 
 /// <summary>
-/// WIN-1/2 — the app lives in the notification area, and this is it.
+/// DESK-1/2 — the app lives in the notification area, and this is it.
 ///
 /// Hand-rolled on Win32 rather than taken from a package, because everything it needs is Win32: a
 /// real `Shell_NotifyIcon`, a real `TrackPopupMenu`, and a real window procedure. That buys the
 /// behaviour a Windows user already knows — either mouse button opens the menu, clicking away
-/// dismisses it, the icon survives an Explorer restart — which is the whole point of WIN-13.
+/// dismisses it, the icon survives an Explorer restart — which is the whole point of DESK-16.
 ///
 /// It also owns the app's hidden message window, which is where **the sleep and wake broadcasts
-/// arrive** (WIN-11). A monitor that cannot notice the machine slept is a monitor that lies about
+/// arrive** (DESK-21). A monitor that cannot notice the machine slept is a monitor that lies about
 /// the night.
 /// </summary>
 public sealed class TrayIcon : IDisposable
@@ -77,10 +77,10 @@ public sealed class TrayIcon : IDisposable
     private string _iconPath = string.Empty;
     private bool _added;
 
-    /// <summary>WIN-11: the machine is about to sleep, and nothing we can do will stop it.</summary>
+    /// <summary>DESK-21: the machine is about to sleep, and nothing we can do will stop it.</summary>
     public event Action? SystemSuspending;
 
-    /// <summary>WIN-11: it woke. The outage is reported, never quietly reconnected.</summary>
+    /// <summary>DESK-21: it woke. The outage is reported, never quietly reconnected.</summary>
     public event Action? SystemResumed;
 
     public TrayIcon(Func<IReadOnlyList<TrayItem>> menu, Action onOpen)
@@ -93,7 +93,7 @@ public sealed class TrayIcon : IDisposable
     }
 
     /// <summary>
-    /// WIN-1: the state, at a glance. The icon and the tooltip change with the feed.
+    /// DESK-1: the state, at a glance. The icon and the tooltip change with the feed.
     ///
     /// Called on every state change — and the level meter changes state twenty times a second. So
     /// this does nothing at all unless something a human could see has actually moved: reloading an

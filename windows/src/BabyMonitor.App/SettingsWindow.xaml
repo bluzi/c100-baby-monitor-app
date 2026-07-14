@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Settings (ALRM, WATCH, WIN-8/16, UPD-3).
+  Settings (ALRM, WATCH, DESK-19/11, UPD-3).
 
   Every alarm value here is read from and written back to the core's Settings — there is deliberately
   no second settings model on this side to drift out of step with the phone's. The clamping, the
@@ -103,7 +103,7 @@
                 </Border>
             </StackPanel>
 
-            <!-- ===== The mini window (WIN-16) ===== -->
+            <!-- ===== The mini window (DESK-11) ===== -->
             <StackPanel Spacing="8">
                 <TextBlock Text="Mini window" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
@@ -121,7 +121,7 @@
                 </Border>
             </StackPanel>
 
-            <!-- ===== Starting up (WIN-8) ===== -->
+            <!-- ===== Starting up (DESK-19) ===== -->
             <StackPanel Spacing="8">
                 <TextBlock Text="Startup" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
@@ -165,7 +165,7 @@
                 </Border>
             </StackPanel>
 
-            <!-- ===== What a PC cannot do (WIN-11) ===== -->
+            <!-- ===== What a PC cannot do (DESK-21) ===== -->
             <StackPanel Spacing="8">
                 <TextBlock Text="What this PC cannot do" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"

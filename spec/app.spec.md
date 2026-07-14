@@ -13,19 +13,29 @@ Feature specs: [login](features/login.spec.md) ·
 [camera-selection](features/camera-selection.spec.md) · [live-feed](features/live-feed.spec.md) ·
 [background](features/background.spec.md) · [noise-alarm](features/noise-alarm.spec.md) ·
 [stream-watchdog](features/stream-watchdog.spec.md) · [updates](features/updates.spec.md) ·
-[macos-shell](features/macos-shell.spec.md) · [windows-shell](features/windows-shell.spec.md) ·
+[desktop-shell](features/desktop-shell.spec.md) ·
 [xiaomi-protocol](features/xiaomi-protocol.spec.md)
 
 ## How to read a criterion
 
-Criteria have stable IDs (`ALRM-3`). Every one maps to at least one test that names the ID.
+Criteria have stable IDs (`ALRM-3`). Every one maps to at least one test that names the ID. **An ID
+never names a platform** — the tag does that, and only the tag. An ID is a name for a behaviour, and
+a behaviour that moves from one platform to two must not have to be renamed to say so.
 
 - **Untagged criteria are universal.** They hold on every platform, and their tests run on every
   platform: the shared core's suite executes on the JVM (Android) *and* on Kotlin/Native (macOS),
   and the Windows port runs the same suite again, criterion for criterion. "The apps behave the
   same" is not a hope; it is executed three times.
-- **`[android]` / `[macos]` / `[windows]`** mark a criterion that genuinely differs by platform.
-  Not a difference of implementation — a difference of *behaviour*, in something the user can see.
+- **`[desktop]`** is the common case for anything a phone cannot do: it means **macOS and Windows,
+  both**. A Mac and a PC are the same kind of machine to a parent — a screen you work at, that
+  sleeps, with a status area in the corner — and they get the same monitor. The nouns differ (menu
+  bar / tray, Quit / Exit) and the spec names both; the promise does not differ, so it is written
+  once.
+- **`[android]` / `[macos]` / `[windows]`** mark a criterion that holds on **one** platform only —
+  and they are a claim that needs earning. Not a difference of implementation: a difference of
+  *behaviour*, in something the user can see, that the other platforms genuinely cannot have. If a
+  `[macos]` and a `[windows]` criterion say the same thing in different words, they were one
+  `[desktop]` criterion all along.
 - **`[device]`** marks a criterion only observable on real hardware (background playback,
   lock-screen behaviour, audible output). These map to
   [device-checklist.md](device-checklist.md) instead of a unit test.
@@ -42,8 +52,8 @@ a stated consequence** — what the app does, and what it tells the user, in pla
 
 Map hazard to hazard, not feature to feature. "Android warns when it is not exempt from battery
 optimisation" (BG-9) looks Android-only, but the hazard it guards — *the OS quietly suspends the
-monitor overnight* — exists on a Mac and on a PC too, wearing different clothes. So each has its own
-criterion for the same hazard (BG-12, BG-12w), not a gap.
+monitor overnight* — exists on a Mac and on a PC too, wearing different clothes. So the desktops have
+their own criterion for the same hazard (BG-12), not a gap.
 
 This follows directly from the first principle: a capability the user could mistake for a working
 one is a bug, not a gap. Silence must never be mistaken for a calm baby.
@@ -62,6 +72,7 @@ one is a bug, not a gap. Silence must never be mistaken for a calm baby.
 - **UI-1** `[device]` The app renders in a dark theme suitable for use in a dark room at night.
 - **UI-2** `[device]` All user-facing text is in English.
 - **UI-3** `[device]` The app has **one icon**, and it is the same mark on every platform it ships
-  on — wherever the OS shows an app: the Dock, Mission Control and the switcher on a Mac; the
-  launcher, recents and settings on a phone. It is never a generic placeholder, and a new platform
-  takes the same mark rather than inventing one. One monitor, one face.
+  on — wherever the OS shows an app: the launcher, recents and settings on a phone; the Dock,
+  Mission Control and the switcher on a Mac; the taskbar, Alt-Tab and Explorer on a PC. It is never
+  a generic placeholder, and a new platform takes the same mark rather than inventing one. One
+  monitor, one face.

@@ -7,11 +7,11 @@ using Log = BabyMonitor.App.Services.Logging.Log;
 namespace BabyMonitor.App.Services;
 
 /// <summary>
-/// BG-12w / WIN-10: a sleeping PC runs nothing at all, so while monitoring is on we ask Windows not
+/// BG-12 / DESK-20: a sleeping PC runs nothing at all, so while monitoring is on we ask Windows not
 /// to idle-sleep, and while a window is showing a live feed we ask it not to blank the screen.
 ///
 /// This cannot stop the sleep a user *asks* for — the lid, the power button, Start → Sleep. Nothing
-/// an app can do will. That gap is real, it is spec'd (WIN-11), and the app reports the outage on
+/// an app can do will. That gap is real, it is spec'd (DESK-21), and the app reports the outage on
 /// wake rather than pretending the night was covered.
 ///
 /// **`SetThreadExecutionState` is thread-affine**: the request belongs to the thread that made it and
@@ -33,7 +33,7 @@ public static class PowerRequests
     private static bool _displayHeld;
 
     /// <summary>
-    /// BG-12w: hold the system awake for as long as monitoring runs. Returns false if Windows refused —
+    /// BG-12: hold the system awake for as long as monitoring runs. Returns false if Windows refused —
     /// the caller must then say so rather than appear to monitor.
     /// </summary>
     public static bool HoldSystem(bool wanted)
@@ -52,7 +52,7 @@ public static class PowerRequests
     }
 
     /// <summary>
-    /// LIVE-14 / WIN-10: keep the display on, but only while there is something to look at. A monitor
+    /// LIVE-14 / DESK-20: keep the display on, but only while there is something to look at. A monitor
     /// nobody is watching has no business burning a screen all night.
     /// </summary>
     public static void HoldDisplay(bool wanted)
@@ -88,8 +88,8 @@ public static class PowerRequests
 }
 
 /// <summary>
-/// WIN-8: start with Windows, so a PC that restarts overnight comes back to a running monitor
-/// (BG-13w).
+/// DESK-19: start with Windows, so a PC that restarts overnight comes back to a running monitor
+/// (BG-13).
 ///
 /// The Run key is the plain, visible, user-scoped way to do this: it needs no installer, no admin,
 /// and the user can see and undo it in Task Manager → Startup, which is where a Windows user looks.
@@ -184,7 +184,7 @@ public sealed class NetworkWatcher : IDisposable
 }
 
 /// <summary>
-/// WIN-18: the system's own accessibility and personalisation settings. An app that quietly ignores
+/// DESK-18: the system's own accessibility and personalisation settings. An app that quietly ignores
 /// them is an app that has decided it knows better than the person using it.
 /// </summary>
 public static class SystemPreferences

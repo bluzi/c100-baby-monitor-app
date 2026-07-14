@@ -100,7 +100,7 @@ public sealed class JsonFileStore : IKeyValueStore
 }
 
 /// <summary>
-/// AUTH-6 / AUTH-6w: the Mi account token, encrypted with DPAPI to this Windows user on this machine.
+/// AUTH-6 / AUTH-12: the Mi account token, encrypted with DPAPI to this Windows user on this machine.
 ///
 /// DPAPI is the right primitive here for one reason above all: it keys on the *user*, not on the
 /// binary. An update replaces every byte of the app and the session still opens — with no prompt, no

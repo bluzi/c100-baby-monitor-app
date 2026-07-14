@@ -21,7 +21,7 @@ using Log = BabyMonitor.App.Services.Logging.Log;
 namespace BabyMonitor.App;
 
 /// <summary>
-/// The one window (WIN-14), the tray icon (WIN-1) and everything that hangs off them.
+/// The one window (DESK-9), the tray icon (DESK-1) and everything that hangs off them.
 ///
 /// It decides nothing. Whether monitoring can be stopped, what the status says, whether the mini
 /// window may fade — every one of those comes from the shared core, which is the same logic the phone
@@ -38,12 +38,15 @@ public sealed partial class MainWindow : Window
     private readonly MediaFoundationVideoRenderer _renderer = new();
     private readonly DispatcherTimer _chromeTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private readonly Updater _updater = new(Updater.CurrentVersion);
+
+    /// <summary>Only one ContentDialog may be open at a time — see <see cref="AskAsync"/>.</summary>
+    private readonly SemaphoreSlim _dialogLock = new(1, 1);
     private readonly IntPtr _hwnd;
 
     private SettingsWindow? _settings;
 
     /// <summary>
-    /// The cameras on the account, for the tray's camera submenu (WIN-2). Held rather than fetched on
+    /// The cameras on the account, for the tray's camera submenu (DESK-2). Held rather than fetched on
     /// demand: the device list is a *signed request to Xiaomi*, and the menu must be buildable the
     /// instant it is opened.
     /// </summary>
@@ -75,11 +78,11 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
 
-        // The picture: one surface, both shapes, never rebuilt (WIN-14).
+        // The picture: one surface, both shapes, never rebuilt (DESK-9).
         Video.SetMediaPlayer(_renderer.Player);
         _state.OnVideoRendererChanged(_renderer);
 
-        // WIN-1/2: the tray icon is the app. It also owns the window that hears the machine sleep.
+        // DESK-1/2: the tray icon is the app. It also owns the window that hears the machine sleep.
         _tray = new TrayIcon(BuildTrayMenu, ShowWindow);
         _tray.SystemSuspending += () => DispatcherQueue.TryEnqueue(_state.SystemWillSleep);
         _tray.SystemResumed += () => DispatcherQueue.TryEnqueue(() =>
@@ -87,7 +90,7 @@ public sealed partial class MainWindow : Window
             _state.SystemDidWake();
             if (_state.SleepOutage != null)
             {
-                ShowWindow(); // WIN-11: the outage is surfaced, not swallowed. Put it where it is seen.
+                ShowWindow(); // DESK-21: the outage is surfaced, not swallowed. Put it where it is seen.
             }
         });
 
@@ -132,10 +135,10 @@ public sealed partial class MainWindow : Window
         StartUpdateChecks();
     }
 
-    // --- the tray (WIN-1, WIN-2) ---------------------------------------------
+    // --- the tray (DESK-1, DESK-2) ---------------------------------------------
 
     /// <summary>
-    /// **WIN-2: the menu offers what the app can actually do right now, and nothing else.**
+    /// **DESK-2: the menu offers what the app can actually do right now, and nothing else.**
     ///
     /// There are three of them, because there are three genuinely different situations — and putting
     /// Mute and Show Camera in front of someone who has not signed in is the app describing a monitor
@@ -186,7 +189,7 @@ public sealed partial class MainWindow : Window
 
     private void BuildMonitorMenu(List<TrayItem> items)
     {
-        // WIN-2: what is happening, in words, before anything you can click.
+        // DESK-2: what is happening, in words, before anything you can click.
         items.Add(TrayItem.Label(_state.StatusLine));
 
         if (_state.SleepOutage != null)
@@ -207,7 +210,7 @@ public sealed partial class MainWindow : Window
             items.Add(TrayItem.Divider);
         }
 
-        // WIN-4 / LIVE-2: says which state it is IN, never what clicking would do.
+        // DESK-4 / LIVE-2: says which state it is IN, never what clicking would do.
         items.Add(new TrayItem(
             _state.Muted ? "Muted (sound off)" : "Sound on",
             () => Post(_state.ToggleMute),
@@ -227,7 +230,7 @@ public sealed partial class MainWindow : Window
 
         items.Add(TrayItem.Divider);
 
-        // BG-11w / WATCH-11: there is no Stop on a PC — exiting is how a PC stops. Start is here only
+        // BG-14 / WATCH-11: there is no Stop on a PC — exiting is how a PC stops. Start is here only
         // for a monitor that failed on its own, and whether it appears is the core's decision
         // (DesktopShell.ViewerActions), tested there, so it cannot quietly drift from the window's.
         if (_state.CanResume)
@@ -240,7 +243,7 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// CAM-4 / WIN-2: **the account's cameras, with the one being watched checked.**
+    /// CAM-4 / DESK-2: **the account's cameras, with the one being watched checked.**
     ///
     /// The list is whatever was last fetched, and it is refreshed when the menu opens — never on the
     /// state tick. Asking Xiaomi for the device list twenty times a second would be a signed request
@@ -294,7 +297,7 @@ public sealed partial class MainWindow : Window
         items.Add(TrayItem.Divider);
         items.Add(TrayItem.Label($"Baby Monitor {_state.Version}"));
 
-        // BG-11w / WIN-3: exiting IS stopping, so this is the control that ends the watch — and it
+        // BG-14 / DESK-3: exiting IS stopping, so this is the control that ends the watch — and it
         // asks first while the monitor is running.
         items.Add(new TrayItem("Exit Baby Monitor", () => Post(() => _ = ConfirmExitAsync())));
     }
@@ -358,7 +361,7 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// WIN-1. **While the monitor is doing its job, this is just the app's mark.** No spinner, no
+    /// DESK-1. **While the monitor is doing its job, this is just the app's mark.** No spinner, no
     /// grey, no second face for "reconnecting" — a tray icon that keeps changing is one a parent
     /// learns to stop reading.
     ///
@@ -382,7 +385,7 @@ public sealed partial class MainWindow : Window
         _state.Status is Statuses.SessionExpired or Statuses.UnsupportedCamera or Statuses.MonitorFailed;
 
     /// <summary>
-    /// **BG-11w / WIN-3: exiting is how a PC stops monitoring, so exiting asks first.**
+    /// **BG-14 / DESK-3: exiting is how a PC stops monitoring, so exiting asks first.**
     ///
     /// The phone protects its Stop button with a confirmation because a single stray tap must never
     /// end a watch. On a PC that weight has moved onto Exit — so the question lives here, on the one
@@ -395,28 +398,26 @@ public sealed partial class MainWindow : Window
     {
         if (_state.Running)
         {
-            ShowWindow(); // a question nobody can see is not a question
-            var dialog = new ContentDialog
+            var answer = await AskAsync(new ContentDialog
             {
-                XamlRoot = Root.XamlRoot,
                 Title = "Exit Baby Monitor?",
                 Content = "Exiting stops monitoring: audio, the alarm and the connection all end. " +
                           "The baby will not be monitored until you open it again.",
                 PrimaryButtonText = "Exit and stop monitoring",
                 CloseButtonText = "Keep monitoring",
                 DefaultButton = ContentDialogButton.Close,
-            };
+            });
 
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            if (answer != ContentDialogResult.Primary)
             {
-                return;
+                return; // including a question that could not be asked: never end a watch by default
             }
         }
 
         ExitApp();
     }
 
-    /// <summary>WIN-9: Exit is the only thing that ends the app — and therefore the watch.</summary>
+    /// <summary>DESK-6: Exit is the only thing that ends the app — and therefore the watch.</summary>
     private void ExitApp()
     {
         Log.Info("app", "exiting on the user's request — monitoring ends here");
@@ -425,11 +426,11 @@ public sealed partial class MainWindow : Window
         Application.Current.Exit();
     }
 
-    // --- the window's two shapes (WIN-5, WIN-6, WIN-14) -----------------------
+    // --- the window's two shapes (DESK-8, DESK-7, DESK-9) -----------------------
 
     private void ApplyShape(string preferred, bool restoreFrame = false)
     {
-        // WIN-14: sign-in and the camera picker are never shown in a tile. The core decides that.
+        // DESK-9: sign-in and the camera picker are never shown in a tile. The core decides that.
         var shape = DesktopShell.WindowShape(_state.Screen, preferred);
         if (!restoreFrame && shape == _shape)
         {
@@ -451,14 +452,14 @@ public sealed partial class MainWindow : Window
         {
             if (AppWindow.Presenter is OverlappedPresenter presenter)
             {
-                presenter.IsAlwaysOnTop = mini; // WIN-5: it floats over other work
+                presenter.IsAlwaysOnTop = mini; // DESK-8: it floats over other work
                 presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: !mini);
                 presenter.IsResizable = true;
                 presenter.IsMaximizable = !mini;
                 presenter.IsMinimizable = !mini;
             }
 
-            // WIN-12 / WIN-22: the full window is in the taskbar and Alt-Tab like any other app. The
+            // DESK-14 / DESK-15: the full window is in the taskbar and Alt-Tab like any other app. The
             // mini tile is not — it is already on top of everything, and listing it among the windows
             // a user is trying to see *past* would make it clutter twice over.
             AppWindow.IsShownInSwitchers = !mini;
@@ -507,7 +508,7 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// WIN-19: the window takes the camera's shape, so the picture fills it edge to edge and is never
+    /// DESK-12: the window takes the camera's shape, so the picture fills it edge to edge and is never
     /// framed in black bars. They were never the camera's bars — they were the window's.
     /// </summary>
     private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
@@ -541,7 +542,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>WIN-7 / WIN-9: closing the window closes the window. Monitoring does not notice.</summary>
+    /// <summary>DESK-13 / DESK-6: closing the window closes the window. Monitoring does not notice.</summary>
     private void OnWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         args.Cancel = true;
@@ -569,7 +570,7 @@ public sealed partial class MainWindow : Window
         Log.Info("ui", "the window was closed — monitoring carries on in the tray");
     }
 
-    // --- the pointer (LIVE-11w, WIN-15/16) -----------------------------------
+    // --- the pointer (LIVE-17, DESK-10/11) -----------------------------------
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
@@ -621,16 +622,16 @@ public sealed partial class MainWindow : Window
         ControlBar.Opacity = visible ? 1 : 0;
         ControlBar.IsHitTestVisible = visible;
 
-        // WIN-15: close, make-it-full and acknowledge come and go with the pointer. Mute does not —
-        // it is what tells a tile too small for words that the sound is off (WIN-5 / LIVE-2).
+        // DESK-10: close, make-it-full and acknowledge come and go with the pointer. Mute does not —
+        // it is what tells a tile too small for words that the sound is off (DESK-8 / LIVE-2).
         MiniTopControls.Opacity = _pointerInside ? 1 : 0;
         MiniTopControls.IsHitTestVisible = _pointerInside;
 
-        // WIN-16: how solid the tile is drawn is the core's decision, not this file's.
+        // DESK-11: how solid the tile is drawn is the core's decision, not this file's.
         SetWindowOpacity(_shape == DesktopShell.ShapeMini ? _state.MiniOpacity(_pointerInside) : 1.0);
     }
 
-    /// <summary>WIN-16: the mini window fades — through a layered window, which is how Windows does it.</summary>
+    /// <summary>DESK-11: the mini window fades — through a layered window, which is how Windows does it.</summary>
     private void SetWindowOpacity(double opacity)
     {
         try
@@ -659,7 +660,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    // --- keyboard (WIN-13) ----------------------------------------------------
+    // --- keyboard (DESK-16) ----------------------------------------------------
 
     private void OnToggleShapeAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
@@ -744,7 +745,7 @@ public sealed partial class MainWindow : Window
             MuteButton,
             _state.Muted ? "Muted — the alarm still works. Click for sound" : "Mute the speaker");
 
-        // BG-11w: Start appears only for a monitor that stopped working. There is no Stop to sit
+        // BG-14: Start appears only for a monitor that stopped working. There is no Stop to sit
         // beside it — so its separator goes with it rather than floating at the head of the row.
         StartButton.Visibility = _state.CanResume ? Visibility.Visible : Visibility.Collapsed;
         StartSeparator.Visibility = StartButton.Visibility;
@@ -819,7 +820,7 @@ public sealed partial class MainWindow : Window
     // --- the controls ---------------------------------------------------------
 
     /// <summary>
-    /// BG-11w: Start, and no Stop. It is here only for a monitor that failed on its own (WATCH-11) —
+    /// BG-14: Start, and no Stop. It is here only for a monitor that failed on its own (WATCH-11) —
     /// which must be recoverable right where the parent is looking, not by exiting the app.
     /// </summary>
     private void OnStart(object sender, RoutedEventArgs e) => _state.Start();
@@ -881,7 +882,7 @@ public sealed partial class MainWindow : Window
     private void OnOpenNetworkSettings(object sender, RoutedEventArgs e) =>
         _ = Launcher.LaunchUriAsync(new Uri("ms-settings:network"));
 
-    /// <summary>WIN-20: the shortest route to a picture — the free extension, in the Store.</summary>
+    /// <summary>DESK-22: the shortest route to a picture — the free extension, in the Store.</summary>
     private void OnInstallHevc(object sender, RoutedEventArgs e) =>
         _ = Launcher.LaunchUriAsync(new Uri("ms-windows-store://pdp/?ProductId=9n4wgh0z6vhq"));
 
@@ -1132,21 +1133,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void StartUpdateChecks()
     {
-        // UPD-5w: an update a previous run put in place is applied HERE, before monitoring starts —
-        // the one moment the swap costs nothing, because nothing is being watched yet. (Windows will
-        // not let a running program overwrite its own files, so this is where "it takes over at the
-        // next launch" actually happens.)
-        var staged = Updater.FindStaged(Updater.CurrentVersion);
-        if (staged != null && Updater.Install(staged))
-        {
-            Application.Current.Exit();
-            return;
-        }
-
-        // Nothing newer is waiting, so whatever is left beside us is this version or older: the update
-        // landed, and the folder it came out of is just disk now.
-        Updater.CleanStaging(Updater.CurrentVersion);
-
+        // A version put in place by an earlier run has already taken over by now — that happens in
+        // Program.Main, before any of this exists (UPD-10). All that is left is to look for a new one.
         _ = CheckForUpdateAsync(askedByUser: false);
     }
 
@@ -1204,11 +1192,9 @@ public sealed partial class MainWindow : Window
     private async Task OfferRestartAsync(string version)
     {
         _state.UpdateStatus = new UpdateStatus(UpdateState.Installed, version);
-        ShowWindow(); // the question is asked where it can be seen, and answered
 
-        var dialog = new ContentDialog
+        var answer = await AskAsync(new ContentDialog
         {
-            XamlRoot = Root.XamlRoot,
             Title = $"Baby Monitor {version} is installed.",
             Content = _state.Running
                 ? "It will run the next time you open Baby Monitor. Restarting now takes a few " +
@@ -1218,11 +1204,13 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText = "Restart now",
             CloseButtonText = "Later",
             DefaultButton = ContentDialogButton.Close,
-        };
+        });
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (answer != ContentDialogResult.Primary)
         {
-            Log.Info("update", $"the user chose not to restart — {version} will run at the next launch");
+            // Including a question that could not be asked. The app never restarts itself, so silence
+            // means "later" — and later is a real answer: it is already on disk, and it runs next time.
+            Log.Info("update", $"not restarting — {version} will run at the next launch");
             return;
         }
 
@@ -1233,20 +1221,55 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task TellUserAsync(string title, string body)
-    {
-        ShowWindow();
-        var dialog = new ContentDialog
+    private async Task TellUserAsync(string title, string body) =>
+        await AskAsync(new ContentDialog
         {
-            XamlRoot = Root.XamlRoot,
             Title = title,
             Content = body,
             CloseButtonText = "OK",
-        };
-        await dialog.ShowAsync();
-    }
+        });
 
     // --- odds and ends --------------------------------------------------------
+
+    /// <summary>
+    /// The one door every dialog in this app goes through.
+    ///
+    /// Two things it guards, and both would otherwise be a crash or a lie:
+    ///  - **only one ContentDialog may be open at a time.** A second `ShowAsync` throws, and the two
+    ///    that can genuinely collide are the update's "restart now?" and Exit's "are you sure?" —
+    ///    the two questions that must never be lost.
+    ///  - **it needs a loaded window.** The launch-time update check can answer before the window has
+    ///    a XamlRoot; with none, there is nothing to put the question on.
+    ///
+    /// A dialog that could not be shown answers <see cref="ContentDialogResult.None"/>, and every
+    /// caller reads that as "no": the app does not restart, and it does not exit. Never act on a
+    /// question nobody was asked.
+    /// </summary>
+    private async Task<ContentDialogResult> AskAsync(ContentDialog dialog)
+    {
+        await _dialogLock.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            ShowWindow(); // a question nobody can see is not a question
+            if (Root.XamlRoot == null)
+            {
+                Log.Warn("ui", $"could not ask '{dialog.Title}' — the window has no XAML root yet");
+                return ContentDialogResult.None;
+            }
+
+            dialog.XamlRoot = Root.XamlRoot;
+            return await dialog.ShowAsync();
+        }
+        catch (Exception e)
+        {
+            Log.Error("ui", $"could not show the dialog '{dialog.Title}': {e.Message}", e);
+            return ContentDialogResult.None;
+        }
+        finally
+        {
+            _dialogLock.Release();
+        }
+    }
 
     private void Post(Action action) => DispatcherQueue.TryEnqueue(() => action());
 

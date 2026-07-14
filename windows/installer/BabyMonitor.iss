@@ -5,7 +5,7 @@
 ;
 ; **This is a PER-USER install, and that is not a preference — it is what keeps the updater working.**
 ; It lands in %LOCALAPPDATA%\Programs\BabyMonitor, a directory the app can write to itself, so the
-; swap that applies an update (UPD-5w) needs no elevation. Installed into Program Files, that swap
+; swap that applies an update (UPD-10) needs no elevation. Installed into Program Files, that swap
 ; would need an administrator — which means a UAC prompt, at whatever hour the update lands, standing
 ; between a parent and a running monitor. This project does not put dialogs there.
 ;
@@ -65,7 +65,7 @@ Source: "..\build\x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 
-; Deliberately NOT a "start with Windows" task. WIN-8: the app offers that itself, once, in words, and
+; Deliberately NOT a "start with Windows" task. DESK-19: the app offers that itself, once, in words, and
 ; **never turns it on by itself** — an installer checkbox nobody read is exactly the way a monitor
 ; ends up in a startup list its owner never chose.
 

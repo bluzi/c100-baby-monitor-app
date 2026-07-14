@@ -3,7 +3,7 @@ import BabyMonitorCore
 import Combine
 import SwiftUI
 
-/// MACOS-14. **The monitor is one window.**
+/// DESK-9. **The monitor is one window.**
 ///
 /// It wears two shapes — *full*, an ordinary Mac window you can work in and take full screen, and
 /// *mini*, a small tile that floats over everything else — and it changes between them the way a
@@ -13,7 +13,7 @@ import SwiftUI
 /// had, and it meant two renderers fighting over one feed: whichever was created last got the
 /// frames and the other went black. One window has one video layer, which is never torn down, so
 /// switching shape cannot black out the picture, cannot drop audio, and cannot make the camera
-/// reconnect. The parent sees the tile grow into a window. Nothing restarts (MACOS-14).
+/// reconnect. The parent sees the tile grow into a window. Nothing restarts (DESK-9).
 ///
 /// The shapes are also the only place in this app where AppKit is asked to do something unusual, so
 /// the reasoning is written down: a *titled* window's title bar would sit on top of the mini shape's
@@ -26,7 +26,7 @@ final class MonitorWindow: NSWindow {
 
     /// A borderless window has no close button, so AppKit's `performClose` beeps instead of closing
     /// it. The mini shape is still a window, and ⌘W must still close it — closing which, as ever,
-    /// stops nothing (MACOS-7, BG-5).
+    /// stops nothing (DESK-13, BG-5).
     override func performClose(_ sender: Any?) {
         if delegate?.windowShouldClose?(self) == false { return }
         close()
@@ -70,11 +70,11 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     private var pendingShape: WindowShape?
 
     /// True while the window is being morphed, so the frames AppKit reports on the way through are
-    /// not mistaken for a size the user chose (MACOS-14: each shape remembers its own).
+    /// not mistaken for a size the user chose (DESK-9: each shape remembers its own).
     private var morphing = false
 
     /// Told whenever the window appears or disappears, so the app can decide whether it is still an
-    /// app with windows (MACOS-12) or has receded into the menu bar.
+    /// app with windows (DESK-14) or has receded into the menu bar.
     var onVisibilityChanged: () -> Void = {}
 
     init(state: AppState) {
@@ -89,10 +89,10 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         super.init()
 
         window.title = "Baby Monitor"
-        window.isReleasedWhenClosed = false // MACOS-7: closing it is not destroying it
+        window.isReleasedWhenClosed = false // DESK-13: closing it is not destroying it
         window.delegate = self
         window.appearance = NSAppearance(named: .darkAqua) // UI-1
-        window.acceptsMouseMovedEvents = true // LIVE-11m: the chrome follows the pointer
+        window.acceptsMouseMovedEvents = true // LIVE-17: the chrome follows the pointer
         window.tabbingMode = .disallowed // one monitor; tabs would be a way to hide it behind itself
 
         // Who sizes whom, and it changes with the chrome (see `Chrome`):
@@ -119,7 +119,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - Showing and hiding
 
-    /// MACOS-12: a window you cannot Cmd-Tab to is a window you have to go hunting for, and at 3am
+    /// DESK-14: a window you cannot Cmd-Tab to is a window you have to go hunting for, and at 3am
     /// that is the difference between glancing at the baby and giving up. An `.accessory` app is
     /// excluded from the switcher, so the app is only `.accessory` when it has nothing to switch
     /// *to* — the policy follows the windows, and the monitor is untouched by any of it (BG-5).
@@ -140,7 +140,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         window.close()
     }
 
-    // MARK: - The two shapes (MACOS-5, MACOS-6, MACOS-14)
+    // MARK: - The two shapes (DESK-8, DESK-7, DESK-9)
 
     private func refresh(animated: Bool) {
         let shape = state.shape
@@ -158,7 +158,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         // A dialog's size and place are its own business, not a shape the user chose — so it is
         // never remembered as one.
         if let old = currentShape, currentChrome != .dialog {
-            Prefs.setFrame(window.frame, for: old) // each shape remembers its own (MACOS-14)
+            Prefs.setFrame(window.frame, for: old) // each shape remembers its own (DESK-9)
         }
         let wasDialog = currentChrome == .dialog
         currentShape = shape
@@ -176,7 +176,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
             guard let self else { return }
             self.morphing = false
             self.window.invalidateShadow() // the shape changed under the shadow
-            self.applyAspectPolicy() // MACOS-19: and it settles into the camera's shape
+            self.applyAspectPolicy() // DESK-12: and it settles into the camera's shape
             // The window has just moved out from under the pointer — ask where the pointer actually
             // is rather than trusting an "entered" that will never be matched by an "exited".
             self.state.pointerMayHaveLeft(windowFrame: self.window.frame, visible: self.window.isVisible)
@@ -201,11 +201,11 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     private func configureVideo() {
         hosting.sizingOptions = [] // the window sizes the picture, never the other way round
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true // the video runs under the traffic lights (LIVE-9m)
+        window.titlebarAppearsTransparent = true // the video runs under the traffic lights (LIVE-16)
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = false
         window.level = .normal
-        window.collectionBehavior = [.fullScreenPrimary] // MACOS-6: it can go full screen
+        window.collectionBehavior = [.fullScreenPrimary] // DESK-7: it can go full screen
         window.backgroundColor = .black
         window.isOpaque = true
         window.hasShadow = true
@@ -214,7 +214,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         applyAspectPolicy()
     }
 
-    /// **The sign-in panel is not a window with a form in it. It is a dialog.** (AUTH-1, MACOS-13.)
+    /// **The sign-in panel is not a window with a form in it. It is a dialog.** (AUTH-1, DESK-16.)
     ///
     /// Before a camera is chosen there is no picture, so a window full of black around a little card
     /// is a window pretending to have something in it. The system does not do that: when macOS wants
@@ -250,7 +250,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         morphing = animated // a dialog never animates into place; it simply is where it is
     }
 
-    // MARK: - The camera's shape (MACOS-19)
+    // MARK: - The camera's shape (DESK-12)
 
     /// The window wears the video's aspect ratio, so the picture fills it and the black bars stop
     /// existing. This is what QuickTime and every other video window on this platform does, and it
@@ -265,7 +265,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     }
 
     /// Who gets to be the camera's shape, and who does not: the *feed* does, in either shape. The
-    /// sign-in form and the camera picker live in this same window (MACOS-14) and are not pictures —
+    /// sign-in form and the camera picker live in this same window (DESK-9) and are not pictures —
     /// locking a form to 16:9 would be absurd — so there the window is free again.
     ///
     /// Split in two on purpose. The **constraints** must be in place *before* a morph moves the
@@ -332,9 +332,9 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     private func configureMini() {
         window.styleMask = [.borderless, .resizable]
         window.isMovableByWindowBackground = true // drag it anywhere by its picture
-        window.level = .floating // MACOS-5: above ordinary windows
-        // Over full-screen apps and across spaces (BG-7m): the glance must never require leaving
-        // what you are doing — and OUT of Mission Control and the window cycles (MACOS-20).
+        window.level = .floating // DESK-8: above ordinary windows
+        // Over full-screen apps and across spaces (BG-17): the glance must never require leaving
+        // what you are doing — and OUT of Mission Control and the window cycles (DESK-15).
         //
         // `.transient` is the one that does it: it tells the window server this window is not part
         // of the user's document space. It is already floating on top of everything; listing it
@@ -345,10 +345,10 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         window.isOpaque = false
         window.hasShadow = true
         window.hidesOnDeactivate = false
-        applyAspectPolicy() // MACOS-19: the tile is the camera's shape, not a guess at it
+        applyAspectPolicy() // DESK-12: the tile is the camera's shape, not a guess at it
     }
 
-    // MARK: - Fading (MACOS-16)
+    // MARK: - Fading (DESK-11)
 
     /// The window's own alpha, from core's rule. Not "how transparent do we feel like being" — the
     /// decision that a monitor may recede at all belongs to `MacShell.miniOpacity`, which knows when
@@ -366,7 +366,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    // MARK: - Frames (MACOS-14: each shape remembers its own)
+    // MARK: - Frames (DESK-9: each shape remembers its own)
 
     private func frame(for shape: WindowShape) -> NSRect {
         if let saved = Prefs.frame(shape), NSScreen.screens.contains(where: { $0.visibleFrame.intersects(saved) }) {
@@ -381,7 +381,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         switch shape {
         case .full:
             let width = min(1040, visible.width - 80)
-            // MACOS-19: born the camera's shape, so the very first frame lands without a jump.
+            // DESK-12: born the camera's shape, so the very first frame lands without a jump.
             let height = state.ui.screen == "viewer"
                 ? min((width / aspect).rounded(), visible.height - 80)
                 : min(650, visible.height - 80)
@@ -443,7 +443,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
             .sink { [weak self] _ in self?.updateDisplayWake() }
             .store(in: &cancellables)
 
-        // MACOS-19: the first picture from a camera — or a different picture from a different
+        // DESK-12: the first picture from a camera — or a different picture from a different
         // camera — reshapes the window to fit it.
         state.$videoAspect
             .removeDuplicates()
@@ -455,7 +455,7 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
-        // MACOS-7 / BG-5: the window is closing. The monitor is not.
+        // DESK-13 / BG-5: the window is closing. The monitor is not.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.updateDisplayWake()

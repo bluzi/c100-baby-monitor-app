@@ -1,6 +1,6 @@
 import AppKit
 
-/// MACOS-13. **The Edit menu is not decoration — it is how ⌘V works.**
+/// DESK-16. **The Edit menu is not decoration — it is how ⌘V works.**
 ///
 /// This app had no main menu at all. On a Mac, ⌘V is not handled by the text field: the keystroke
 /// is offered to the main menu, and it is the Edit menu's Paste item that turns it into a
@@ -50,14 +50,14 @@ enum MainMenu {
         menu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         menu.addItem(.separator())
 
-        // MACOS-9: the only thing that ends the app. Closing a window never does.
+        // DESK-6: the only thing that ends the app. Closing a window never does.
         menu.addItem(withTitle: "Quit Baby Monitor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         item.submenu = menu
         return item
     }
 
-    /// The one that matters (MACOS-13). Standard selectors, standard shortcuts: every text field in
+    /// The one that matters (DESK-16). Standard selectors, standard shortcuts: every text field in
     /// the app — and every one it ever grows — gets Cut, Copy, Paste and Select All for free,
     /// because that is how AppKit was always meant to be wired.
     private static func editMenu() -> NSMenuItem {
@@ -78,7 +78,7 @@ enum MainMenu {
         return item
     }
 
-    /// MACOS-6: the full shape can go full screen. AppKit renames this as it toggles and disables it
+    /// DESK-7: the full shape can go full screen. AppKit renames this as it toggles and disables it
     /// by itself while the window on screen is the tile — which cannot be full screen — so the menu
     /// never offers something that would do nothing.
     private static func viewMenu() -> NSMenuItem {
@@ -107,7 +107,7 @@ enum MainMenu {
 
         menu.addItem(withTitle: "Show Camera", action: #selector(AppDelegate.showMonitorWindow(_:)), keyEquivalent: "0")
 
-        // MACOS-14: the same window, worn small. ⇧⌘M is where a Mac user already reaches for a
+        // DESK-9: the same window, worn small. ⇧⌘M is where a Mac user already reaches for a
         // mini player, so it is where this is too.
         let mini = NSMenuItem(
             title: "Mini Window",

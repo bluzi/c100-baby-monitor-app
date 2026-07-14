@@ -11,7 +11,7 @@ public partial class App : Application
     {
         InitializeComponent();
 
-        // WIN-9 / the first principle: the app never exits itself — not on an update, not on an error.
+        // DESK-6 / the first principle: the app never exits itself — not on an update, not on an error.
         // A XAML page that throws must cost a warning in the log, never the monitor.
         UnhandledException += (_, e) =>
         {
@@ -35,7 +35,7 @@ public partial class App : Application
     {
         Window = new MainWindow();
 
-        // BG-13w: a PC that restarted overnight comes back with the monitor stopped. The window opens
+        // BG-13: a PC that restarted overnight comes back with the monitor stopped. The window opens
         // on the feed with Start right there, so one click fixes it.
         Window.Activate();
     }
@@ -57,6 +57,14 @@ public static class Program
         if (Updater.TryApplyStagedUpdate(args))
         {
             return; // we were the swap; the installed build is starting now
+        }
+
+        // UPD-10's other half, and the one that makes the first half survivable: a version the last
+        // run put in place takes over HERE, before a window, an engine or a tray exists — and above
+        // all before the monitor connects to a camera it would have to drop again seconds later.
+        if (Updater.ApplyStagedAtLaunch())
+        {
+            return; // the new version is starting; this one's job is done
         }
 
         Log.Info("app", $"Baby Monitor {Updater.CurrentVersion} starting");

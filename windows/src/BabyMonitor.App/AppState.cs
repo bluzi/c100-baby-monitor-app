@@ -121,9 +121,9 @@ public sealed class AppState : INotifyPropertyChanged
     public int CalibrationSteps => MonitorHub.CalibrationSteps.Value;
 
     /// <summary>
-    /// BG-11w / WATCH-11: the shared decision, so the tray menu and the window cannot disagree — and
+    /// BG-14 / WATCH-11: the shared decision, so the tray menu and the window cannot disagree — and
     /// so nobody can quietly hand a PC a Stop button back. There is deliberately no `CanStop`: a PC
-    /// stops by exiting (WIN-3), and Start exists only for a monitor that failed on its own.
+    /// stops by exiting (DESK-3), and Start exists only for a monitor that failed on its own.
     /// </summary>
     public bool CanResume =>
         DesktopShell.ViewerActions(Running, Status).Contains(ViewerActionKind.Resume);
@@ -135,17 +135,17 @@ public sealed class AppState : INotifyPropertyChanged
         SessionExpired: SessionExpired,
         SleepOutage: SleepOutage);
 
-    /// <summary>WIN-16: may the mini window fade right now, or is there something to be read?</summary>
+    /// <summary>DESK-11: may the mini window fade right now, or is there something to be read?</summary>
     public bool NeedsAttention => DesktopShell.NeedsAttention(Health);
 
-    /// <summary>WIN-11: the PC slept, so the monitor was down. Never a quiet reconnect.</summary>
+    /// <summary>DESK-21: the PC slept, so the monitor was down. Never a quiet reconnect.</summary>
     public string? SleepOutage
     {
         get => _sleepOutage;
         private set => Set(ref _sleepOutage, value);
     }
 
-    /// <summary>BG-12w: monitoring is running but Windows would not promise to stay awake. Say so.</summary>
+    /// <summary>BG-12: monitoring is running but Windows would not promise to stay awake. Say so.</summary>
     public bool SleepUnprotected
     {
         get => _sleepUnprotected;
@@ -159,14 +159,14 @@ public sealed class AppState : INotifyPropertyChanged
         private set => Set(ref _networkDown, value);
     }
 
-    /// <summary>WIN-20: Windows cannot decode this camera's video. Audio monitoring carries on.</summary>
+    /// <summary>DESK-22: Windows cannot decode this camera's video. Audio monitoring carries on.</summary>
     public bool VideoUnavailable
     {
         get => _videoUnavailable;
         private set => Set(ref _videoUnavailable, value);
     }
 
-    /// <summary>WIN-19: the shape of the picture the camera sends (width ÷ height), or 0 before there is one.</summary>
+    /// <summary>DESK-12: the shape of the picture the camera sends (width ÷ height), or 0 before there is one.</summary>
     public double VideoAspect
     {
         get => _videoAspect;
@@ -203,7 +203,7 @@ public sealed class AppState : INotifyPropertyChanged
 
     public string? StartupError { get; private set; }
 
-    /// <summary>WIN-8: offered once, plainly, and never turned on for you.</summary>
+    /// <summary>DESK-19: offered once, plainly, and never turned on for you.</summary>
     public bool StartupOfferPending => !Prefs.StartupOfferMade && !StartupRegistry.IsEnabled;
 
     public string Version => Updater.CurrentVersion;
@@ -217,7 +217,7 @@ public sealed class AppState : INotifyPropertyChanged
 
     public Settings Settings => MonitorHub.Settings.Value;
 
-    /// <summary>WIN-16 / WIN-18: how solid the mini window is drawn right now. The core decides.</summary>
+    /// <summary>DESK-11 / DESK-18: how solid the mini window is drawn right now. The core decides.</summary>
     public double MiniOpacity(bool hovering) => DesktopShell.MiniOpacity(
         Health,
         hovering,
@@ -225,7 +225,7 @@ public sealed class AppState : INotifyPropertyChanged
         SystemPreferences.TransparencyDisabled,
         Prefs.MiniIdleOpacity);
 
-    /// <summary>WIN-14: which shape the one window may take. Sign-in is never a tile.</summary>
+    /// <summary>DESK-9: which shape the one window may take. Sign-in is never a tile.</summary>
     public string Shape => DesktopShell.WindowShape(Screen, Prefs.Shape);
 
     // --- monitoring ----------------------------------------------------------
@@ -238,14 +238,14 @@ public sealed class AppState : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// BG-11w: **not a control.** There is no Stop on a PC — the app watches until it is exited. This
+    /// BG-14: **not a control.** There is no Stop on a PC — the app watches until it is exited. This
     /// is the machinery behind the things that *do* end a watch: exiting, signing out, and switching
     /// camera (which stops one stream to start another).
     /// </summary>
     public void Stop()
     {
         _engine?.Stop();
-        _store.SetMonitoring(false); // deliberate: a restart must not resume by itself (BG-13w)
+        _store.SetMonitoring(false); // deliberate: a restart must not resume by itself (BG-13)
         Emit();
     }
 
@@ -275,7 +275,7 @@ public sealed class AppState : INotifyPropertyChanged
         Emit();
     }
 
-    /// <summary>BG-13w: was monitoring running when the app last went away (a restart, a crash)?</summary>
+    /// <summary>BG-13: was monitoring running when the app last went away (a restart, a crash)?</summary>
     public bool WasMonitoringBeforeRestart() => _store.WasMonitoring();
 
     // --- sign-in -------------------------------------------------------------
@@ -361,13 +361,13 @@ public sealed class AppState : INotifyPropertyChanged
         Emit();
     }
 
-    /// <summary>The camera being watched, for the tray's camera submenu (WIN-2).</summary>
+    /// <summary>The camera being watched, for the tray's camera submenu (DESK-2).</summary>
     public CameraInfo? SelectedCamera => _store.LoadDevice() is { } d
         ? new CameraInfo(d.Did, d.Name, d.Model, d.Mac, d.Ip)
         : null;
 
     /// <summary>
-    /// CAM-4 / WIN-2: switch straight to a named camera, without going through the picker.
+    /// CAM-4 / DESK-2: switch straight to a named camera, without going through the picker.
     ///
     /// The engine reads the selected camera when it connects, so stopping it, changing the choice and
     /// starting it again is all it takes — and the app is watching the new room within seconds, which
@@ -449,7 +449,7 @@ public sealed class AppState : INotifyPropertyChanged
         }
     }
 
-    // --- sleep and wake (BG-12w / WIN-11) ------------------------------------
+    // --- sleep and wake (BG-12 / DESK-21) ------------------------------------
 
     /// <summary>
     /// The PC is about to sleep, and nothing we can do will stop it — this is the one thing a phone can
@@ -467,7 +467,7 @@ public sealed class AppState : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// WIN-11. Three things must happen, and the middle one is the one that would otherwise be a silent
+    /// DESK-21. Three things must happen, and the middle one is the one that would otherwise be a silent
     /// lie:
     ///
     ///  1. the outage is reported, with its duration — never a quiet reconnect;
@@ -516,7 +516,7 @@ public sealed class AppState : INotifyPropertyChanged
 
         renderer.DecoderFailed += _ => Post(() =>
         {
-            // WIN-20: say so, in the window, and keep monitoring.
+            // DESK-22: say so, in the window, and keep monitoring.
             VideoUnavailable = true;
             Emit();
         });
@@ -538,7 +538,7 @@ public sealed class AppState : INotifyPropertyChanged
     {
         Post(() =>
         {
-            // BG-12w: hold the machine awake for exactly as long as monitoring runs, and say so if
+            // BG-12: hold the machine awake for exactly as long as monitoring runs, and say so if
             // Windows refuses rather than appearing to monitor.
             SleepUnprotected = Running && !PowerRequests.HoldSystem(true);
             if (!Running)
@@ -657,7 +657,7 @@ public sealed record SignInStep(
     string? MaskedTarget = null);
 
 /// <summary>
-/// WIN-8/16: the shell's own preferences. They are *not* monitor settings — nothing here changes what
+/// DESK-19/11: the shell's own preferences. They are *not* monitor settings — nothing here changes what
 /// the monitor does — so they live beside the app rather than in the core's shared Settings, which the
 /// phone reads too. The *rules* about them (how faint is too faint, when a fade is forbidden) are the
 /// core's, and are tested there: see DesktopShell.
@@ -681,7 +681,7 @@ public static class Prefs
     public static double MiniIdleOpacity
     {
         // Clamped on the way in as well as on the way out: a value that could hide the monitor must not
-        // even be storable (WIN-16).
+        // even be storable (DESK-11).
         get => DesktopShell.ClampMiniOpacity(
             double.TryParse(Store.Get("miniOpacity"), out var v) ? v : DesktopShell.MiniOpacityDefault);
         set => Store.Put(
@@ -695,7 +695,7 @@ public static class Prefs
         set => Store.Put("startupOfferMade", value ? "true" : "false");
     }
 
-    /// <summary>WIN-14: each shape remembers its own size and position, separately, across relaunches.</summary>
+    /// <summary>DESK-9: each shape remembers its own size and position, separately, across relaunches.</summary>
     public static (int X, int Y, int Width, int Height)? Frame(string shape)
     {
         var stored = Store.Get($"frame.{shape}");

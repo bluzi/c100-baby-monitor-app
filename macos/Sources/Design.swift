@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// The look, in one place: glass surfaces, the controls that sit on them, and the pointer tracking
-/// that decides when they are on screen (LIVE-11m, MACOS-15/16).
+/// that decides when they are on screen (LIVE-17, DESK-10/11).
 ///
 /// UI-1 says dark, always — this app is read at 3am in a dark room, and a white flash costs a
 /// parent their night vision. Everything below assumes that and leans into it: the picture is the
@@ -11,7 +11,7 @@ import SwiftUI
 // MARK: - Surfaces
 
 /// The app's one surface material. Liquid Glass where the OS has it, a vibrancy material before
-/// that — and a **solid** panel when the user has asked for Reduce Transparency (MACOS-18), because
+/// that — and a **solid** panel when the user has asked for Reduce Transparency (DESK-18), because
 /// an accessibility setting that an app quietly ignores is not a setting.
 struct GlassSurface: ViewModifier {
     var cornerRadius: CGFloat = 16
@@ -85,7 +85,7 @@ extension View {
         modifier(GlassSurface(cornerRadius: cornerRadius, elevated: elevated))
     }
 
-    /// LIVE-11m: chrome that fades with the pointer. It is never *removed* from the layout — a
+    /// LIVE-17: chrome that fades with the pointer. It is never *removed* from the layout — a
     /// control that moves when it reappears is a control that gets mis-clicked.
     func chromeVisible(_ visible: Bool, reduceMotion: Bool) -> some View {
         opacity(visible ? 1 : 0)
@@ -419,7 +419,7 @@ extension View {
     }
 }
 
-// MARK: - Pointer tracking (LIVE-11m, MACOS-15/16)
+// MARK: - Pointer tracking (LIVE-17, DESK-10/11)
 
 /// Where the pointer is, reported even while the app is *not* the active one — which is the whole
 /// point on a Mac: the mini window fades and un-fades while the parent is working in something

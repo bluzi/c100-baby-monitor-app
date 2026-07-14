@@ -11,7 +11,7 @@ import SwiftUI
 /// screen in the app that asks a parent to hand over a password, and it should look like every other
 /// thing on their Mac that has ever asked them that — familiar, plain, and obviously not a web page.
 ///
-/// The fields are ordinary AppKit text fields on purpose: that is what makes ⌘V work (MACOS-13),
+/// The fields are ordinary AppKit text fields on purpose: that is what makes ⌘V work (DESK-16),
 /// what makes the Passwords app offer to fill them, and what makes Tab go where a Mac user expects.
 struct LoginView: View {
     @EnvironmentObject private var state: AppState
@@ -167,7 +167,7 @@ struct LoginView: View {
         HStack(spacing: 10) {
             // A borderless dialog has no traffic lights, so the way out has to be *on* it. Nothing
             // is being monitored on this screen — there is no camera yet — so Quit here is just
-            // quitting, and does not stop a watch or ask whether you meant to (BG-11m).
+            // quitting, and does not stop a watch or ask whether you meant to (BG-14).
             Button("Quit") { NSApp.terminate(nil) }
                 .disabled(busy)
 

@@ -17,17 +17,17 @@ import com.bluzi.babymonitor.ui.viewerActionKinds
  * background is not.
  */
 object MacShell {
-    /** MACOS-16: faint enough to see through, never so faint it cannot be seen. */
+    /** DESK-11: faint enough to see through, never so faint it cannot be seen. */
     const val MINI_OPACITY_MIN = 0.25
     const val MINI_OPACITY_MAX = 1.0
     const val MINI_OPACITY_DEFAULT = 0.55
 
-    /** MACOS-5/14: the two shapes of the one window. */
+    /** DESK-8/9: the two shapes of the one window. */
     const val SHAPE_FULL = "full"
     const val SHAPE_MINI = "mini"
 
     /**
-     * MACOS-16. **Attention is the default.** The tile is allowed to fade only when the monitor is
+     * DESK-11. **Attention is the default.** The tile is allowed to fade only when the monitor is
      * doing exactly what the parent believes it is doing: running, live, no alarm, no expired
      * session, no unread sleep outage. Everything else — including a monitor that is merely
      * *stopped*, which is the quietest failure there is — holds it at full opacity.
@@ -44,7 +44,7 @@ object MacShell {
         )
 
     /**
-     * MACOS-16 / MACOS-18: how solid the mini window is drawn right now.
+     * DESK-11 / DESK-18: how solid the mini window is drawn right now.
      *
      * The clamp is applied here, on the way out, so no caller can forget it and no stored value can
      * produce an invisible monitor.
@@ -66,7 +66,7 @@ object MacShell {
         else value.coerceIn(MINI_OPACITY_MIN, MINI_OPACITY_MAX)
 
     /**
-     * BG-11m: **which controls the Mac's feed offers — and Stop is never one of them.**
+     * BG-14: **which controls the Mac's feed offers — and Stop is never one of them.**
      *
      * On a Mac the app *is* the monitor: it watches from the moment it opens until it is quit, so
      * there is no such thing as Baby Monitor running and not monitoring. That state — an app sitting
@@ -86,7 +86,7 @@ object MacShell {
             .map { it.name }
 
     /**
-     * MACOS-14: which shape the window may take. The mini shape is a *view of a feed* — there is
+     * DESK-9: which shape the window may take. The mini shape is a *view of a feed* — there is
      * nothing to float before a camera is chosen, and a sign-in form does not belong in a tile the
      * size of a postage stamp. So sign-in and the camera picker force the window full, whatever
      * shape the user last left it in; the shape itself is remembered and comes back with the feed.

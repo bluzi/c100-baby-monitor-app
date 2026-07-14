@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ONE WINDOW, TWO SHAPES (WIN-14).
+  ONE WINDOW, TWO SHAPES (DESK-9).
 
   The video surface below lives in ONE place in the tree and is shared by both shapes. That is not
   tidiness — it is the whole reason the shapes can be the same window: the decoder, the swap chain and
@@ -8,7 +8,7 @@
   out or make the feed reconnect. Move MediaPlayerElement inside either chrome layer and that promise
   is gone.
 
-  What fades and what does not is the ethic of this screen (LIVE-11w): the *controls* follow the
+  What fades and what does not is the ethic of this screen (LIVE-17): the *controls* follow the
   pointer, because a PC has one; the *state* never does. Status, level, warnings and a ringing alarm
   are on screen whatever the pointer is doing.
 -->
@@ -23,7 +23,7 @@
 
     <Grid x:Name="Root" Background="#000000">
 
-        <!-- WIN-13: the platform's own shortcuts, and accelerators rather than a KeyDown handler —
+        <!-- DESK-16: the platform's own shortcuts, and accelerators rather than a KeyDown handler —
              they fire wherever the focus happens to be, which is the point of a shortcut. -->
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Key="M" Modifiers="Control" Invoked="OnToggleShapeAccelerator" />
@@ -37,7 +37,7 @@
                             Stretch="UniformToFill"
                             IsTapEnabled="False" />
 
-        <!-- =====================  THE FULL SHAPE (WIN-6)  ===================== -->
+        <!-- =====================  THE FULL SHAPE (DESK-7)  ===================== -->
         <Grid x:Name="ViewerChrome" Visibility="Collapsed">
 
             <Grid Padding="16,44,16,16">
@@ -94,7 +94,7 @@
                              the sentence runs off the edge of the card — taking its link with it. A
                              warning that cannot be read is not a warning. -->
 
-                        <!-- BG-12w: if Windows would not promise to stay awake, say so. -->
+                        <!-- BG-12: if Windows would not promise to stay awake, say so. -->
                         <StackPanel x:Name="SleepWarning" Orientation="Horizontal" Spacing="6"
                                     Visibility="Collapsed">
                             <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE7BA;"
@@ -124,7 +124,7 @@
                                              Click="OnOpenNetworkSettings" />
                         </Grid>
 
-                        <!-- WIN-20: Windows may simply not have an H.265 decoder. A black rectangle that
+                        <!-- DESK-22: Windows may simply not have an H.265 decoder. A black rectangle that
                              never explains itself is the kind of silence this app refuses. -->
                         <Grid x:Name="VideoWarning" Visibility="Collapsed" ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
@@ -149,7 +149,7 @@
                 <!-- Row 2 — banners: things that must be READ. Never fade. -->
                 <StackPanel Grid.Row="2" Spacing="10" Margin="0,0,0,12">
 
-                    <!-- WIN-11: the PC slept, the monitor was down, and this is where it says so. -->
+                    <!-- DESK-21: the PC slept, the monitor was down, and this is where it says so. -->
                     <Border x:Name="OutageBanner" Visibility="Collapsed"
                             Background="#E6B26A00" CornerRadius="10" Padding="14,10">
                         <Grid>
@@ -201,7 +201,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- WIN-8: asked once, plainly, and never turned on for you. -->
+                    <!-- DESK-19: asked once, plainly, and never turned on for you. -->
                     <Border x:Name="StartupBanner" Visibility="Collapsed"
                             Background="{StaticResource ChromeBrush}" CornerRadius="10"
                             BorderThickness="1" BorderBrush="#22FFFFFF" Padding="14,10">
@@ -232,7 +232,7 @@
                         PointerEntered="OnChromePointerEntered"
                         PointerExited="OnChromePointerExited">
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <!-- BG-11w: Start, and no Stop. A PC watches until it is exited, so there is no
+                        <!-- BG-14: Start, and no Stop. A PC watches until it is exited, so there is no
                              such thing as Baby Monitor running and not monitoring — and no control to
                              create it. Start is here only for a monitor that failed on its own
                              (WATCH-11), which must be recoverable without exiting the app. -->
@@ -280,7 +280,7 @@
                             <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE713;" FontSize="15" />
                         </Button>
 
-                        <!-- LIVE-9w: the rare actions live behind a menu rather than on the bar. -->
+                        <!-- LIVE-16: the rare actions live behind a menu rather than on the bar. -->
                         <DropDownButton Background="Transparent" BorderThickness="0" CornerRadius="20"
                                         ToolTipService.ToolTip="More">
                             <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE712;" FontSize="15" />
@@ -294,7 +294,7 @@
                                     <MenuFlyoutItem Text="Check for updates…" Click="OnCheckForUpdates" />
                                     <MenuFlyoutItem x:Name="AboutItem" IsEnabled="False" />
                                     <MenuFlyoutSeparator />
-                                    <!-- BG-11w / WIN-3: exiting is how a PC stops monitoring, and it
+                                    <!-- BG-14 / DESK-3: exiting is how a PC stops monitoring, and it
                                          asks first while the monitor is running. -->
                                     <MenuFlyoutItem Text="Exit Baby Monitor" Click="OnExit" />
                                 </MenuFlyout>
@@ -305,7 +305,7 @@
             </Grid>
         </Grid>
 
-        <!-- =====================  THE MINI SHAPE (WIN-5)  ===================== -->
+        <!-- =====================  THE MINI SHAPE (DESK-8)  ===================== -->
         <Grid x:Name="MiniChrome" Visibility="Collapsed">
             <Grid Padding="8">
                 <Grid.RowDefinitions>
@@ -319,7 +319,7 @@
                      Acknowledge, the one control in the whole app that must never stop responding. -->
                 <Border x:Name="MiniDragRegion" Grid.Row="1" Background="Transparent" />
 
-                <!-- Only with the pointer over it (WIN-15): it is never a mystery tile. -->
+                <!-- Only with the pointer over it (DESK-10): it is never a mystery tile. -->
                 <Grid x:Name="MiniTopControls" Grid.Row="0" Opacity="0">
                     <Button Click="OnHideWindow" HorizontalAlignment="Left"
                             Width="26" Height="26" Padding="0" CornerRadius="13"
@@ -360,7 +360,7 @@
                         <Button x:Name="MiniAcknowledge" Click="OnAcknowledge" Visibility="Collapsed"
                                 Background="#E6C62828" BorderThickness="0" CornerRadius="12"
                                 Padding="10,4" Content="Acknowledge" FontSize="12" />
-                        <!-- WIN-5 / LIVE-2: mute is ALWAYS here, not only on hover. A tile is too small
+                        <!-- DESK-8 / LIVE-2: mute is ALWAYS here, not only on hover. A tile is too small
                              to spend a word of its status line on "muted", so the control itself has to
                              carry it — latched, unmistakable, and always there to be clicked. -->
                         <Button x:Name="MiniMute" Click="OnToggleMute"
@@ -382,7 +382,7 @@
         <ScrollViewer x:Name="LoginPanel" Visibility="Collapsed" Background="#0B0B0F">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                         Width="360" Spacing="16" Padding="0,48">
-                <!-- WIN-17 / UI-3: the app's own mark — the same one the phone and the Mac show. Its
+                <!-- DESK-17 / UI-3: the app's own mark — the same one the phone and the Mac show. Its
                      source is set from disk in the code-behind: this app is unpackaged, and an
                      ms-appx URI is a packaged app's idea. -->
                 <Image x:Name="AppMark" Width="64" Height="64" HorizontalAlignment="Center" />
@@ -430,10 +430,10 @@
                 <!-- AUTH-9: words, never the gateway's raw JSON. -->
                 <InfoBar x:Name="LoginError" IsOpen="False" Severity="Error" IsClosable="False" />
 
-                <!-- WIN-23: the way out is where they are looking. Closing this window only hides the
+                <!-- DESK-5: the way out is where they are looking. Closing this window only hides the
                      app to the tray, which is the right answer for a monitor and the wrong one for
                      someone who has decided not to use the app at all. Nothing is being watched here,
-                     so this exits without asking (BG-11w). -->
+                     so this exits without asking (BG-14). -->
                 <HyperlinkButton Content="Exit Baby Monitor" Click="OnExit" HorizontalAlignment="Center" />
             </StackPanel>
         </ScrollViewer>
@@ -465,7 +465,7 @@
 
                 <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center">
                     <HyperlinkButton Content="Sign out" Click="OnSignOut" />
-                    <!-- WIN-23: nothing is being watched here either, so this exits without asking. -->
+                    <!-- DESK-5: nothing is being watched here either, so this exits without asking. -->
                     <HyperlinkButton Content="Exit Baby Monitor" Click="OnExit" />
                 </StackPanel>
             </StackPanel>

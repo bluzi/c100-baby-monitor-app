@@ -2,7 +2,7 @@ import AppKit
 import BabyMonitorCore
 import SwiftUI
 
-/// MACOS-5/15/16 and BG-7m: the mini shape — the same window, worn small. It floats over other
+/// DESK-8/10/11 and BG-17: the mini shape — the same window, worn small. It floats over other
 /// applications, over full-screen apps and across spaces, so a parent working at their Mac can see
 /// the baby without going to find anything.
 ///
@@ -14,7 +14,7 @@ import SwiftUI
 ///  2. **It says what clicking will do.** With the pointer on it, its controls appear — mute,
 ///     close, and an explicit control to make it full again. It is never a mystery tile.
 ///  3. **It gets out of the way, but never over a warning.** It fades while the pointer is
-///     elsewhere (MACOS-16) so the work underneath stays readable — and it *cannot* fade while
+///     elsewhere (DESK-11) so the work underneath stays readable — and it *cannot* fade while
 ///     anything needs attention. That decision is core's (`MacShell.needsAttention`), and is
 ///     tested, because it is the one that could hide an alarm.
 struct MiniChrome: View {
@@ -94,7 +94,7 @@ struct MiniChrome: View {
             Spacer(minLength: 4)
 
             if alarming {
-                // Always reachable, pointer or not (LIVE-9/MACOS-5): an alarm you must first find
+                // Always reachable, pointer or not (LIVE-9/DESK-8): an alarm you must first find
                 // the controls for is an alarm that rings longer than it should. Solid red on the
                 // picture, because the picture behind it could be anything.
                 Button { state.acknowledge() } label: {
@@ -109,7 +109,7 @@ struct MiniChrome: View {
                 .buttonStyle(.plain)
             }
 
-            // Always on the tile — see the note above. Not a hover control (MACOS-5, LIVE-2).
+            // Always on the tile — see the note above. Not a hover control (DESK-8, LIVE-2).
             MiniButton(
                 symbol: state.ui.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
                 label: state.ui.muted ? "Muted — the alarm still works. Click for sound" : "Mute the speaker",

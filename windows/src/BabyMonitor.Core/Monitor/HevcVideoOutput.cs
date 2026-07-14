@@ -16,7 +16,7 @@ public interface IVideoRenderer
 {
     /// <summary>
     /// Configure (or reconfigure) the decoder for a stream of this size. Called before any frame, and
-    /// again on a new stream. Returning false means this machine cannot decode H.265 at all (WIN-20) —
+    /// again on a new stream. Returning false means this machine cannot decode H.265 at all (DESK-22) —
     /// the picture is then given up on, and audio monitoring carries on regardless.
     /// </summary>
     bool Configure(byte[] vps, byte[] sps, byte[] pps, int width, int height);
@@ -57,7 +57,7 @@ public sealed class HevcVideoOutput : IVideoOutput
     private int _height;
 
     /// <summary>
-    /// WIN-20: the shell asks this to decide whether to tell the parent that Windows has no H.265
+    /// DESK-22: the shell asks this to decide whether to tell the parent that Windows has no H.265
     /// decoder. It is set once the decoder has refused, and never unset by anything but a new stream.
     /// </summary>
     public bool DecoderUnavailable { get; private set; }
@@ -116,7 +116,7 @@ public sealed class HevcVideoOutput : IVideoOutput
 
                 if (!renderer.Configure(sets[0], sets[1], sets[2], _width, _height))
                 {
-                    // WIN-20: Windows may simply not have an HEVC decoder. That is not a crash and not a
+                    // DESK-22: Windows may simply not have an HEVC decoder. That is not a crash and not a
                     // silent black rectangle — the shell says so, and monitoring carries on.
                     DecoderUnavailable = true;
                     Log.W("video", "this machine cannot decode H.265 — no picture; audio monitoring continues");
@@ -153,7 +153,7 @@ public sealed class HevcVideoOutput : IVideoOutput
         _configuredFor = null;
     }
 
-    /// <summary>WIN-19: the window takes the camera's shape, and this is where that shape comes from.</summary>
+    /// <summary>DESK-12: the window takes the camera's shape, and this is where that shape comes from.</summary>
     private void ReadSizeIfNeeded()
     {
         if (_width != 0)

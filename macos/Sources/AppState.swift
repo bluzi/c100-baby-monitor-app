@@ -38,11 +38,11 @@ enum Log {
     }
 }
 
-/// BG-12 / MACOS-10: a sleeping Mac runs nothing at all, so while monitoring is on we ask the
+/// BG-12 / DESK-20: a sleeping Mac runs nothing at all, so while monitoring is on we ask the
 /// system not to idle-sleep.
 ///
 /// This cannot stop sleep the user *asks* for — a closed lid, or Apple menu → Sleep. Nothing an
-/// app can do will. That gap is real, it is spec'd (MACOS-11), and the app reports the outage on
+/// app can do will. That gap is real, it is spec'd (DESK-21), and the app reports the outage on
 /// wake rather than pretending the night was covered.
 final class SleepInhibitor {
     private var assertionID: IOPMAssertionID = 0
@@ -79,7 +79,7 @@ final class SleepInhibitor {
     var isHeld: Bool { held }
 }
 
-/// LIVE-14 / MACOS-10: while a window is showing a live feed, the screen stays on — watching the
+/// LIVE-14 / DESK-20: while a window is showing a live feed, the screen stays on — watching the
 /// baby must never end in a sleeping display.
 ///
 /// Deliberately narrower than the sleep inhibitor above: it is held only while there is *something
@@ -109,7 +109,7 @@ final class DisplayWake {
     }
 }
 
-/// MACOS-5/14: the two shapes of the one monitor window.
+/// DESK-8/9: the two shapes of the one monitor window.
 enum WindowShape: String {
     case full
     case mini
@@ -117,7 +117,7 @@ enum WindowShape: String {
     var other: WindowShape { self == .full ? .mini : .full }
 }
 
-/// MACOS-8/16 and LIVE-11m: the shell's own preferences. They are *not* monitor settings — nothing
+/// DESK-19/11 and LIVE-17: the shell's own preferences. They are *not* monitor settings — nothing
 /// here changes what the monitor does — so they live in UserDefaults rather than in core's shared
 /// `Settings`, which the phone reads too. The *rules* about them (how faint is too faint, when a
 /// fade is forbidden) are core's, and are tested there: see `MacShell`.
@@ -147,11 +147,11 @@ enum Prefs {
             return MacShell.shared.clampMiniOpacity(value: stored)
         }
         // Clamped on the way in as well as on the way out: a value that could hide the monitor must
-        // not even be storable (MACOS-16).
+        // not even be storable (DESK-11).
         set { write(MacShell.shared.clampMiniOpacity(value: newValue), "shell.miniOpacity") }
     }
 
-    /// MACOS-8: the offer is made once. Declining it is an answer, and an app that keeps asking is
+    /// DESK-19: the offer is made once. Declining it is an answer, and an app that keeps asking is
     /// an app that gets its dialogs dismissed without being read.
     static var loginOfferMade: Bool {
         get { defaults.bool(forKey: "shell.loginOfferMade") }
@@ -169,7 +169,7 @@ enum Prefs {
     }
 }
 
-/// MACOS-8: open at login. `SMAppService` is the only supported way since macOS 13 — and it is the
+/// DESK-19: open at login. `SMAppService` is the only supported way since macOS 13 — and it is the
 /// *system's* switch, so System Settings and this app can never disagree about it. We only ever
 /// read it and, when the user asks, flip it. Never on our own (a monitor that installs itself into
 /// a login sequence unasked is a monitor nobody trusts).
@@ -204,10 +204,10 @@ final class AppState: ObservableObject {
     /// BG-12: true when monitoring is running but the Mac could still idle-sleep. The UI must say so.
     @Published private(set) var sleepUnprotected = false
 
-    // MARK: Shell state (MACOS-14/16, LIVE-11m)
+    // MARK: Shell state (DESK-9/11, LIVE-17)
 
     /// The shape the user asked for. What is actually on screen is `shape` — sign-in and the camera
-    /// picker are never shown in a tile (MACOS-14), and that is core's rule, not ours.
+    /// picker are never shown in a tile (DESK-9), and that is core's rule, not ours.
     @Published private(set) var preferredShape: WindowShape = Preview.active ? Preview.shape : Prefs.shape
     @Published private(set) var pointerInside = false
     @Published private(set) var chromeVisible = true
@@ -242,7 +242,7 @@ final class AppState: ObservableObject {
     /// cannot reach it, and must say so rather than sit on "Connecting…" looking busy.
     @Published private(set) var networkDown = false
 
-    /// MACOS-19: the shape of the picture the camera is sending (width ÷ height), or 0 while there
+    /// DESK-12: the shape of the picture the camera is sending (width ÷ height), or 0 while there
     /// is no picture yet. The window takes this shape, which is why there are no black bars around
     /// the feed: they were never the camera's, they were the window's.
     @Published private(set) var videoAspect: CGFloat = 0
@@ -276,7 +276,7 @@ final class AppState: ObservableObject {
         observeAccessibility()
         observeNetwork()
 
-        // MACOS-8: offer it once, and only when it is not already on. Never turn it on ourselves.
+        // DESK-19: offer it once, and only when it is not already on. Never turn it on ourselves.
         loginOfferPending = !Prefs.loginOfferMade && !openAtLogin
     }
 
@@ -325,7 +325,7 @@ final class AppState: ObservableObject {
         BabyMonitor.shared.start()
     }
 
-    // BG-11m: there is deliberately no `stop()` here. A Mac stops monitoring by quitting, and
+    // BG-14: there is deliberately no `stop()` here. A Mac stops monitoring by quitting, and
     // nothing in this shell may end a watch by any other route — an app that is running and not
     // watching is the state this design exists to make impossible. (Core still stops the engine on
     // sign-out and on switching camera, which are not "the monitor is off", they are "there is
@@ -343,7 +343,7 @@ final class AppState: ObservableObject {
     /// CAM-4: go back to the picker and choose again.
     func switchCamera() { BabyMonitor.shared.switchCamera() }
 
-    /// Switch straight to a named camera, without going through the picker (MACOS-2's camera
+    /// Switch straight to a named camera, without going through the picker (DESK-2's camera
     /// submenu). The engine reads the selected camera when it connects, so stopping it, changing the
     /// choice and starting it again is all it takes — and the app is watching the new room within
     /// seconds, which is the point: a parent with two children should not have to visit a settings
@@ -364,13 +364,13 @@ final class AppState: ObservableObject {
 
     func dismissSleepOutage() { BabyMonitor.shared.clearSleepOutage() }
 
-    // MARK: - Sleep and wake (BG-12, MACOS-11)
+    // MARK: - Sleep and wake (BG-12, DESK-21)
 
     func systemWillSleep() { BabyMonitor.shared.systemWillSleep() }
 
     func systemDidWake() { BabyMonitor.shared.systemDidWake() }
 
-    // MARK: - The window's shape (MACOS-14)
+    // MARK: - The window's shape (DESK-9)
 
     func setShape(_ shape: WindowShape) {
         preferredShape = shape
@@ -380,7 +380,7 @@ final class AppState: ObservableObject {
 
     func toggleShape() { setShape(shape.other) }
 
-    // MARK: - The picture's shape (MACOS-19)
+    // MARK: - The picture's shape (DESK-12)
 
     func videoSizeChanged(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
@@ -389,7 +389,7 @@ final class AppState: ObservableObject {
         videoAspect = aspect
     }
 
-    // MARK: - The pointer (LIVE-11m, MACOS-15/16)
+    // MARK: - The pointer (LIVE-17, DESK-10/11)
 
     /// Any movement brings the controls back — no click, ever. A parent who has to click to find
     /// out what the monitor is doing is a parent who stops checking.
@@ -453,7 +453,7 @@ final class AppState: ObservableObject {
         )
     }
 
-    // MARK: - Accessibility (MACOS-18)
+    // MARK: - Accessibility (DESK-18)
 
     private func observeAccessibility() {
         readAccessibility()
@@ -472,7 +472,7 @@ final class AppState: ObservableObject {
         recomputeMiniAlpha()
     }
 
-    // MARK: - Open at login (MACOS-8)
+    // MARK: - Open at login (DESK-19)
 
     func setOpenAtLogin(_ enabled: Bool) {
         loginItemError = LoginItem.set(enabled)

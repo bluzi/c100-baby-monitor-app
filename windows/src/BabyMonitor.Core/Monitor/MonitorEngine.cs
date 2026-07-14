@@ -124,7 +124,7 @@ public sealed class MonitorEngine
         MonitorHub.CalibrationSteps.Value = _calibrationSteps;
         MonitorHub.OnCryFeedback = ApplyCryFeedback;
         MonitorHub.OnCalibrationReset = ResetCalibration;
-        _store.SetMonitoring(true); // BG-13w: so a restart can be reported
+        _store.SetMonitoring(true); // BG-13: so a restart can be reported
 
         _auxCts = new CancellationTokenSource();
         var auxToken = _auxCts.Token;
@@ -177,7 +177,7 @@ public sealed class MonitorEngine
         MonitorHub.SessionExpired.Value = false;
         MonitorHub.Level.Value = 0;
 
-        // The BG-13w restart marker is NOT cleared here: Stop() also runs on system-initiated teardown
+        // The BG-13 restart marker is NOT cleared here: Stop() also runs on system-initiated teardown
         // and camera switches. Only the user-intent paths — the Stop action and signing out — clear it.
         _ringer.Acknowledge(); // stopping monitoring silences any ringing alarm
         _watchdog.Reset();

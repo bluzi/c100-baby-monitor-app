@@ -17,6 +17,13 @@ session persists and refreshes itself.
 - **AUTH-5** A successful sign-in is persisted: relaunching the app (including after force-stop)
   does not ask for credentials.
 - **AUTH-6** Persisted session tokens are stored encrypted, never in plain text.
+- **AUTH-12** `[desktop]` `[device]` The token is kept in the machine's own encrypted store (the
+  Keychain on a Mac, the user's DPAPI store on a PC — AUTH-6) and the app reads it back **without
+  ever asking the user for anything**, including after an update, when every byte of the binary has
+  changed. A monitor that stopped at a password box after an overnight update, with nobody awake to
+  answer it, would be a monitor that failed exactly when it mattered. If the store refuses or the
+  item is gone, the session is dropped and the app asks for a sign-in (AUTH-8). It never crashes, and
+  it never falls back to storing the token unencrypted.
 - **AUTH-7** When the short-lived service session expires, the app transparently refreshes it
   using the stored long-lived token — no user interaction — and persists the refreshed session.
 - **AUTH-8** If the server **refuses** the stored long-lived token, the user lands back on sign-in

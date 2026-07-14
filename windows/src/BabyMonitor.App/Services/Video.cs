@@ -15,11 +15,11 @@ namespace BabyMonitor.App.Services;
 ///
 ///  1. **A media type must carry a frame size** before Media Foundation will decode a byte. That size
 ///     comes from the SPS (the core parses it — see HevcSps), and it is also what gives the window
-///     the camera's shape (WIN-19).
+///     the camera's shape (DESK-12).
 ///  2. **Windows may not own an H.265 decoder at all.** The HEVC Video Extensions are a separate
 ///     (free) Store download on many machines. When that is the case, MediaFoundation says so through
 ///     <see cref="MediaPlayer.MediaFailed"/> — and the app tells the parent in plain words and keeps
-///     monitoring (WIN-20). Sound is what monitoring means; the picture is a convenience.
+///     monitoring (DESK-22). Sound is what monitoring means; the picture is a convenience.
 ///
 /// Everything in here is best-effort by contract (LIVE-7): nothing it does may throw into the monitor.
 /// </summary>
@@ -36,7 +36,7 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
     private long _firstPtsMs = -1;
     private bool _torn;
 
-    /// <summary>WIN-20: Windows could not decode this stream. The shell says so; monitoring carries on.</summary>
+    /// <summary>DESK-22: Windows could not decode this stream. The shell says so; monitoring carries on.</summary>
     public event Action<string>? DecoderFailed;
 
     /// <summary>The player the window binds its MediaPlayerElement to.</summary>
@@ -55,7 +55,7 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
 
     /// <summary>
     /// Build a decoder for a stream of this size. Returns false if Windows would not even accept the
-    /// media type — in which case the core stops feeding it and the shell tells the parent (WIN-20).
+    /// media type — in which case the core stops feeding it and the shell tells the parent (DESK-22).
     /// </summary>
     public bool Configure(byte[] vps, byte[] sps, byte[] pps, int width, int height)
     {
@@ -236,7 +236,7 @@ public sealed class MediaFoundationVideoRenderer : IVideoRenderer, IDisposable
 
     private void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
     {
-        // WIN-20: on a PC without the HEVC Video Extensions this is where Windows finally says so.
+        // DESK-22: on a PC without the HEVC Video Extensions this is where Windows finally says so.
         Log.Error("video", $"Media Foundation could not play the stream: {args.Error} — {args.ErrorMessage}");
         DecoderFailed?.Invoke(args.ErrorMessage ?? args.Error.ToString());
     }

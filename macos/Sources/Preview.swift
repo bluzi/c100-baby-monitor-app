@@ -22,7 +22,7 @@ enum Preview {
     static var shape: WindowShape { env["BM_UI_SHAPE"] == "mini" ? .mini : .full }
 
     /// Pretend the pointer is over the window, so the hover chrome can be looked at in a still
-    /// picture (MACOS-15).
+    /// picture (DESK-10).
     static var hovering: Bool { env["BM_UI_HOVER"] != nil }
 
     /// Pretend a sign-in is in flight, so the spinning button can be looked at without a Mi account.
@@ -71,7 +71,7 @@ enum Preview {
     /// Which alert to put on screen and photograph: `quit`, `update`, `uptodate`, `failed`.
     static var alert: String? { env["BM_UI_ALERT"] }
 
-    /// Pretend the camera sends a picture of this shape (`BM_UI_ASPECT=1.333`), so MACOS-19 can be
+    /// Pretend the camera sends a picture of this shape (`BM_UI_ASPECT=1.333`), so DESK-12 can be
     /// checked against a camera that is not 16:9 without owning one.
     static var aspect: CGFloat { CGFloat(env["BM_UI_ASPECT"].flatMap(Double.init) ?? 0) }
 

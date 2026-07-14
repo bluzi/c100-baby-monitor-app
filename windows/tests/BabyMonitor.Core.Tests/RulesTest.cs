@@ -266,7 +266,7 @@ public class ViewerActionsTest
         Assert.Contains(ViewerActionKind.Stop, ViewerActions.Kinds(true, Statuses.MonitorFailed));
     }
 
-    [Fact(DisplayName = "LIVE-2+LIVE-9w mute, night vision and alerts stay reachable whatever the monitor is doing")]
+    [Fact(DisplayName = "LIVE-2+LIVE-16 mute, night vision and alerts stay reachable whatever the monitor is doing")]
     public void TheRestAlwaysShow()
     {
         foreach (var running in new[] { true, false })

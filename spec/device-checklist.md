@@ -3,10 +3,10 @@
 Manual verification for `[device]` criteria — run against a real, reachable C100 camera before
 calling a release done. Each step names the criteria it verifies.
 
-Steps 1–25 are the **Android** checklist, run on a real phone. The **macOS** and **Windows**
-checklists follow, and cover only what differs: the monitor itself behaves the same everywhere,
-proven by the same spec suite on all three platforms, so what needs a human is the shell — and the
-places where a desktop can do less than a phone.
+Steps 1–25 are the **Android** checklist, run on a real phone. The **desktop** checklist follows and
+is run **twice — once on a Mac, once on a PC**. It covers only what differs from the phone: the
+monitor itself behaves the same everywhere, proven by the same spec suite on all three platforms, so
+what needs a human is the shell — and the places where a desktop can do less than a phone.
 
 1. **Live playback (LIVE-1):** open the app (signed in, camera selected). Video renders and
    room audio is audible within a few seconds.
@@ -146,334 +146,206 @@ places where a desktop can do less than a phone.
 
 ---
 
-# macOS checklist
+# Desktop checklist
 
-Run on a real Mac with a reachable camera. The shared behaviour (crying detection, reconnect,
-watchdog, alarm timing) is not re-verified here — it is the same code, and the same tests run on
-this platform. What follows is the shell, and the honesty about what a Mac cannot do.
+Run this **twice: once on a real Mac, once on a real PC**, each with a reachable camera. It is one
+list because they are one shell (see [desktop-shell](features/desktop-shell.spec.md)) — where the
+nouns differ, the step names both (menu bar / tray, Quit / Exit, ⌘ / Ctrl). A step that applies to
+only one machine says so in its title; there is exactly one.
 
-M1. **Menu bar is the app (MACOS-1, MACOS-2):** launch it. The menu bar item is the app's own
-    waveform, drawn in the bar's own colour — **never a black blob, never a moon** — and it stays
-    that way through connecting, live and reconnecting. The menu names the camera and reads
-    live/reconnecting in words. Now break it: trigger an alarm (the icon turns into a red bell) and
-    expire the session (an orange warning triangle). Those two, and only those two, change the icon.
+The shared behaviour (crying detection, reconnect, watchdog, alarm timing) is not re-verified here —
+it is the same monitor, and the same spec suite runs against both platforms, criterion for
+criterion. What follows is the shell, and the honesty about what a desktop cannot do.
 
-M1a. **The menu changes with what the app can do (MACOS-2):** sign out. The menu bar's menu now reads
-    **"Not signed in"** and offers **Sign In…** — Mute, Show Camera and Mini Window are *gone*, not
-    dimmed. Click Sign In… and the dialog appears. Sign in but do not choose a camera: the menu reads
-    "No camera chosen" and offers Choose Camera… and Sign Out. Choose one — the full menu comes back.
+Where a step asks you to prove "no reconnect happened", read the log:
+`log stream --predicate 'process == "BabyMonitor"'` on a Mac,
+`%LOCALAPPDATA%\BabyMonitor\babymonitor.log` on a PC. No new "connecting" line means no restart.
 
-M1b. **The camera submenu (MACOS-2, CAM-4):** with two cameras on the account, open the menu bar's
-    menu → Camera. Both are listed and **the one being watched has a checkmark**. Pick the other one:
-    the app switches to it within seconds (the status line names the new camera), and reopening the
-    submenu shows the checkmark has moved. "Choose Camera…" at the bottom still opens the picker.
+D1. **The status icon is the app, and it is quiet while it works (DESK-1, DESK-2, BG-15):** launch
+    it. The status icon — menu bar item / tray icon — is the app's own waveform and **nothing else**
+    (on a Mac, drawn in the bar's own colour: never a black blob, never a moon). Its menu names the
+    camera and reads live in words. Unplug the camera: the menu goes to reconnecting within seconds
+    and **the icon does not change** — the monitor is working on it, and an icon that flinches at
+    every blip is one a parent stops reading. Now break it for real (sign out of the Mi account
+    elsewhere, so the session expires): the icon changes, unmistakably, to say the monitor is no
+    longer watching. Trigger an alarm: it changes again, to its own icon. Those two, and only those
+    two, change it. The menu opens and dismisses like every other status menu on the platform (on a
+    PC, with either mouse button).
 
-M1c. **Quit is on the dialogs (MACOS-21):** on the sign-in panel and on the camera picker, there is a
-    **Quit** button at the bottom left — a borderless panel has no traffic lights, so that is the way
-    out. Click it: the app quits **without asking**, because nothing was being monitored.
+D1a. **The menu says only what is true (DESK-2):** sign out. The menu now reads **"Not signed in"**
+     and offers **Sign in** — Mute, Show camera and Mini window are *gone*, not dimmed. Click Sign
+     in and the window appears. Sign in but do not choose a camera: the menu reads "No camera
+     chosen" and offers Choose camera and Sign out. Choose one — the full menu comes back.
 
-M2. **Closing a window is not quitting (MACOS-7, MACOS-9, BG-5):** with audio playing, close the
-    main window. Audio keeps playing, the menu bar item stays. Reopen from the menu — the feed is
-    live immediately, with no reconnect in the log (`log stream --predicate 'process ==
-    "BabyMonitor"'` shows no new "connecting"). Only Quit ends the app.
+D1b. **The camera submenu (DESK-2, CAM-4):** with two cameras on the account, open the status menu →
+     Camera. Both are listed and **the one being watched has a checkmark**. Pick the other one: the
+     app switches to it within seconds (the status line names the new camera), and reopening the
+     submenu shows the checkmark has moved. "Choose camera…" at the bottom still opens the picker.
 
-M3. **Mute keeps the alarm working (MACOS-4, LIVE-3):** mute from the menu bar. The speaker goes
-    silent, the menu says muted. Make noise at the camera — the level indicator still moves and,
-    with the alarm on, it still rings. Only the speaker was silent.
+D1c. **A way out on the sign-in screen (DESK-5):** on the sign-in screen and on the camera picker
+     there is a Quit / Exit control on the screen itself. Use it: the app goes **without asking**,
+     because nothing was being monitored. (Closing that window instead only hides the app — which is
+     right for a monitor, and is exactly why the way out has to be on the screen.)
 
-M4. **Mini shape floats (MACOS-5, BG-7m):** put the window in its mini shape. It sits on top of
-    other apps, stays visible when another app is full-screened, and follows across spaces. Move and
-    resize it (it keeps the video's shape), quit and relaunch — it comes back where it was, in the
-    shape it was in. Close it — monitoring carries on.
+D2. **Closing a window is not quitting (DESK-13, DESK-6, DESK-14, BG-5):** with audio playing, close
+    the window (on a PC, once with the X and once with Alt-F4). Audio keeps playing and the status
+    icon stays. With the window closed, the switcher no longer shows the app — it has receded into
+    the status area; reopen it from there and it is back, like any other app. The feed is live
+    immediately, with **no reconnect in the log**. Only Quit / Exit ends the app.
 
-M4a. **One window, two shapes (MACOS-14, MACOS-15):** with the feed live, switch full → mini and
-    back, from the window's own control, from the menu bar menu, and from the keyboard. Each time:
-    **the picture never blacks out, audio never stutters, and the log shows no reconnect**
-    (`log stream --predicate 'process == "BabyMonitor"'` — no new "connecting"). Move and resize
-    each shape, switch back and forth: each remembers its own size and position, and still does
-    after a relaunch. Hover the mini — its controls and an explicit "make it full" control appear;
-    move the pointer away — they go, leaving the picture and the feed state.
+D2a. **The full shape (DESK-7, LIVE-16):** the video fills the window edge to edge, with the status
+     and the level indicator overlaid along the top and the buttons along the bottom. Switching
+     camera, signing out and the version live behind the "…" menu rather than on the bar. Compare
+     against the phone and the other desktop: **the same controls, in the same states** — if one
+     offers Stop and another does not, one of them is wrong (that decision is shared code).
 
-M4h. **The tile is out of Mission Control, and says "muted" with its button (MACOS-20, MACOS-5,
-    LIVE-2):** with the tile up, open Mission Control — the tile is **not** among the windows shown
-    (the full window, when open, is). Mute from the tile: the mute button is on it **at all times**,
-    not only on hover, and while muted it is a filled red well — there is no "muted" word anywhere
-    on the tile, and none is needed. Click it again for sound.
+D3. **Mute keeps the alarm working (DESK-4, LIVE-3, LIVE-2):** mute from the status menu. The
+    speaker goes silent and the menu says muted (a checked item). Make noise at the camera — the
+    level indicator still moves and, with the alarm on, it still rings. In the window, the mute
+    button draws latched and the status line gains "· muted". Only the speaker was ever silent.
 
-M4i. **Switching to the tile does not leave it stuck bright (MACOS-16):** with fading on, click the
-    mini-window button in the full window and then **do not move the mouse at all**. The tile flies
-    to the corner and, within a moment, fades — it does not sit at full brightness with its controls
-    showing until you happen to hover it. (It did exactly that: the window moved out from under a
-    stationary pointer, so nothing ever told the app the pointer had left.)
+D4. **The mini shape floats (DESK-8, BG-17):** put the window in its mini shape. It sits on top of
+    other apps, including a maximised one — and on a Mac, over a full-screened app and across
+    spaces. Move and resize it (it keeps the video's shape), quit and relaunch — it comes back where
+    it was, in the shape it was in. Close it — monitoring carries on.
 
-M4b. **The mini fades, but never over a warning (MACOS-16):** with the feed live and the pointer
-    away, the mini goes translucent and the window underneath is readable through it; move the
-    pointer over it — instantly solid. Turn fading off in settings — it stays solid. Turn it back
-    on, set it faint, then **unplug the camera**: as soon as the feed is not live the mini goes
-    fully opaque by itself and stays that way with the pointer nowhere near it. Same with a ringing
-    alarm. Turn on System Settings → Accessibility → Display → Reduce Transparency: no fading at
-    all (MACOS-18).
+D4a. **One window, two shapes (DESK-9, DESK-10, DESK-15):** with the feed live, switch full → mini
+     and back, from the window's own control, from the status menu, and from the keyboard. Each
+     time: **the picture never blacks out, audio never stutters, and the log shows no reconnect.**
+     Move and resize each shape and switch back and forth: each remembers its own size and position,
+     and still does after a relaunch. Hover the mini — its close, acknowledge and "make it full"
+     controls appear; move the pointer away — they go, leaving the picture, the feed state **and
+     mute** (DESK-8), which is always there because a tile has no room to say "muted" in words
+     (LIVE-2). While the tile is up, look for it in the switcher — Mission Control on a Mac, Alt-Tab
+     and the taskbar on a PC: **it is in none of them** (DESK-15). It is already on top of
+     everything; it must not clutter the list of windows you are trying to see past. The full
+     window, when open, *is* there.
 
-M4c. **Controls follow the pointer (LIVE-11m):** in the full shape, move the pointer over the video
-    — the buttons are there. Move it away (or leave it still) for a few seconds — the buttons fade
-    out, while the status line and the level indicator stay. Move the pointer — the buttons are back
-    immediately, with no click. Trigger an alarm and repeat: the alarm banner and its Acknowledge
-    never fade.
+D4b. **Switching to the tile does not leave it stuck bright (DESK-11):** with fading on, click the
+     mini-window control in the full window and then **do not move the mouse at all**. The tile flies
+     to the corner and, within a moment, fades — it does not sit at full brightness with its controls
+     showing until you happen to hover it. (It did exactly that on the Mac: the window moved out from
+     under a stationary pointer, so nothing ever told the app the pointer had left. Check it on both.)
 
-M4d. **Paste works (MACOS-13):** on the sign-in screen, copy a password from a password manager and
-    press Cmd-V in the password field — it pastes. Cut, Copy and Select All work too, and the Edit
-    menu lists them. Check the menu bar while the window is focused: App (About, Settings ⌘,, Hide,
-    Quit), Edit, View, Window — the standard set. Cmd-, opens settings from anywhere.
+D4c. **The mini fades, but never over a warning (DESK-11, DESK-18):** with the feed live and the
+     pointer away, the mini goes translucent and the window underneath is readable through it; move
+     the pointer over it — instantly solid. Turn fading off in settings — it stays solid. Turn it
+     back on, set it faint, then **unplug the camera**: as soon as the feed is not live the mini goes
+     fully opaque by itself and stays that way with the pointer nowhere near it. Same with a ringing
+     alarm. Then turn the system's transparency off (Mac: Accessibility → Display → Reduce
+     Transparency; PC: Accessibility → Visual effects → Transparency effects): no fading at all, and
+     the app's surfaces draw solid.
 
-M4e. **It looks like a Mac app (MACOS-17, UI-1, UI-3):** the app has its own icon in the switcher,
-    the Dock (while a window is open), Mission Control, About, and the Finder — never a generic
-    placeholder, and **the same mark the phone shows** (UI-3). Every screen renders dark.
+D4d. **Controls follow the pointer (LIVE-17):** in the full shape, move the pointer over the video —
+     the buttons are there. Move it away (or leave it still) for a few seconds — the buttons fade
+     out, while the status line and the level indicator stay. Move the pointer — the buttons are back
+     immediately, with no click. Trigger an alarm and repeat: the alarm banner and its Acknowledge
+     never fade.
 
-M4g. **No black bars (MACOS-19):** with the feed live, look at the edges of the picture in the full
-    shape and in the mini shape — the video fills the window completely, with no black band above or
-    below it. Drag a corner to resize: the window keeps the camera's shape and the bands never
-    appear. Go full screen: there the screen's shape wins and any unused area is black, which is
-    expected. Sign out — the sign-in window is freely resizable again.
+D4e. **Paste works (DESK-16):** on the sign-in screen, copy a password from a password manager and
+     paste it into the password field — ⌘V on a Mac, Ctrl-V on a PC. It pastes. Cut, copy and
+     select-all work beside it, Tab moves between fields and Enter submits. On a Mac the Edit menu
+     lists them, and the standard menu bar is there while a window is focused: App (About, Settings
+     ⌘,, Hide, Quit), Edit, View, Window — ⌘, opens settings from anywhere. On a PC, F11 goes full
+     screen and Esc leaves it.
 
-M4f. **Offline is said out loud (LIVE-13):** turn every network interface off (Wi-Fi and Ethernet).
-    Within a couple of seconds the window warns that this Mac is offline and that the camera can
-    only be reached on its own network, and offers a link that opens Network settings. Turn the
-    network back on — the warning goes by itself.
+D4f. **It looks like a native app (DESK-17, DESK-18, UI-1, UI-3):** the app has its own icon
+     everywhere the OS shows one — the switcher, the Dock / taskbar, the status area, About, and the
+     Finder / Explorer — never a generic placeholder, and **the same mark the phone shows** (UI-3).
+     Hold the three side by side if you can. Every screen renders dark. Turn the system's animations
+     off (Mac: Reduce Motion) — nothing animates.
 
-M5. **There is no Stop, and Quit asks (BG-11m, MACOS-3):** look for a stop control — in the window,
-    in the menu bar's menu, in the feed's menu. **There is none, anywhere.** Now press ⌘Q while
-    monitoring: it asks, plainly, and says the baby will not be monitored. Cancel — audio carries on
-    and nothing changed. Repeat from the menu bar's Quit and from the feed's menu Quit: both ask the
-    same question. Confirm one — the app quits and monitoring ends with it. Reopen — it is watching
-    again within seconds, with no Start needed.
+D4g. **No black bars (DESK-12):** with the feed live, look at the edges of the picture in both
+     shapes — the video fills the window, with no black band above or below it. Drag a corner: the
+     window keeps the camera's shape. Go full screen: there the screen's shape wins and any unused
+     area is black, which is expected. Sign out — the sign-in window is freely resizable again.
 
-M5a. **Start exists only for a monitor that broke (WATCH-11, BG-11m):** force the monitor into its
-    failed state and check the window and the menu bar both offer Start — a monitor that failed on
-    its own must be recoverable without quitting the app. Once it is live again, Start is gone.
+D4h. **Offline is said out loud (LIVE-13):** turn every network interface off (Wi-Fi *and*
+     Ethernet). Within a couple of seconds the window warns that the machine is offline and that the
+     camera can only be reached on its own network, and offers a link that opens the system's network
+     settings. Turn the network back on — the warning goes by itself.
 
-M6. **Alarm audibility (ALRM-4, ALRM-10):** mute the feed, turn the Mac's output volume down, and
-    play a crying clip at the camera for ~3 s. It is still audible, it rings until acknowledged,
-    and the menu bar icon is unmistakable while it rings.
+D5. **There is no Stop, and quitting asks (BG-14, DESK-3, BG-16):** look for a stop control — in the
+    window, in the "…" menu, in the status menu. **There is none, in any state**, and there is no way
+    to leave the app sitting there, alive, with the watch ended. Now quit while monitoring (⌘Q, the
+    status menu's Quit / Exit, and the feed menu's — try each): it asks first, plainly, and says the
+    baby will not be monitored. Cancel — audio carries on and nothing changed. Confirm — the app goes,
+    and with it the watch. Reopen it — it is watching again within seconds, with no Start needed.
 
-M7. **Idle sleep is held off (BG-12, MACOS-10):** set the Mac to sleep after 1 minute of
-    inactivity. Start monitoring and leave it alone for 5 minutes without touching anything. The
-    Mac does not sleep and audio never stops. Stop monitoring — the Mac sleeps normally again.
+D5a. **Start exists only for a monitor that broke (WATCH-11, BG-14):** force the monitor into its
+     failed state and check that **Start** appears, in the window and in the status menu — a monitor
+     that failed on its own must be recoverable without quitting the app. Once it is live again,
+     Start is gone.
 
-M7a. **The display stays awake, but only while watched (LIVE-14, MACOS-10):** set the display to
-    sleep after 1 minute. With the window open and the feed live, leave the Mac alone for 3 minutes
-    — the screen stays on. Close the window (monitoring carries on): the screen now sleeps on its
-    normal timeout. Reopen it and unplug the camera so the feed leaves "Live": the screen sleeps
-    again. `pmset -g assertions` names the app for exactly as long as it should, and no longer.
+D6. **Alarm audibility (ALRM-4, DESK-23):** mute the feed, turn the machine's output volume down, and
+    play a crying clip at the camera for ~3 s. It is still audible, it rings until acknowledged, and
+    the status icon is unmistakable while it rings. There is **no vibrate control anywhere** in
+    settings — the setting is not offered rather than offered and ignored.
 
-M8. **The lid is the honest one (BG-12, MACOS-11):** this is the step that matters most, because
-    it is where the Mac is weaker than the phone and must say so.
-    a. Before relying on it overnight, the app states plainly that a closed lid stops the monitor.
-       Find that message. If a parent could miss it, it is not good enough.
-    b. While monitoring, close the lid for 2 minutes. Open it. The app reports that monitoring was
-       **down**, and for **how long** — it does not simply reconnect as though nothing happened.
+D7. **Idle sleep is held off (BG-12, DESK-20):** set the machine to sleep after 1 minute of
+    inactivity. Start monitoring and leave it alone for 5 minutes without touching anything. It does
+    not sleep and audio never stops. Quit — it sleeps normally again. (`pmset -g assertions` on a
+    Mac, `powercfg /requests` on a PC, names the app for exactly as long as it should and no longer.)
+
+D7a. **The display stays awake, but only while watched (LIVE-14, DESK-20):** set the display to sleep
+     after 1 minute. With the window open and the feed live, leave the machine alone for 3 minutes —
+     the screen stays on. Close the window (monitoring carries on): the screen now sleeps on its
+     normal timeout. Reopen it and unplug the camera so the feed leaves "Live": the screen sleeps
+     again.
+
+D8. **Sleep is the honest one (BG-12, DESK-21):** the step that matters most, because it is where a
+    desktop is weaker than the phone and must say so.
+    a. Before relying on it overnight, the app states plainly that a sleeping machine stops the
+       monitor. Find that message. If a parent could miss it, it is not good enough.
+    b. While monitoring, sleep the machine for 2 minutes — close the lid, or Apple menu → Sleep /
+       Start → Sleep. Wake it. The app reports that monitoring was **down**, and for **how long** —
+       it does not simply reconnect as though nothing had happened.
     c. With the watchdog armed, the sleep gap is treated as a real outage (WATCH-2), not as a live
        feed that happened to be quiet.
 
-M9. **Restart (BG-13, MACOS-8):** while monitoring, restart the Mac. On next launch the app says
+D9. **Restart (BG-13, DESK-19):** while monitoring, restart the machine. On next launch the app says
     monitoring stopped and resumes in one click. The app offers — once, and without ever having
-    turned it on for you — to open at login; decline it and it does not ask again, and settings
-    still show it off. Turn "open at login" on in settings and restart again — the app comes back by
-    itself and monitoring resumes. Turn it off — it does not.
+    turned it on for you — to start at login; decline it and it does not ask again, and settings still
+    show it off. Turn it on in settings and restart again — the app comes back by itself and
+    monitoring resumes. Turn it off — it does not.
 
-M10. **Updates: at launch, and only at launch (UPD-3, UPD-5):** publish a newer release, then open
-     the app. Within seconds of launch it installs the new version **on disk** and asks whether to
-     restart. Monitoring, meanwhile, has already started and is *untouched* — audio keeps playing
-     behind the dialog. Choose **Later**: nothing happens, the question is not asked again, and the
-     app keeps watching on the old version. Quit and reopen — it comes up on the **new** version
-     (check About: UPD-6/LIVE-15). Now leave the app running for hours with another release
-     published: **it must never check, never install and never ask again.** The only thing that can
-     start a check while it runs is a human (UPD-9).
-
-M10a. **Restart Now (UPD-5):** repeat, and choose **Restart Now** while monitoring is live. The app
-     relaunches, comes back on the new version, and monitoring resumes by itself within seconds. The
-     outage is seconds long and you are standing there — which is the only condition under which
-     this app restarts at all.
-
-M10c. **A check on demand (UPD-9):** with no update published, use "Check for Updates…" from the
-     menu bar's menu, from the feed's ⋯ menu, and from the app menu. Each one answers — it says the
-     app is up to date rather than leaving you wondering whether the click did anything.
-
-M10b. **The update does not ask for a password (AUTH-6m):** the step above must complete with **no
-     Keychain prompt at all** — the updated app reads its own stored session in silence and comes
-     straight back up live. If a password box appears, the signing is wrong (certificate,
-     provisioning profile and entitlement are a set — see CLAUDE.md), and an overnight update would
-     leave the monitor stopped behind a dialog nobody is awake to answer. This is the single most
-     important step on this list.
-
-M11. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. Within a few
-     check cycles the app reports that it can no longer check for updates. Monitoring is
-     completely unaffected. Restore the token — the complaint clears.
-
-
----
-
-# Windows checklist
-
-Run on a real PC with a reachable camera. The shared behaviour (crying detection, reconnect,
-watchdog, alarm timing) is not re-verified here — the same spec suite runs against the Windows port,
-criterion for criterion. What follows is the shell, and the honesty about what a PC cannot do.
-
-W1. **The tray is the app, and it is quiet while it works (WIN-1, WIN-2, BG-2w):** launch it. A tray
-    icon appears — **the app's own mark, nothing else**. Its menu names the camera and reads live in
-    words. Unplug the camera: the menu goes to reconnecting within seconds, and **the icon does not
-    change** — the monitor is working on it, and an icon that flinches at every blip is one a parent
-    stops reading. Now break it for real (sign out of the Mi account elsewhere, so the session
-    expires): the icon changes, unmistakably, to say the monitor is no longer watching. Trigger an
-    alarm: it changes again, to its own icon. The menu opens with either mouse button and dismisses
-    when you click away, like every other tray menu.
-
-W1a. **The menu changes with what the app can do (WIN-2):** sign out. The tray menu now reads
-    **"Not signed in"** and offers **Sign in…** — Mute, Show camera and Mini window are *gone*, not
-    dimmed. Click Sign in… and the window appears. Sign in but do not choose a camera: the menu reads
-    "No camera chosen" and offers Choose camera… and Sign out. Choose one — the full menu comes back.
-
-W1b. **The camera submenu (WIN-2, CAM-4):** with two cameras on the account, open the tray menu →
-    Camera. Both are listed and **the one being watched has a checkmark**. Pick the other one: the app
-    switches to it within seconds (the status line names the new camera), and reopening the submenu
-    shows the checkmark has moved. "Choose camera…" at the bottom still opens the picker.
-
-W1c. **A way out on the sign-in screen (WIN-23):** on the sign-in panel and on the camera picker there
-    is an **Exit Baby Monitor** link. Click it: the app exits **without asking**, because nothing was
-    being monitored. (Closing the window with the X only hides it to the tray — which is right for a
-    monitor, and is why the way out has to be on the screen.)
-
-W2. **Closing a window is not exiting (WIN-7, WIN-9, WIN-12, BG-5):** with audio playing, close the
-    window (the X, and again with Alt-F4). Audio keeps playing, the tray icon stays, and the first
-    close says where the app went. With the window closed, Alt-Tab and the taskbar no longer show the
-    app — it has receded into the tray; reopen it from the tray and it is back in both, like any other
-    app. The feed is live immediately, with no reconnect in the log. Only Exit ends the app.
-
-W2a. **The full shape (WIN-6, LIVE-9w):** the video fills the window edge to edge, with the status and
-    the level indicator overlaid along the top and the buttons along the bottom. Switching camera,
-    signing out and the version live behind the "…" menu rather than on the bar. Compare it against
-    the phone and the Mac: **the same controls, in the same states** — if one offers Stop and another
-    does not, one of them is wrong (that decision is shared code).
-
-W3. **Mute keeps the alarm working (WIN-4, LIVE-3, LIVE-2):** mute from the tray menu. The speaker
-    goes silent and the menu item shows checked ("Muted"). Make noise at the camera — the level
-    indicator still moves and, with the alarm on, it still rings. In the window, the mute button
-    draws latched and the status line gains "· muted".
-
-W4. **Mini shape floats (WIN-5, BG-7w):** put the window in its mini shape. It stays on top of other
-    apps, including a maximised one. Move and resize it (it keeps the video's shape), exit and
-    relaunch — it comes back where it was, in the shape it was in. Close it — monitoring carries on.
-
-W4a. **One window, two shapes (WIN-14, WIN-15, WIN-22):** with the feed live, switch full → mini and
-    back, from the window's own control, from the tray menu, and from the keyboard. Each time: **the
-    picture never blacks out, audio never stutters, and the log shows no reconnect.** Move and
-    resize each shape and switch back and forth: each remembers its own size and position, and still
-    does after a relaunch. Hover the mini — its close, acknowledge and "make it full" controls appear;
-    move the pointer away — they go, leaving the picture, the feed state **and mute** (WIN-5), which is
-    always there because a tile has no room to say "muted" in words (LIVE-2). While the tile is up,
-    press Alt-Tab and look at the taskbar: **it is in neither** (WIN-22) — it is already on top of
-    everything, and it must not clutter the list of windows you are trying to see past.
-
-W4b. **The mini fades, but never over a warning (WIN-16, WIN-18):** with the feed live and the
-    pointer away, the mini goes translucent and the window underneath is readable through it; move
-    the pointer over it — instantly solid. Turn fading off in settings — it stays solid. Turn it back
-    on, set it faint, then **unplug the camera**: as soon as the feed is not live the mini goes fully
-    opaque by itself and stays that way with the pointer nowhere near it. Same with a ringing alarm.
-    Turn Settings → Accessibility → Visual effects → Transparency effects **off**: no fading at all,
-    and the app's surfaces draw solid.
-
-W4c. **Controls follow the pointer (LIVE-11w):** in the full shape, move the pointer over the video —
-    the buttons are there. Move it away (or leave it still) for a few seconds — the buttons fade out,
-    while the status line and the level indicator stay. Move the pointer — the buttons are back
-    immediately, with no click. Trigger an alarm and repeat: the alarm banner and its Acknowledge
-    never fade.
-
-W4d. **Paste works (WIN-13):** on the sign-in screen, copy a password from a password manager and
-    press Ctrl-V in the password field — it pastes. Ctrl-C, Ctrl-X and Ctrl-A work too, Tab moves
-    between fields, Enter submits. F11 goes full screen and Esc leaves it.
-
-W4e. **It looks like a Windows app (WIN-17, WIN-18, UI-1, UI-3):** the app has its own icon in the
-    taskbar, Alt-Tab, the tray and Explorer — never a generic placeholder, and **the same mark the
-    phone and the Mac show** (UI-3). Every screen renders dark. Turn the system's animation effects
-    off — nothing animates.
-
-W4f. **No black bars (WIN-19):** with the feed live, look at the edges of the picture in both shapes
-    — the video fills the window, with no black band above or below it. Drag a corner: the window
-    keeps the camera's shape. Go full screen (F11): there the screen's shape wins and any unused area
-    is black, which is expected.
-
-W4g. **Offline is said out loud (LIVE-13):** disable every network adapter (Wi-Fi and Ethernet).
-    Within a couple of seconds the window warns that this PC is offline and that the camera can only
-    be reached on its own network, and offers a link that opens Network & internet settings. Turn the
-    network back on — the warning goes by itself.
-
-W5. **There is no Stop, and Exit asks (BG-11w, WIN-3, BG-3w):** look for a stop control — in the
-    window, in the "…" menu, in the tray menu. **There is none, in any state**, and there is no way to
-    leave the app sitting in the tray, alive, with the watch ended. Now Exit from the tray while
-    monitoring: it asks first. Choose "Keep monitoring" — nothing changes, the feed is untouched.
-    Exit again and confirm: the app goes, and with it the watch. Reopen it — it starts watching by
-    itself. Finally, break the monitor (WATCH-11) and check that **Start** appears, in the window and
-    in the tray: a monitor that failed on its own must be recoverable without exiting the app.
-
-W6. **Alarm audibility (ALRM-4, WIN-21):** mute the feed, turn the PC's output volume down, and play
-    a crying clip at the camera for ~3 s. It is still audible, it rings until acknowledged, and the
-    tray icon is unmistakable while it rings. There is no vibrate control anywhere in settings.
-
-W7. **Idle sleep is held off (BG-12w, WIN-10):** set the PC to sleep after 1 minute of inactivity.
-    Start monitoring and leave it alone for 5 minutes without touching anything. It does not sleep and
-    audio never stops. Stop monitoring — it sleeps normally again. (`powercfg /requests` names the app
-    for exactly as long as it should.)
-
-W7a. **The display stays awake, but only while watched (LIVE-14, WIN-10):** set the display to turn
-    off after 1 minute. With the window open and the feed live, leave the PC alone for 3 minutes — the
-    screen stays on. Close the window (monitoring carries on): the screen now turns off on its normal
-    timeout. Reopen it and unplug the camera so the feed leaves "Live": the screen turns off again.
-
-W8. **Sleep is the honest one (BG-12w, WIN-11):** the step that matters most, because it is where the
-    PC is weaker than the phone and must say so.
-    a. Before relying on it overnight, the app states plainly that a sleeping PC stops the monitor.
-       Find that message. If a parent could miss it, it is not good enough.
-    b. While monitoring, put the PC to sleep (Start → Sleep, or close a laptop's lid) for 2 minutes.
-       Wake it. The app reports that monitoring was **down**, and for **how long** — it does not simply
-       reconnect as though nothing happened.
-    c. With the watchdog armed, the sleep gap is treated as a real outage (WATCH-2), not as a live
-       feed that happened to be quiet.
-
-W9. **Restart (BG-13w, WIN-8):** while monitoring, restart the PC. On next launch the app says
-    monitoring stopped and resumes in one click. The app offers — once, and without ever having turned
-    it on for you — to start with Windows; decline it and it does not ask again, and settings still
-    show it off. Turn it on in settings and restart again — the app comes back by itself and monitoring
-    resumes. Turn it off — it does not.
-
-W10. **No H.265 decoder (WIN-20):** on a PC **without** the HEVC Video Extensions installed (or with
-     them removed), open the live feed. The app says in plain words that Windows cannot decode this
-     camera's video and points at the free extension — and **audio keeps playing, the level meter keeps
-     moving, and the crying alarm still fires.** Install the extension and reopen: the picture appears.
-     This is the one place a PC is weaker than the Mac, and a black rectangle with no explanation would
-     be exactly the kind of silence this app exists to prevent.
-
-W11. **The app never restarts itself (UPD-3, UPD-5, UPD-5w, UPD-7):** with a newer release published,
-     launch the app. It checks **once, at launch**, downloads and verifies the update, puts it in place
-     beside the running app — which keeps watching, untouched — and then asks, **once**, whether to
-     restart into it.
-     Answer **Later**. Nothing happens: monitoring carries on, and **the app never asks again and never
-     restarts on its own** — leave it running for hours, overnight if you can, and it must still be the
-     old version, still watching. The tray menu and Settings say quietly that the new version is
-     installed and runs at the next launch (UPD-7).
-     Then quit and reopen: it comes back on the new version, before monitoring starts. Check About
+D10. **Updates: at launch, and only at launch (UPD-3, UPD-5, UPD-7; on a PC also UPD-10):** with a
+     newer release published, launch the app. It checks **once, at launch**, downloads and verifies
+     the update, puts it in place — on a Mac on top of itself, on a PC beside itself (UPD-10) — while
+     the running app **keeps watching, untouched**: audio plays on behind the dialog. Then it asks,
+     **once**, whether to restart into it.
+     Answer **Later**. Nothing happens: monitoring carries on, and **the app never asks again and
+     never restarts on its own** — leave it running for hours, overnight if you can, with another
+     release published, and it must still be the old version, still watching. The status menu and
+     Settings say quietly that the new version is installed and runs at the next launch (UPD-7). The
+     only thing that can start a check while it runs is a human (UPD-9).
+     Then quit and reopen: it comes up on the **new** version, before monitoring starts. Check About
      (UPD-6, LIVE-15).
 
-W11a. **Restart now (UPD-5):** repeat, and this time answer **Restart now**. The app restarts within
-     seconds, comes back on the new version, and **monitoring resumes by itself**.
+D10a. **Restart now (UPD-5):** repeat, and this time answer **Restart now** while monitoring is live.
+      The app restarts within seconds, comes back on the new version, and **monitoring resumes by
+      itself**. The outage is seconds long and you are standing there — which is the only condition
+      under which this app restarts at all.
 
-W11c. **A check can be asked for (UPD-9):** with no update available, choose "Check for updates…" from
-     the tray menu, and again from the live feed's "…" menu. Both answer — up to date, and which version
-     you are running. A parent who wants to know is never made to relaunch the app to find out.
+D10b. **A check on demand (UPD-9):** with no update available, choose "Check for updates…" from the
+      status menu, from the live feed's "…" menu, and (on a Mac) from the app menu. Each one answers —
+      it says the app is up to date rather than leaving you wondering whether the click did anything.
 
-W11b. **The update does not ask for anything (AUTH-6w):** the step above must complete with **no
-     prompt of any kind** — the updated app reads its own stored session in silence and comes straight
-     back up live. A monitor that stopped at a dialog after an overnight update, with nobody awake to
-     answer it, would be a monitor that failed exactly when it mattered.
+D10c. **The update does not ask for anything (AUTH-12):** the steps above must complete with **no
+      prompt of any kind** — no Keychain password box on a Mac, nothing on a PC. The updated app reads
+      its own stored session in silence and comes straight back up live. If a password box appears on
+      the Mac, the signing is wrong (certificate, provisioning profile and entitlement are a set — see
+      CLAUDE.md). A monitor that stopped at a dialog after an overnight update, with nobody awake to
+      answer it, would be a monitor that failed exactly when it mattered. This is the single most
+      important step on this list.
 
-W12. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. Within a few check
-     cycles the app reports that it can no longer check for updates. Monitoring is completely
+D11. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. At the next launch
+     check the app reports that it can no longer check for updates. Monitoring is completely
      unaffected. Restore the token — the complaint clears.
+
+D12. **`[windows]` No H.265 decoder (DESK-22):** on a PC **without** the HEVC Video Extensions
+     installed (or with them removed), open the live feed. The app says in plain words that Windows
+     cannot decode this camera's video and points at the free extension — and **audio keeps playing,
+     the level meter keeps moving, and the crying alarm still fires.** Install the extension and
+     reopen: the picture appears. This is the one place a PC is weaker than a Mac, and a black
+     rectangle with no explanation would be exactly the kind of silence this app exists to prevent.

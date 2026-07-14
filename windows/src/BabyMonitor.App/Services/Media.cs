@@ -255,7 +255,7 @@ public sealed class WindowsMedia : IMediaFactory
 
     public WindowsMedia(Action<int, int>? onVideoSize = null) => _onVideoSize = onVideoSize;
 
-    /// <summary>WIN-20: set once the video output has found that this PC cannot decode H.265.</summary>
+    /// <summary>DESK-22: set once the video output has found that this PC cannot decode H.265.</summary>
     public HevcVideoOutput? LastVideo { get; private set; }
 
     public IAudioOutput Audio(Action<short[], int> onPcmWindow) =>

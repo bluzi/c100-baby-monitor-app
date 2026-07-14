@@ -39,7 +39,7 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
     <!-- WASAPI, for the feed's audio and for an alarm that a muted feed cannot silence. -->
     <PackageReference Include="NAudio" Version="2.2.1" />
-    <!-- DPAPI: the Mi session, encrypted to this Windows user on this machine (AUTH-6w). -->
+    <!-- DPAPI: the Mi session, encrypted to this Windows user on this machine (AUTH-12). -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 

@@ -170,7 +170,7 @@ jobs:
         run: ./gradlew :core:macosArm64Test
 
       # The Developer ID certificate. Signing is not cosmetic here: it is what lets the app read its
-      # own stored session after an update without stopping to ask for a password (AUTH-6m) — and a
+      # own stored session after an update without stopping to ask for a password (AUTH-12) — and a
       # monitor that stops at a password box after an overnight update is a monitor that failed.
       - name: Import the signing certificate
         run: |
@@ -305,7 +305,7 @@ jobs:
 
       # The first install, and nothing else — the Windows answer to the Mac's .dmg. A per-user setup:
       # it lands in %LOCALAPPDATA%\Programs, which the app can rewrite itself, so the swap that
-      # applies an update (UPD-5w) never needs an administrator. Installed into Program Files it would,
+      # applies an update (UPD-10) never needs an administrator. Installed into Program Files it would,
       # and that means a UAC prompt at whatever hour the update lands, standing between a parent and a
       # running monitor.
       - name: Build the installer

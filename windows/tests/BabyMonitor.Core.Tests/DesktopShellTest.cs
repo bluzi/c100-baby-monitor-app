@@ -6,7 +6,7 @@ using Xunit;
 namespace BabyMonitor.Core.Tests;
 
 /// <summary>
-/// The Windows shell's decisions (WIN-14/16/18). They live in the core, and are tested, for the same
+/// The Windows shell's decisions (DESK-9/11/18). They live in the core, and are tested, for the same
 /// reason every other decision does: a rule that is only written in a view is a rule nobody can test,
 /// and this one guards the app's first promise — that a warning is never hidden, and silence is never
 /// mistaken for a calm baby.
@@ -20,22 +20,22 @@ public class DesktopShellTest
         SessionExpired: false,
         SleepOutage: null);
 
-    // --- WIN-16: what "needs attention" means --------------------------------
+    // --- DESK-11: what "needs attention" means --------------------------------
 
-    [Fact(DisplayName = "WIN-16 a live healthy monitor needs no attention")]
+    [Fact(DisplayName = "DESK-11 a live healthy monitor needs no attention")]
     public void HealthyNeedsNothing()
     {
         Assert.False(DesktopShell.NeedsAttention(Healthy));
     }
 
-    [Fact(DisplayName = "WIN-16 a ringing alarm needs attention")]
+    [Fact(DisplayName = "DESK-11 a ringing alarm needs attention")]
     public void RingingNeedsAttention()
     {
         Assert.True(DesktopShell.NeedsAttention(Healthy with { ActiveAlarm = "BabyNoise" }));
         Assert.True(DesktopShell.NeedsAttention(Healthy with { ActiveAlarm = "FeedDown" }));
     }
 
-    [Fact(DisplayName = "WIN-16 a feed that is not live while monitoring needs attention")]
+    [Fact(DisplayName = "DESK-11 a feed that is not live while monitoring needs attention")]
     public void ADeadFeedNeedsAttention()
     {
         Assert.True(DesktopShell.NeedsAttention(Healthy with { Status = Statuses.Connecting }));
@@ -44,29 +44,29 @@ public class DesktopShellTest
         Assert.True(DesktopShell.NeedsAttention(Healthy with { Status = Statuses.MonitorFailed }));
     }
 
-    [Fact(DisplayName = "WIN-16 a stopped monitor needs attention")]
+    [Fact(DisplayName = "DESK-11 a stopped monitor needs attention")]
     public void AStoppedMonitorNeedsAttention()
     {
         // The most dangerous quiet state of all: a picture still on screen and nothing watching it.
         Assert.True(DesktopShell.NeedsAttention(Healthy with { Running = false, Status = Statuses.Stopped }));
     }
 
-    [Fact(DisplayName = "WIN-16 an expired session needs attention")]
+    [Fact(DisplayName = "DESK-11 an expired session needs attention")]
     public void AnExpiredSessionNeedsAttention()
     {
         Assert.True(DesktopShell.NeedsAttention(Healthy with { SessionExpired = true }));
         Assert.True(DesktopShell.NeedsAttention(Healthy with { Status = Statuses.SessionExpired }));
     }
 
-    [Fact(DisplayName = "WIN-16 a sleep outage still unread needs attention")]
+    [Fact(DisplayName = "DESK-11 a sleep outage still unread needs attention")]
     public void AnUnreadSleepOutageNeedsAttention()
     {
         Assert.True(DesktopShell.NeedsAttention(Healthy with { SleepOutage = "The PC slept for 8 minutes." }));
     }
 
-    // --- WIN-16: the fade itself ---------------------------------------------
+    // --- DESK-11: the fade itself ---------------------------------------------
 
-    [Fact(DisplayName = "WIN-16 the mini fades only when nothing is wrong and the pointer is away")]
+    [Fact(DisplayName = "DESK-11 the mini fades only when nothing is wrong and the pointer is away")]
     public void ItFadesWhenAllIsWell()
     {
         Assert.Equal(
@@ -74,7 +74,7 @@ public class DesktopShellTest
             DesktopShell.MiniOpacity(Healthy, hovering: false, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.4));
     }
 
-    [Fact(DisplayName = "WIN-16 the pointer over the mini makes it solid")]
+    [Fact(DisplayName = "DESK-11 the pointer over the mini makes it solid")]
     public void HoveringMakesItSolid()
     {
         Assert.Equal(
@@ -82,7 +82,7 @@ public class DesktopShellTest
             DesktopShell.MiniOpacity(Healthy, hovering: true, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.4));
     }
 
-    [Fact(DisplayName = "WIN-16 a mini that needs attention never fades, however faint the setting")]
+    [Fact(DisplayName = "DESK-11 a mini that needs attention never fades, however faint the setting")]
     public void AttentionNeverFades()
     {
         var alarming = Healthy with { ActiveAlarm = "BabyNoise" };
@@ -96,7 +96,7 @@ public class DesktopShellTest
             DesktopShell.MiniOpacity(dead, hovering: false, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.25));
     }
 
-    [Fact(DisplayName = "WIN-16 fading can be turned off")]
+    [Fact(DisplayName = "DESK-11 fading can be turned off")]
     public void FadingCanBeTurnedOff()
     {
         Assert.Equal(
@@ -104,7 +104,7 @@ public class DesktopShellTest
             DesktopShell.MiniOpacity(Healthy, hovering: false, fadeEnabled: false, transparencyDisabled: false, idleOpacity: 0.3));
     }
 
-    [Fact(DisplayName = "WIN-18 turning the system's transparency effects off turns the fade off")]
+    [Fact(DisplayName = "DESK-18 turning the system's transparency effects off turns the fade off")]
     public void TransparencyOffTurnsTheFadeOff()
     {
         Assert.Equal(
@@ -112,7 +112,7 @@ public class DesktopShellTest
             DesktopShell.MiniOpacity(Healthy, hovering: false, fadeEnabled: true, transparencyDisabled: true, idleOpacity: 0.3));
     }
 
-    [Fact(DisplayName = "WIN-16 the mini can never be set so faint that it cannot be seen")]
+    [Fact(DisplayName = "DESK-11 the mini can never be set so faint that it cannot be seen")]
     public void ItCanNeverBecomeInvisible()
     {
         // A stored 0 — an old build, a hand-edited settings file, a slider dragged to the floor — must
@@ -129,9 +129,9 @@ public class DesktopShellTest
             DesktopShell.MiniOpacity(Healthy, hovering: false, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.0));
     }
 
-    // --- BG-11w: a PC has no Stop --------------------------------------------
+    // --- BG-14: a PC has no Stop --------------------------------------------
 
-    [Fact(DisplayName = "BG-11w the PC never offers Stop, however the monitor is doing")]
+    [Fact(DisplayName = "BG-14 the PC never offers Stop, however the monitor is doing")]
     public void ThereIsNoStopOnAPc()
     {
         // On a PC the app IS the monitor: it watches until it is exited. So Baby Monitor cannot sit in
@@ -156,7 +156,7 @@ public class DesktopShellTest
         }
     }
 
-    [Fact(DisplayName = "BG-11w a monitor that failed on its own can still be started without exiting")]
+    [Fact(DisplayName = "BG-14 a monitor that failed on its own can still be started without exiting")]
     public void AFailedMonitorCanStillBeStarted()
     {
         // WATCH-11: `running` stays true when the monitor fails, and that failure has to be recoverable
@@ -166,7 +166,7 @@ public class DesktopShellTest
         Assert.DoesNotContain(ViewerActionKind.Resume, DesktopShell.ViewerActions(true, Statuses.Live));
     }
 
-    [Fact(DisplayName = "BG-11w the PC still gets everything else the phone gets")]
+    [Fact(DisplayName = "BG-14 the PC still gets everything else the phone gets")]
     public void ThePcGetsEverythingElse()
     {
         var live = DesktopShell.ViewerActions(true, Statuses.Live);
@@ -175,16 +175,16 @@ public class DesktopShellTest
         Assert.Contains(ViewerActionKind.Alerts, live);
     }
 
-    // --- WIN-14: which shape the one window is in ----------------------------
+    // --- DESK-9: which shape the one window is in ----------------------------
 
-    [Fact(DisplayName = "WIN-14 the viewer keeps whichever shape the user chose")]
+    [Fact(DisplayName = "DESK-9 the viewer keeps whichever shape the user chose")]
     public void TheViewerKeepsItsShape()
     {
         Assert.Equal(DesktopShell.ShapeMini, DesktopShell.WindowShape("viewer", DesktopShell.ShapeMini));
         Assert.Equal(DesktopShell.ShapeFull, DesktopShell.WindowShape("viewer", DesktopShell.ShapeFull));
     }
 
-    [Fact(DisplayName = "WIN-14 signing in or picking a camera is never done in a tile")]
+    [Fact(DisplayName = "DESK-9 signing in or picking a camera is never done in a tile")]
     public void SignInIsNeverATile()
     {
         // There is no video to float and there are fields to type into: the window goes full.
@@ -192,7 +192,7 @@ public class DesktopShellTest
         Assert.Equal(DesktopShell.ShapeFull, DesktopShell.WindowShape("devices", DesktopShell.ShapeMini));
     }
 
-    [Fact(DisplayName = "WIN-14 an unknown stored shape is full rather than nothing")]
+    [Fact(DisplayName = "DESK-9 an unknown stored shape is full rather than nothing")]
     public void AnUnknownShapeIsFull()
     {
         Assert.Equal(DesktopShell.ShapeFull, DesktopShell.WindowShape("viewer", "gibberish"));

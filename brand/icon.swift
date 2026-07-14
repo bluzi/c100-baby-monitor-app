@@ -141,7 +141,7 @@ func drawWaveform(in context: CGContext, body: CGRect, unit: CGFloat) {
     }
 }
 
-// MARK: - macOS (MACOS-17)
+// MARK: - macOS (DESK-17)
 
 /// Apple's grid: the art is 1024×1024 and the rounded square occupies the middle ~824×824, corner
 /// radius ~185. Anything drawn edge to edge looks oversized next to every other icon in the Dock,

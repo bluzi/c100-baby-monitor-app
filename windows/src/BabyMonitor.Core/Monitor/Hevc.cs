@@ -120,7 +120,7 @@ public sealed class HevcParamCache
 /// frame size before it will decode a single byte, so on this platform the size is not a nicety, it is
 /// the difference between a picture and a black rectangle.
 ///
-/// It also gives WIN-19 its number: the window takes the camera's shape, and the camera's shape is
+/// It also gives DESK-12 its number: the window takes the camera's shape, and the camera's shape is
 /// this.
 /// </summary>
 public static class HevcSps

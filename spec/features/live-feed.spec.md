@@ -9,8 +9,8 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   next launch. While muted, the live feed says so at a glance: the status line reads muted, and
   the mute control shows an engaged state — a changed icon glyph is never the only clue, so
   "muted" can never be misread as "press to mute".
-  (The Mac's mini shape is too small to spend a word of its status line on this, so there the
-  **always-visible, latched mute control** is what says it — MACOS-5. The rule it must satisfy is
+  (A desktop's mini shape is too small to spend a word of its status line on this, so there the
+  **always-visible, latched mute control** is what says it — DESK-8. The rule it must satisfy is
   the same one: never a changed glyph alone.)
 - **LIVE-3** `[device]` Mute silences the phone's playback only — level monitoring and the noise alarm keep
   working exactly as when unmuted.
@@ -51,43 +51,33 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   status and level indicator along the top, buttons along the bottom. Less-used actions —
   switching camera, signing out, About — sit behind a menu at the top right instead of being
   always-visible buttons. An unacknowledged alarm's acknowledge control is always visible.
-- **LIVE-9m** `[macos]` `[device]` A Mac has no orientation to lock, so the same intent lands as a
-  window: video full-bleed, the same two rows of overlaid controls, the same rare actions behind a
-  menu, the same always-visible acknowledge (MACOS-6). Which controls appear, and when, is the
-  shared decision (BG-11, WATCH-11) — the phone's button row and the Mac's cannot disagree.
-- **LIVE-9w** `[windows]` `[device]` A PC has no orientation to lock either, so the same intent
-  lands as a window, exactly as on the Mac (LIVE-9m): video edge to edge, the same two rows of
-  overlaid controls, the same rare actions behind a menu, the same always-visible acknowledge
-  (WIN-6). Which controls appear, and when, is the shared decision (BG-11, WATCH-11) — the phone's
-  button row, the Mac's and the PC's cannot disagree.
+- **LIVE-16** `[desktop]` `[device]` A desktop has no orientation to lock, so the same intent lands
+  as a window: video edge to edge, the same two rows of overlaid controls, the same rare actions
+  behind a menu, the same always-visible acknowledge (DESK-7). Which controls appear, and when, is
+  the shared decision (BG-11, BG-14, WATCH-11) — the phone's button row and the desktop's cannot
+  disagree.
 - **LIVE-11** `[android]` `[device]` The controls are shown or hidden **only** by tapping the **video**: each
   tap toggles them. They never hide on their own — a parent watching the room is never made to
   tap to get them back. Tapping the controls themselves uses the control and never hides them:
   nothing can make them vanish under the user's own finger.
-- **LIVE-11m** `[macos]` `[device]` A Mac has a pointer, so the controls follow it instead of a tap:
-  they are there whenever the pointer is over the window, and they fade away a few seconds after it
-  leaves or stops moving — any movement brings them straight back, with no click needed. What the
+- **LIVE-17** `[desktop]` `[device]` A desktop has a pointer, so the controls follow it instead of a
+  tap: they are there whenever the pointer is over the window, and they fade away a few seconds after
+  it leaves or stops moving — any movement brings them straight back, with no click needed. What the
   feed is *doing* never fades: **the status line, the level indicator, and any warning or ringing
   alarm are always on screen**, whatever the pointer is doing. The rule is the phone's rule
   (LIVE-11) against the same hazard: a parent must never have to go looking for the state of the
   monitor, and a control that hides is never one that matters.
-- **LIVE-11w** `[windows]` `[device]` A PC has a pointer too, so it follows LIVE-11m exactly: the
-  controls are there whenever the pointer is over the window and fade a few seconds after it leaves
-  or stops moving, any movement brings them straight back, and the status line, the level indicator
-  and any warning or ringing alarm are **always** on screen whatever the pointer is doing.
 - **LIVE-13** `[device]` The camera is reachable only on its own network. While the device has no
   connection to that network, the live feed warns in plain words that the camera cannot be
-  reached without it, and offers the shortest route to fixing it — on Android `[android]` tapping
-  the warning opens the system's Wi-Fi panel; on macOS `[macos]` it opens Network settings; on
-  Windows `[windows]` it opens Network & internet settings. The warning disappears once the network
-  is back. (A Mac or a PC may sit on the camera's network over Ethernet, so both warn about having
-  *no* network rather than about not being on Wi-Fi: the hazard is a camera that cannot be reached,
-  not a particular radio being off.)
+  reached without it, and offers the shortest route to fixing it: tapping or clicking the warning
+  opens the system's own network settings (on Android, the Wi-Fi panel). The warning disappears once
+  the network is back. (A desktop may sit on the camera's network over Ethernet, so it warns about
+  having *no* network rather than about not being on Wi-Fi: the hazard is a camera that cannot be
+  reached, not a particular radio being off.)
 - **LIVE-14** `[device]` While the live feed is on screen and the feed is live, the display stays
   awake — watching the baby never ends in a sleeping screen. When the feed is not live (or the
-  live feed is left), the display may sleep normally again. On macOS and Windows this is the display
-  only; keeping the *machine* from suspending the monitor is BG-12 / BG-12w, and is a separate
-  promise.
+  live feed is left), the display may sleep normally again. On a desktop this is the display only;
+  keeping the *machine* from suspending the monitor is BG-12, and is a separate promise.
 - **LIVE-15** `[device]` The app shows the running version (on the live feed's menu, under About)
   — enough to tell at a glance whether an update landed (UPD-6).
 - **LIVE-10** `[device]` The live feed has a night-vision control offering the camera's three modes — off,

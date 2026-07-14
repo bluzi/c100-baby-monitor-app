@@ -61,20 +61,30 @@ spec": the core has no user-visible behavior of its own. Its behavior *is* the f
   they run on the JVM *and* on Kotlin/Native — **and again** in the Windows port's suite
   (`windows/tests/`). "The apps behave the same" is executed three times, not asserted in prose. This
   is the whole reason the spec is shared.
-- **`[android]` / `[macos]` / `[windows]`** tag a criterion that genuinely differs in *behavior*, not
-  in implementation. Its test lives in that platform's source set (or the device checklist).
-- A whole platform-only *surface* gets its own feature spec (`macos-shell.spec.md`,
-  `windows-shell.spec.md`), rather than turning a shared spec into "on Android X, on macOS Y" soup.
-  **Smell test:** if most of a feature spec's criteria are tagged, it is not one feature — it is two,
-  and it should split.
+- **`[desktop]` means macOS *and* Windows**, and it is the common case for anything a phone cannot
+  do. A Mac and a PC are the same machine to a parent: a screen you work at, that sleeps, with a
+  status area in the corner. They get one shell (`desktop-shell.spec.md`), written once. Where the
+  nouns differ — menu bar / tray, Quit / Exit, ⌘ / Ctrl — the criterion names both.
+- **`[android]` / `[macos]` / `[windows]`** tag a criterion that holds on **one** platform only, and
+  they have to be earned: a real difference in *behavior*, not in implementation. Its test lives in
+  that platform's source set (or the device checklist). **If a `[macos]` and a `[windows]` criterion
+  say the same thing in different words, they were one `[desktop]` criterion all along** — that is
+  how two shell specs collapsed into one.
+- **An ID never names a platform** — no `MACOS-4`, no `WIN-4`, no `BG-11m`/`BG-11w` twins. The tag
+  says the platform; the ID names a behavior, and a behavior that spreads to a second platform must
+  not have to be renamed to say so. IDs are stable, so a rename is a cost paid across every test and
+  comment that cites one.
+- A platform-only *surface* gets its own feature spec rather than turning a shared spec into "on
+  Android X, on macOS Y" soup. **Smell test:** if most of a feature spec's criteria are tagged, it is
+  not one feature — it is two, and it should split.
 
 **A capability gap is behavior, not an omission.** When one platform can do something another
 cannot, the weaker platform does not go quiet about it. Every guarantee the app makes on one
 platform but cannot make on another must have an explicit criterion on the weaker platform saying
 **what the user is told instead**. Map hazard to hazard, not feature to feature: "warn when not
 exempt from battery optimisation" (BG-9) is Android-shaped, but its hazard — *the OS quietly
-suspends the monitor overnight* — exists on a Mac too, so the Mac has BG-12 for the same hazard.
-A missing capability a user could mistake for a working one is a bug, not a gap.
+suspends the monitor overnight* — exists on a desktop too, so the desktops have BG-12 for the same
+hazard. A missing capability a user could mistake for a working one is a bug, not a gap.
 
 ## Commands
 
@@ -141,7 +151,7 @@ Keychain, no camera, no monitor, and no writes to your real preferences. `BM_UI_
 `BM_UI_STATUS`, `BM_UI_SHAPE=mini`, `BM_UI_HOVER`, `BM_UI_MUTED`, `BM_UI_OUTAGE`, `BM_UI_FEEDBACK`
 pose the state you want to look at; `BM_UI_SNAPSHOT=/path.png` photographs the window and quits
 (it works on a locked screen, where nothing outside the process can see a window at all). It is
-dead code in a real run, and it is how the design in `spec/features/macos-shell.spec.md` was
+dead code in a real run, and it is how the design in `spec/features/desktop-shell.spec.md` was
 actually checked rather than assumed.
 
 ## Releasing
@@ -186,7 +196,7 @@ actually checked rather than assumed.
 
 ```
 spec/                 Source of truth (behavior). app.spec.md + features/*.spec.md
-  device-checklist.md Manual verification for [device] criteria (Android + macOS + Windows)
+  device-checklist.md Manual verification for [device] criteria (Android + desktop, run on a Mac and a PC)
 
 core/                 THE MONITOR. Kotlin Multiplatform: JVM (Android) + Kotlin/Native (macOS).
   commonMain/           xiaomi/  Mi Cloud + camera protocol, crypto (pure Kotlin), JSON shim
@@ -220,7 +230,7 @@ windows/              THE PC. Its own core, because Windows cannot consume the K
                            Media Foundation, DPAPI, the updater.
   Sources/
     AppDelegate.swift   Lifecycle, the menu bar item and its menu, updates, sleep/wake
-    MainMenu.swift      The standard Mac menus — and therefore ⌘V (MACOS-13)
+    MainMenu.swift      The standard Mac menus — and therefore ⌘V (DESK-16)
     MonitorWindow.swift ONE window, two shapes (full / floating mini), and the morph between them
     RootView.swift      Routing + the video stage that both shapes share
     ViewerView.swift    The full shape: glass chrome over full-bleed video
@@ -358,14 +368,14 @@ Windows:
   the size out from the parameter sets; a Windows media type must carry it up front. So the C# core
   parses the SPS (`HevcSps.Dimensions`) — Exp-Golomb, emulation-prevention bytes and the conformance
   window (a "1080p" stream codes 1088 rows and crops 8). It is also where the window gets the
-  camera's shape (WIN-19), so it earns its keep twice.
+  camera's shape (DESK-12), so it earns its keep twice.
 - **The camera sends VPS/SPS/PPS in their own access units**, so the Windows renderer prepends them
   to every keyframe. A decoder that started late has nothing to start from otherwise.
 - **Windows may have no H.265 decoder at all** (the HEVC Video Extensions are a separate free Store
   download). That is a capability gap, so it is *behaviour*: the app says so, points at the
-  extension, and keeps monitoring (WIN-20). It must never be a black rectangle.
+  extension, and keeps monitoring (DESK-22). It must never be a black rectangle.
 - **DPAPI keys on the user, not the binary** — which is the whole reason the session uses it. An
-  update replaces every byte of the app and the stored session still opens with no prompt (AUTH-6w).
+  update replaces every byte of the app and the stored session still opens with no prompt (AUTH-12).
   The Mac needs a Developer ID, a provisioning profile and an entitlement to buy the same thing.
 - **Windows will not let a running program overwrite itself.** The updater therefore hands the job to
   the *new* build (`--apply-update <dir> <pid>`), which waits for the old one to exit, swaps the

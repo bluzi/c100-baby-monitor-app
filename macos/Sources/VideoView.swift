@@ -19,11 +19,11 @@ final class VideoLayerView: NSView {
     private let displayLayer = AVSampleBufferDisplayLayer()
     private var formatDescription: CMVideoFormatDescription?
 
-    /// MACOS-19: the size of the picture the camera is actually sending, reported as soon as it is
+    /// DESK-12: the size of the picture the camera is actually sending, reported as soon as it is
     /// known, so the window can take the camera's shape and stop framing it in black bars.
     var onVideoSize: ((CGSize) -> Void)?
 
-    /// MACOS-5: the mini shape is a rounded, borderless tile, and its corners have to be rounded
+    /// DESK-8: the mini shape is a rounded, borderless tile, and its corners have to be rounded
     /// *here* — a video layer is an AppKit citizen and a SwiftUI `clipShape` around it leaves four
     /// square black corners poking out of the tile and out of its shadow.
     var cornerRadius: CGFloat = 0 {
@@ -94,7 +94,7 @@ final class VideoLayerView: NSView {
         // A fresh stream: throw away anything the layer was still holding.
         displayLayer.flushAndRemoveImage()
 
-        // MACOS-19: the camera's own shape, straight from the bitstream's parameter sets. The window
+        // DESK-12: the camera's own shape, straight from the bitstream's parameter sets. The window
         // takes this shape, and the letterbox bars simply stop existing.
         let dimensions = CMVideoFormatDescriptionGetDimensions(description)
         if dimensions.width > 0, dimensions.height > 0 {

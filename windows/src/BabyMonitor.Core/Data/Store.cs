@@ -149,7 +149,7 @@ public sealed record Settings
 
     // ALRM-11: how each alarm sounds. The default sounds differ so the two alarms are told apart by
     // ear out of the box (WATCH-2). A PC has no vibration motor, so the vibrate flags the phone
-    // carries are read and written but never offered here (WIN-21).
+    // carries are read and written but never offered here (DESK-23).
     public string CryAlarmSound { get; init; } = SoundRisingChime;
 
     public string FeedAlarmSound { get; init; } = SoundLowPulse;
@@ -326,7 +326,7 @@ public sealed class AppStore
 
     public void SaveSettings(Settings s) => _kv.Put(KeySettings, s.ToJson());
 
-    /// <summary>BG-13w: was monitoring running when the process last went away (a restart, a crash)?</summary>
+    /// <summary>BG-13: was monitoring running when the process last went away (a restart, a crash)?</summary>
     public bool WasMonitoring() => _kv.Get(KeyMonitoring) == "true";
 
     public void SetMonitoring(bool on) => _kv.Put(KeyMonitoring, on ? "true" : "false");

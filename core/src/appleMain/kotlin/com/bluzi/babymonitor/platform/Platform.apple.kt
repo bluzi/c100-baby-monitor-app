@@ -23,7 +23,7 @@ private val processStart = TimeSource.Monotonic.markNow()
 /**
  * Monotonic, but it does NOT advance while the Mac is asleep — nothing can, because the process
  * is not running. That is a real gap in what a Mac can promise, and it is not papered over here:
- * the macOS shell watches for sleep/wake and reports the outage (MACOS-11).
+ * the macOS shell watches for sleep/wake and reports the outage (DESK-21).
  */
 actual fun elapsedRealtimeMs(): Long = processStart.elapsedNow().inWholeMilliseconds
 

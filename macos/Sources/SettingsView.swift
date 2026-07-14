@@ -2,7 +2,7 @@ import AppKit
 import BabyMonitorCore
 import SwiftUI
 
-/// Settings (ALRM, WATCH, MACOS-8/16, UPD-3). Every alarm value here is read from and written back
+/// Settings (ALRM, WATCH, DESK-19/11, UPD-3). Every alarm value here is read from and written back
 /// to core's `Settings` as JSON — there is deliberately no second settings model on this side to
 /// drift out of step with the phone's. The clamping, the defaults and the legacy migrations all
 /// happen in core.
@@ -119,7 +119,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - The mini window (MACOS-16)
+    // MARK: - The mini window (DESK-11)
 
     private var miniWindow: some View {
         Section {
@@ -146,7 +146,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Starting up (MACOS-8)
+    // MARK: - Starting up (DESK-19)
 
     private var startup: some View {
         Section {
@@ -233,7 +233,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - What a Mac cannot do (MACOS-11)
+    // MARK: - What a Mac cannot do (DESK-21)
 
     private var theLid: some View {
         Section {

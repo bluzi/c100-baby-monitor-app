@@ -69,7 +69,7 @@ object BabyMonitor {
     @Volatile
     private var pendingLogin: LoginResult? = null
 
-    /** BG-12 / MACOS-11: when the Mac went to sleep, and how long the monitor was therefore dead. */
+    /** BG-12 / DESK-21: when the Mac went to sleep, and how long the monitor was therefore dead. */
     @Volatile
     private var sleptAtMs: Long = 0
 
@@ -152,7 +152,7 @@ object BabyMonitor {
         val status = MonitorHub.status.value
         val running = MonitorHub.running.value
         val screen = route(hasSession, hasDevice) // cached — see refreshRouting()
-        // MACOS-16: is the monitor doing exactly what the parent thinks it is? Decided once, here,
+        // DESK-11: is the monitor doing exactly what the parent thinks it is? Decided once, here,
         // so the window and the tile cannot come to different answers.
         val health = MonitorHealth(
             running = running,
@@ -387,7 +387,7 @@ object BabyMonitor {
         }
     }
 
-    // --- sleep and wake (BG-12 / MACOS-11) -----------------------------------
+    // --- sleep and wake (BG-12 / DESK-21) -----------------------------------
 
     /**
      * The Mac is about to sleep, and nothing we can do will stop it — this is the one thing a
@@ -400,7 +400,7 @@ object BabyMonitor {
     }
 
     /**
-     * MACOS-11. Three things must happen, and the middle one is the one that would otherwise be a
+     * DESK-21. Three things must happen, and the middle one is the one that would otherwise be a
      * silent lie:
      *
      *  1. the outage is reported, with its duration — never a quiet reconnect;
@@ -435,7 +435,7 @@ object BabyMonitor {
 // --- values that cross the bridge -------------------------------------------
 
 data class UiState(
-    /** MACOS-16: everything the shell needs to know before it may let the monitor fade. */
+    /** DESK-11: everything the shell needs to know before it may let the monitor fade. */
     val health: MonitorHealth,
     val needsAttention: Boolean,
     val screen: String, // "login" | "devices" | "viewer"

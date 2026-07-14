@@ -1,7 +1,7 @@
 # The Windows app
 
 A tray icon, one window that wears two shapes, and a picture. Behaviour lives in
-[`spec/features/windows-shell.spec.md`](../spec/features/windows-shell.spec.md); this file is about
+[`spec/features/desktop-shell.spec.md`](../spec/features/desktop-shell.spec.md); this file is about
 the code.
 
 ```
@@ -57,7 +57,7 @@ Files` it would need an administrator — a UAC prompt at whatever hour the upda
 between a parent and a running monitor. This project does not put dialogs there.
 
 The setup deliberately has **no "start with Windows" checkbox**: the app offers that itself, once, in
-words (WIN-8), and never turns it on by itself. An installer checkbox nobody read is exactly how a
+words (DESK-19), and never turns it on by itself. An installer checkbox nobody read is exactly how a
 monitor ends up in a startup list its owner never chose. Uninstalling leaves
 `%LOCALAPPDATA%\BabyMonitor` alone — the session, the settings and the learned alarm tuning are not
 something an uninstall-to-reinstall-a-fix should cost a parent.
@@ -79,22 +79,22 @@ one tag per subsystem:
 
 ## The two places a PC is weaker than a Mac, and what the app does about them
 
-- **Sleep.** A sleeping PC runs nothing. The app holds `ES_SYSTEM_REQUIRED` while monitoring (BG-12w),
+- **Sleep.** A sleeping PC runs nothing. The app holds `ES_SYSTEM_REQUIRED` while monitoring (BG-12),
   but no application can stop the sleep a user *asks* for. So it says so before an overnight watch,
-  hears `WM_POWERBROADCAST`, and on wake reports the outage **and how long it lasted** (WIN-11).
+  hears `WM_POWERBROADCAST`, and on wake reports the outage **and how long it lasted** (DESK-21).
 - **H.265.** Windows does not always ship an HEVC decoder, and the camera sends nothing else. Without
   it there is no picture — so the app says that in plain words, points at the free extension, and
-  **keeps monitoring** (WIN-20). Sound is what monitoring means; the picture is a convenience.
+  **keeps monitoring** (DESK-22). Sound is what monitoring means; the picture is a convenience.
 
 ## Gotchas that cost real debugging time
 
 - **Media Foundation will not decode a byte without a frame size.** MediaCodec and VideoToolbox work
   it out from the parameter sets; Windows does not. `HevcSps.Dimensions` parses it out of the SPS —
-  which is also where the window gets the camera's shape (WIN-19).
+  which is also where the window gets the camera's shape (DESK-12).
 - **The camera sends VPS/SPS/PPS in their own access units**, so every keyframe handed to Media
   Foundation gets them prepended. A decoder that started late has nothing to start from otherwise.
 - **DPAPI keys on the user, not the binary.** That is the whole reason it is used here: an update
-  replaces every byte of the app and the stored session still opens, with no prompt (AUTH-6w). The
+  replaces every byte of the app and the stored session still opens, with no prompt (AUTH-12). The
   Mac had to work for that; Windows gives it away.
 - **A private repo's release asset is a 302 to S3**, and S3 rejects the request if our `Authorization`
   header follows it ("Only one auth mechanism allowed"). The updater strips the header across hosts.

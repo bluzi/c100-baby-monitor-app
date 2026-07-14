@@ -43,11 +43,11 @@ ASSETS="$ROOT/windows/src/BabyMonitor.App/Assets"
 mkdir -p "$ASSETS"
 BASE="$ICONSET/icon_256x256.png"
 
-# The app's own icon, wherever Windows shows one: the taskbar, Alt-Tab, the tray, Explorer (WIN-17).
+# The app's own icon, wherever Windows shows one: the taskbar, Alt-Tab, the tray, Explorer (DESK-17).
 magick "$BASE" -define icon:auto-resize=256,128,64,48,32,16 "$ASSETS/BabyMonitor.ico"
 magick "$ICONSET/icon_128x128.png" "$ASSETS/BabyMonitor.png"
 
-# WIN-1: while the monitor is doing its job the icon is just the mark — a tray icon that keeps
+# DESK-1: while the monitor is doing its job the icon is just the mark — a tray icon that keeps
 # changing its face is one a parent learns to stop reading. It changes for the two things that mean
 # "go and look", and for nothing else:
 #

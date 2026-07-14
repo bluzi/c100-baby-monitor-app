@@ -24,10 +24,10 @@ public interface IAlarmVoice : IDisposable
 /// This is the last link between a crying baby and a sleeping parent, so it is paranoid: it never
 /// throws, and it reports whether it actually started so a swallowed alarm can be retried (WATCH-6).
 ///
-/// A PC has no vibration motor and no separate alarm-volume channel (WIN-21). That is a real
+/// A PC has no vibration motor and no separate alarm-volume channel (DESK-23). That is a real
 /// difference from the phone and it is not papered over: the alarm plays at the volume the user chose
 /// (ALRM-11) on the system's default output, and the tray icon makes a ringing alarm unmistakable
-/// (WIN-1) so a PC with its speakers down still *shows* the alarm.
+/// (DESK-1) so a PC with its speakers down still *shows* the alarm.
 /// </summary>
 public sealed class ToneRinger : IRinger, IDisposable
 {

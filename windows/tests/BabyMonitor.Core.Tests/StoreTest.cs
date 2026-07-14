@@ -78,7 +78,7 @@ public class StoreTest
         Assert.DoesNotContain("ST-secret", stored, StringComparison.Ordinal);
     }
 
-    [Fact(DisplayName = "AUTH-6w a secret store that refuses drops the session — never a crash, never plaintext")]
+    [Fact(DisplayName = "AUTH-12 a secret store that refuses drops the session — never a crash, never plaintext")]
     public void ARefusingStoreDropsTheSession()
     {
         var kv = new MemoryKv();
@@ -91,7 +91,7 @@ public class StoreTest
         Assert.DoesNotContain("ST-secret", stored, StringComparison.Ordinal);
     }
 
-    [Fact(DisplayName = "AUTH-6w a secret store that throws drops the session rather than taking the monitor down")]
+    [Fact(DisplayName = "AUTH-12 a secret store that throws drops the session rather than taking the monitor down")]
     public void AThrowingStoreDropsTheSession()
     {
         var kv = new MemoryKv();
@@ -265,7 +265,7 @@ public class StoreTest
         Assert.Equal(new Settings(), _store.LoadSettings());
     }
 
-    [Fact(DisplayName = "BG-13w the store remembers whether monitoring was running — so a restart can be reported")]
+    [Fact(DisplayName = "BG-13 the store remembers whether monitoring was running — so a restart can be reported")]
     public void MonitoringFlagSurvivesARestart()
     {
         Assert.False(_store.WasMonitoring()); // nothing claimed before the first run

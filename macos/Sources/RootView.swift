@@ -24,7 +24,7 @@ struct RootView: View {
     }
 }
 
-/// The monitor, in whichever shape the window is wearing (MACOS-14).
+/// The monitor, in whichever shape the window is wearing (DESK-9).
 ///
 /// **The video surface is one view, in one place in the tree, for both shapes.** That is not a
 /// tidiness point — it is the whole reason the shapes can be the same window: SwiftUI keeps the
@@ -38,7 +38,7 @@ struct MonitorView: View {
         ZStack {
             VideoStage()
 
-            // LIVE-11m / MACOS-15/16: where the pointer is. Invisible, and never in the way.
+            // LIVE-17 / DESK-10/11: where the pointer is. Invisible, and never in the way.
             PointerTracker(
                 onMove: { state.pointerMoved() },
                 onExit: { state.pointerExited() }
@@ -71,9 +71,9 @@ struct VideoStage: View {
             //
             // The real surface is in the tree even under the visual harness, and the fake picture
             // is drawn *over* it — so a preview run exercises the same view identities as a real
-            // one, and can therefore prove that a change of shape does not rebuild them (MACOS-14).
+            // one, and can therefore prove that a change of shape does not rebuild them (DESK-9).
             VideoSurface(cornerRadius: radius) { size in
-                state.videoSizeChanged(size) // MACOS-19: the window takes the camera's shape
+                state.videoSizeChanged(size) // DESK-12: the window takes the camera's shape
             }
             if Preview.active {
                 Preview.backdrop
@@ -97,7 +97,7 @@ struct VideoSurface: NSViewRepresentable {
         AppleVideo.shared.renderer = bridge
         view.cornerRadius = cornerRadius
         view.onVideoSize = onVideoSize
-        // MACOS-14: this must be logged exactly ONCE per window, however many times the window
+        // DESK-9: this must be logged exactly ONCE per window, however many times the window
         // changes shape. A second line here means the video surface was rebuilt — which means the
         // picture blacked out and the decoder lost its parameter sets, and the promise that the
         // shapes are one window is broken.

@@ -66,11 +66,12 @@ learning may only ever nudge, within hard bounds, and never in secret.
   the phone cannot produce the tone at all, that failure is never silent: monitoring keeps
   running and the notification still appears.
 - **ALRM-11** Each alarm — the crying alarm and the feed-drop alarm (WATCH-2) — has its own
-  **sound** (from a set of choices ranging from calm to urgent), its own **volume** and its own
-  **vibrate** option, set alongside that alarm's other settings. The two alarms may be given the
-  same sound. Every alarm sound can be **previewed** from settings — at that alarm's volume,
-  vibrating if that alarm's vibrate option is on (a preview stops on its own and never counts as
-  a real alarm).
+  **sound** (from a set of choices ranging from calm to urgent), its own **volume** and, on a device
+  that can vibrate, its own **vibrate** option, set alongside that alarm's other settings. The two
+  alarms may be given the same sound. Every alarm sound can be **previewed** from settings — at that
+  alarm's volume, vibrating if that alarm's vibrate option is on (a preview stops on its own and
+  never counts as a real alarm). A desktop has no vibration motor, so it does not offer the setting
+  at all rather than offering one that does nothing (DESK-23).
 - **ALRM-14** An alarm starts at a gentler volume and rises to its configured volume within a few
   seconds — enough to wake without startling, and never so gentle that it fails to wake.
 - **ALRM-5** While an alarm is sounding, no new alarm can trigger. After acknowledgment the alarm
@@ -83,7 +84,8 @@ learning may only ever nudge, within hard bounds, and never in secret.
   times — a window that may cross midnight (e.g. 19:00–07:00). Outside the window nothing
   triggers. A window whose start equals its end means always. Schedule changes take effect
   immediately.
-- **ALRM-10** `[device]` An alarm nobody can hear is not an alarm: if the phone's alarm volume is
-  turned down, it is raised for the duration of the alarm and put back to what the user had once
-  the alarm is acknowledged — including after the app is killed while ringing. If the user
-  themselves changed the alarm volume in the meantime, theirs wins and nothing is put back.
+- **ALRM-10** `[android]` `[device]` An alarm nobody can hear is not an alarm: if the phone's alarm
+  volume is turned down, it is raised for the duration of the alarm and put back to what the user had
+  once the alarm is acknowledged — including after the app is killed while ringing. If the user
+  themselves changed the alarm volume in the meantime, theirs wins and nothing is put back. (A
+  desktop has no alarm volume of its own to raise; what it does instead is DESK-23.)

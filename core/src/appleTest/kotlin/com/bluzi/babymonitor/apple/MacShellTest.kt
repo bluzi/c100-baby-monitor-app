@@ -11,7 +11,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The Mac shell's decisions (MACOS-14/16, LIVE-11m). They live here, in the shared core's Apple
+ * The Mac shell's decisions (DESK-9/11, LIVE-17). They live here, in the shared core's Apple
  * source set, for the same reason every other decision does: a rule that is only written in a view
  * is a rule nobody can test, and this one guards the app's first promise — that a warning is never
  * hidden, and silence is never mistaken for a calm baby.
@@ -25,21 +25,21 @@ class MacShellTest {
         sleepOutage = null,
     )
 
-    // --- MACOS-16: what "needs attention" means ------------------------------
+    // --- DESK-11: what "needs attention" means ------------------------------
 
     @Test
-    fun `MACOS-16 a live healthy monitor needs no attention`() {
+    fun `DESK-11 a live healthy monitor needs no attention`() {
         assertFalse(MacShell.needsAttention(healthy))
     }
 
     @Test
-    fun `MACOS-16 a ringing alarm needs attention`() {
+    fun `DESK-11 a ringing alarm needs attention`() {
         assertTrue(MacShell.needsAttention(healthy.copy(activeAlarm = "BABY_NOISE")))
         assertTrue(MacShell.needsAttention(healthy.copy(activeAlarm = "FEED_DOWN")))
     }
 
     @Test
-    fun `MACOS-16 a feed that is not live while monitoring needs attention`() {
+    fun `DESK-11 a feed that is not live while monitoring needs attention`() {
         assertTrue(MacShell.needsAttention(healthy.copy(status = STATUS_CONNECTING)))
         assertTrue(MacShell.needsAttention(healthy.copy(status = "reconnecting in 4s")))
         assertTrue(MacShell.needsAttention(healthy.copy(status = "error: connection reset")))
@@ -47,26 +47,26 @@ class MacShellTest {
     }
 
     @Test
-    fun `MACOS-16 a stopped monitor needs attention`() {
+    fun `DESK-11 a stopped monitor needs attention`() {
         // The most dangerous quiet state of all: a picture still on screen and nothing watching it.
         assertTrue(MacShell.needsAttention(healthy.copy(running = false, status = STATUS_STOPPED)))
     }
 
     @Test
-    fun `MACOS-16 an expired session needs attention`() {
+    fun `DESK-11 an expired session needs attention`() {
         assertTrue(MacShell.needsAttention(healthy.copy(sessionExpired = true)))
         assertTrue(MacShell.needsAttention(healthy.copy(status = STATUS_SESSION_EXPIRED)))
     }
 
     @Test
-    fun `MACOS-16 a sleep outage still unread needs attention`() {
+    fun `DESK-11 a sleep outage still unread needs attention`() {
         assertTrue(MacShell.needsAttention(healthy.copy(sleepOutage = "The Mac slept for 8 minutes.")))
     }
 
-    // --- MACOS-16: the fade itself -------------------------------------------
+    // --- DESK-11: the fade itself -------------------------------------------
 
     @Test
-    fun `MACOS-16 the mini fades only when nothing is wrong and the pointer is away`() {
+    fun `DESK-11 the mini fades only when nothing is wrong and the pointer is away`() {
         assertEquals(
             0.4,
             MacShell.miniOpacity(healthy, hovering = false, fadeEnabled = true, reduceTransparency = false, idleOpacity = 0.4),
@@ -74,7 +74,7 @@ class MacShellTest {
     }
 
     @Test
-    fun `MACOS-16 the pointer over the mini makes it solid`() {
+    fun `DESK-11 the pointer over the mini makes it solid`() {
         assertEquals(
             1.0,
             MacShell.miniOpacity(healthy, hovering = true, fadeEnabled = true, reduceTransparency = false, idleOpacity = 0.4),
@@ -82,7 +82,7 @@ class MacShellTest {
     }
 
     @Test
-    fun `MACOS-16 a mini that needs attention never fades however faint the setting`() {
+    fun `DESK-11 a mini that needs attention never fades however faint the setting`() {
         val alarming = healthy.copy(activeAlarm = "BABY_NOISE")
         assertEquals(
             1.0,
@@ -96,7 +96,7 @@ class MacShellTest {
     }
 
     @Test
-    fun `MACOS-16 fading can be turned off`() {
+    fun `DESK-11 fading can be turned off`() {
         assertEquals(
             1.0,
             MacShell.miniOpacity(healthy, hovering = false, fadeEnabled = false, reduceTransparency = false, idleOpacity = 0.3),
@@ -104,7 +104,7 @@ class MacShellTest {
     }
 
     @Test
-    fun `MACOS-18 Reduce Transparency turns the fade off`() {
+    fun `DESK-18 Reduce Transparency turns the fade off`() {
         assertEquals(
             1.0,
             MacShell.miniOpacity(healthy, hovering = false, fadeEnabled = true, reduceTransparency = true, idleOpacity = 0.3),
@@ -112,7 +112,7 @@ class MacShellTest {
     }
 
     @Test
-    fun `MACOS-16 the mini can never be set so faint that it cannot be seen`() {
+    fun `DESK-11 the mini can never be set so faint that it cannot be seen`() {
         // A stored 0 — an old build a hand-edited plist a slider dragged to the floor — must not
         // produce an invisible monitor.
         assertEquals(MacShell.MINI_OPACITY_MIN, MacShell.clampMiniOpacity(0.0))
@@ -128,10 +128,10 @@ class MacShellTest {
         )
     }
 
-    // --- BG-11m: a Mac has no Stop -------------------------------------------
+    // --- BG-14: a Mac has no Stop -------------------------------------------
 
     @Test
-    fun `BG-11m the Mac never offers Stop however the monitor is doing`() {
+    fun `BG-14 the Mac never offers Stop however the monitor is doing`() {
         val states = listOf(
             true to STATUS_LIVE,
             true to STATUS_CONNECTING,
@@ -150,7 +150,7 @@ class MacShellTest {
     }
 
     @Test
-    fun `BG-11m a monitor that failed on its own can still be started without quitting`() {
+    fun `BG-14 a monitor that failed on its own can still be started without quitting`() {
         // WATCH-11: `running` stays true when the monitor fails, and that failure has to be
         // recoverable right there — otherwise the only cure for a broken monitor is quitting the app.
         assertTrue(MacShell.macViewerActions(running = true, status = STATUS_MONITOR_FAILED).contains("Resume"))
@@ -158,30 +158,30 @@ class MacShellTest {
     }
 
     @Test
-    fun `BG-11m the Mac still gets everything else the phone gets`() {
+    fun `BG-14 the Mac still gets everything else the phone gets`() {
         val live = MacShell.macViewerActions(running = true, status = STATUS_LIVE)
         assertTrue(live.contains("Mute"))
         assertTrue(live.contains("NightVision"))
         assertTrue(live.contains("Alerts"))
     }
 
-    // --- MACOS-14: which shape the one window is in --------------------------
+    // --- DESK-9: which shape the one window is in --------------------------
 
     @Test
-    fun `MACOS-14 the viewer keeps whichever shape the user chose`() {
+    fun `DESK-9 the viewer keeps whichever shape the user chose`() {
         assertEquals(MacShell.SHAPE_MINI, MacShell.windowShape(screen = "viewer", preferred = MacShell.SHAPE_MINI))
         assertEquals(MacShell.SHAPE_FULL, MacShell.windowShape(screen = "viewer", preferred = MacShell.SHAPE_FULL))
     }
 
     @Test
-    fun `MACOS-14 signing in or picking a camera is never done in a tile`() {
+    fun `DESK-9 signing in or picking a camera is never done in a tile`() {
         // There is no video to float and there are fields to type into: the window goes full.
         assertEquals(MacShell.SHAPE_FULL, MacShell.windowShape(screen = "login", preferred = MacShell.SHAPE_MINI))
         assertEquals(MacShell.SHAPE_FULL, MacShell.windowShape(screen = "devices", preferred = MacShell.SHAPE_MINI))
     }
 
     @Test
-    fun `MACOS-14 an unknown stored shape is full rather than nothing`() {
+    fun `DESK-9 an unknown stored shape is full rather than nothing`() {
         assertEquals(MacShell.SHAPE_FULL, MacShell.windowShape(screen = "viewer", preferred = "gibberish"))
     }
 }

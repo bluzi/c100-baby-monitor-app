@@ -60,21 +60,21 @@ public class HevcTest
 }
 
 /// <summary>
-/// WIN-19/WIN-20. Media Foundation will not decode a byte without a frame size, so on Windows the
+/// DESK-12/DESK-22. Media Foundation will not decode a byte without a frame size, so on Windows the
 /// picture's dimensions have to be read out of the SPS — something neither the phone nor the Mac ever
 /// needed. This is the test that says the bit-walk through profile_tier_level and the Exp-Golomb
 /// fields actually lands on the right numbers.
 /// </summary>
 public class HevcSpsTest
 {
-    [Fact(DisplayName = "WIN-19 the picture size is read out of the SPS")]
+    [Fact(DisplayName = "DESK-12 the picture size is read out of the SPS")]
     public void ReadsDimensions()
     {
         var sps = BuildSps(1920, 1080);
         Assert.Equal((1920, 1080), HevcSps.Dimensions(sps));
     }
 
-    [Fact(DisplayName = "WIN-19 the conformance window is applied — 1088 coded is 1080 shown")]
+    [Fact(DisplayName = "DESK-12 the conformance window is applied — 1088 coded is 1080 shown")]
     public void AppliesTheConformanceWindow()
     {
         // A 1080p encoder codes 1088 rows (a multiple of the CTU size) and crops 4 chroma rows off the
@@ -83,7 +83,7 @@ public class HevcSpsTest
         Assert.Equal((1920, 1080), HevcSps.Dimensions(sps));
     }
 
-    [Fact(DisplayName = "WIN-19 emulation-prevention bytes are stripped before the bits are read")]
+    [Fact(DisplayName = "DESK-12 emulation-prevention bytes are stripped before the bits are read")]
     public void StripsEmulationPrevention()
     {
         // 2304x1296 (the C100's other mode) produces a zero run in the bitstream, which the encoder
@@ -93,7 +93,7 @@ public class HevcSpsTest
         Assert.Equal((2304, 1296), HevcSps.Dimensions(sps));
     }
 
-    [Fact(DisplayName = "WIN-20 an SPS that cannot be read is a null, never a crash")]
+    [Fact(DisplayName = "DESK-22 an SPS that cannot be read is a null, never a crash")]
     public void GarbageIsNull()
     {
         Assert.Null(HevcSps.Dimensions(new byte[] { 0x42, 0x01 }));

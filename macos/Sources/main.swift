@@ -1,6 +1,6 @@
 import AppKit
 
-// MACOS-1: the app lives in the menu bar, not the Dock. `.accessory` is what makes that true —
+// DESK-1: the app lives in the menu bar, not the Dock. `.accessory` is what makes that true —
 // no Dock icon, no app menu, and closing every window does not end the process (BG-5).
 //
 // The delegate is a top-level `let` on purpose. `NSApplication.delegate` is a WEAK reference, so a

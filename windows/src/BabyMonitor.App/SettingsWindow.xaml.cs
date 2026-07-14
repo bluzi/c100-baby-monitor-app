@@ -12,14 +12,24 @@ public sealed partial class SettingsWindow : Window
     private readonly AppState _state;
     private readonly List<string> _sounds;
 
-    /// <summary>True while the controls are being filled in, so echoing them back does not save.</summary>
+    /// <summary>
+    /// True while the controls are being filled in, so echoing a control's own value straight back at
+    /// the store does not "save" it — and, during construction, so a slider coercing its value up to
+    /// its Minimum cannot save anything at all.
+    /// </summary>
     private bool _loading;
 
     public SettingsWindow(AppState state)
     {
-        InitializeComponent();
+        // Before InitializeComponent, and this is not style. Every slider here has a Minimum above
+        // zero, so applying it coerces the value up — which raises ValueChanged **while the markup is
+        // still being loaded**, before any field this class needs would otherwise exist. The handler
+        // would then reach through a null AppState and take the settings window down with it.
         _state = state;
         _sounds = state.AlarmSounds.Select(s => s.Id).ToList();
+        _loading = true;
+
+        InitializeComponent();
 
         Title = "Baby Monitor — Settings";
         ExtendsContentIntoTitleBar = false;

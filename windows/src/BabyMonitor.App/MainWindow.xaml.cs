@@ -90,8 +90,11 @@ public sealed partial class MainWindow : Window
         Root.PointerExited += OnPointerExited;
         _chromeTimer.Tick += (_, _) => HideChrome();
 
-        AppMark.Source = new BitmapImage(
-            new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "BabyMonitor.png")));
+        // ALRM-12: the trigger mark has to be placed against the bar's real width, which does not
+        // exist until the window has laid itself out — and changes every time it is resized.
+        LevelBar.SizeChanged += (_, _) => UpdateLevelBar();
+
+        _ = LoadAppMarkAsync(); // UI-3: the same mark the phone and the Mac show
 
         RegionBox.ItemsSource = _state.Regions.Select(RegionName).ToList();
         RegionBox.SelectedIndex = _state.Regions.ToList().IndexOf("sg");
@@ -241,11 +244,12 @@ public sealed partial class MainWindow : Window
         Prefs.Shape = preferred;
         _applyingShape = true;
 
+        var mini = shape == DesktopShell.ShapeMini;
+
         try
         {
             if (AppWindow.Presenter is OverlappedPresenter presenter)
             {
-                var mini = shape == DesktopShell.ShapeMini;
                 presenter.IsAlwaysOnTop = mini; // WIN-5: it floats over other work
                 presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: !mini);
                 presenter.IsResizable = true;
@@ -256,7 +260,11 @@ public sealed partial class MainWindow : Window
             // WIN-12: with a window open the app is in the taskbar and Alt-Tab, like any other.
             AppWindow.IsShownInSwitchers = true;
 
-            SetTitleBar(shape == DesktopShell.ShapeMini ? MiniDragRegion : TitleBarDrag);
+            // The full shape is dragged by the strip under its caption buttons; the mini tile has no
+            // caption at all, so it is dragged by its middle — and the strip is taken out of the way,
+            // because a caption region swallows the input of anything drawn over it.
+            TitleBarDrag.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
+            SetTitleBar(mini ? MiniDragRegion : TitleBarDrag);
 
             var frame = Prefs.Frame(shape);
             if (frame is { } f)
@@ -765,7 +773,7 @@ public sealed partial class MainWindow : Window
             else
             {
                 var region = _state.Regions[Math.Max(0, RegionBox.SelectedIndex)];
-                step = await _state.SignInAsync(UsernameBox.Text.Trim(), PasswordBox.Password, region);
+                step = await _state.SignInAsync(UsernameBox.Text.Trim(), PasswordField.Password, region);
             }
 
             await HandleSignInStepAsync(step);
@@ -847,6 +855,24 @@ public sealed partial class MainWindow : Window
     {
         LoginError.Message = message ?? string.Empty;
         LoginError.IsOpen = message != null;
+    }
+
+    /// <summary>
+    /// The app's mark, read off disk as bytes rather than pointed at with a URI. `BitmapImage.UriSource`
+    /// speaks ms-appx / ms-appdata / http — a `file:` URI fails, and fails *silently*, leaving a blank
+    /// square where the app's face should be.
+    /// </summary>
+    private async Task LoadAppMarkAsync()
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "Assets", "BabyMonitor.png");
+            AppMark.Source = await LoadImageAsync(await File.ReadAllBytesAsync(path));
+        }
+        catch (Exception e)
+        {
+            Log.Warn("ui", $"could not load the app mark: {e.Message}");
+        }
     }
 
     private static async Task<BitmapImage> LoadImageAsync(byte[] bytes)

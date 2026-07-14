@@ -40,9 +40,6 @@
         <!-- =====================  THE FULL SHAPE (WIN-6)  ===================== -->
         <Grid x:Name="ViewerChrome" Visibility="Collapsed">
 
-            <!-- The drag region under the caption buttons, so the window moves like any other. -->
-            <Border x:Name="TitleBarDrag" Height="36" VerticalAlignment="Top" Background="Transparent" />
-
             <Grid Padding="16,44,16,16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -92,42 +89,60 @@
                                        Visibility="Collapsed" />
                         </Grid>
 
-                        <!-- BG-12w: if Windows would not promise to stay awake, say so. -->
-                        <TextBlock x:Name="SleepWarning"
-                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                   Foreground="#FFB74D"
-                                   TextWrapping="Wrap"
-                                   Visibility="Collapsed"
-                                   Text="&#xE7BA;  Windows would not promise to stay awake — the PC may sleep and stop monitoring" />
+                        <!-- Every warning below is a Grid, not a horizontal StackPanel: a StackPanel
+                             measures its children with infinite width, so TextWrapping never engages and
+                             the sentence runs off the edge of the card — taking its link with it. A
+                             warning that cannot be read is not a warning. -->
 
-                        <!-- LIVE-13: the camera lives on your network, and this PC is not on one. -->
-                        <StackPanel x:Name="NetworkWarning" Orientation="Horizontal" Spacing="8"
+                        <!-- BG-12w: if Windows would not promise to stay awake, say so. -->
+                        <StackPanel x:Name="SleepWarning" Orientation="Horizontal" Spacing="6"
                                     Visibility="Collapsed">
+                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE7BA;"
+                                      FontSize="12" Foreground="#FFB74D" VerticalAlignment="Top" />
                             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="#FFB74D"
                                        TextWrapping="Wrap"
+                                       Text="Windows would not promise to stay awake — the PC may sleep and stop monitoring" />
+                        </StackPanel>
+
+                        <!-- LIVE-13: the camera lives on your network, and this PC is not on one. -->
+                        <Grid x:Name="NetworkWarning" Visibility="Collapsed" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="#FFB74D"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
                                        Text="This PC is offline — the camera can only be reached on its own network" />
-                            <HyperlinkButton x:Name="NetworkSettingsLink"
+                            <HyperlinkButton x:Name="NetworkSettingsLink" Grid.Column="1"
                                              Content="Open network settings"
                                              Padding="0"
                                              FontSize="12"
                                              Click="OnOpenNetworkSettings" />
-                        </StackPanel>
+                        </Grid>
 
                         <!-- WIN-20: Windows may simply not have an H.265 decoder. A black rectangle that
                              never explains itself is the kind of silence this app refuses. -->
-                        <StackPanel x:Name="VideoWarning" Orientation="Horizontal" Spacing="8"
-                                    Visibility="Collapsed">
-                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                        <Grid x:Name="VideoWarning" Visibility="Collapsed" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="#FFB74D"
                                        TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
                                        Text="Windows can't decode this camera's video — sound and the alarm still work" />
-                            <HyperlinkButton x:Name="HevcLink"
+                            <HyperlinkButton x:Name="HevcLink" Grid.Column="1"
                                              Content="Install HEVC Video Extensions"
                                              Padding="0"
                                              FontSize="12"
                                              Click="OnInstallHevc" />
-                        </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
@@ -286,15 +301,17 @@
 
         <!-- =====================  THE MINI SHAPE (WIN-5)  ===================== -->
         <Grid x:Name="MiniChrome" Visibility="Collapsed">
-            <!-- The whole tile drags the window: it has no title bar to grab. -->
-            <Border x:Name="MiniDragRegion" Background="Transparent" />
-
             <Grid Padding="8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
+
+                <!-- The tile is dragged by its MIDDLE, and only its middle. A caption region swallows
+                     the input of anything drawn over it — and what is drawn over this tile includes
+                     Acknowledge, the one control in the whole app that must never stop responding. -->
+                <Border x:Name="MiniDragRegion" Grid.Row="1" Background="Transparent" />
 
                 <!-- Only with the pointer over it (WIN-15): it is never a mystery tile. -->
                 <Grid x:Name="MiniTopControls" Grid.Row="0" Opacity="0">
@@ -374,7 +391,7 @@
                         <StackPanel x:Name="CredentialsGroup" Spacing="12">
                             <TextBox x:Name="UsernameBox" Header="Mi account"
                                      PlaceholderText="Email, phone or Mi ID" />
-                            <PasswordBox x:Name="PasswordBox" Header="Password" />
+                            <PasswordBox x:Name="PasswordField" Header="Password" />
                             <ComboBox x:Name="RegionBox" Header="Server region" HorizontalAlignment="Stretch" />
                             <TextBlock Text="The region the camera is registered in."
                                        Style="{StaticResource CaptionTextBlockStyle}"
@@ -416,8 +433,12 @@
 
                 <ProgressRing x:Name="CamerasBusy" IsActive="True" HorizontalAlignment="Center" />
 
+                <!-- A bounded height, so the list actually scrolls: inside a StackPanel it would be
+                     measured with infinite height, and an account with a dozen cameras would put the
+                     last of them below the bottom of the window, unreachable (CAM-1). -->
                 <ListView x:Name="CamerasList" SelectionMode="Single"
                           ItemClick="OnCameraChosen" IsItemClickEnabled="True"
+                          MaxHeight="360"
                           Background="#12FFFFFF" CornerRadius="12" />
 
                 <!-- CAM-5 / APP-3: readable, with a way to retry — never a dead end. -->
@@ -430,5 +451,13 @@
                 <HyperlinkButton Content="Sign out" Click="OnSignOut" HorizontalAlignment="Center" />
             </StackPanel>
         </Grid>
+
+        <!-- The window's drag strip, and it is the LAST child on purpose: the app draws its own title
+             bar, so if the only drag region lived inside the viewer's chrome then sign-in and the
+             camera picker — where the chrome is collapsed — would be windows nobody could move. It is
+             transparent, it sits above everything, and it clears the content below it (the viewer's
+             own padding starts at 44). In the mini shape it is collapsed: that tile is dragged by its
+             middle instead. -->
+        <Border x:Name="TitleBarDrag" Height="36" VerticalAlignment="Top" Background="Transparent" />
     </Grid>
 </Window>

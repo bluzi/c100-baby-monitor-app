@@ -1,3 +1,4 @@
+import AppKit
 import BabyMonitorCore
 import SwiftUI
 
@@ -10,24 +11,44 @@ struct CamerasView: View {
     @State private var busy = true
     @State private var error: String?
 
+    /// Like sign-in, this is a dialog and not a window (`MonitorWindow.Chrome.dialog`): there is no
+    /// camera chosen yet, so there is nothing to fill a window with. It is the same panel, asking the
+    /// next question.
+    /// The action row spans the whole panel, as it does on the sign-in dialog: Quit belongs on the
+    /// panel's own left edge, under the icon, not floating in the middle of the text column.
     var body: some View {
-        VStack(spacing: 18) {
-            VStack(spacing: 6) {
-                Text("Choose a camera")
-                    .font(.system(size: 22, weight: .semibold))
-                Text("The camera you pick is the one this Mac will watch.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 18) {
+                AppMark(size: 64)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Choose the camera to watch.")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Baby Monitor will watch this one until you switch it. You can change it later from the feed's menu.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    content
+                }
+                .frame(width: 340)
             }
 
-            content
-                .frame(width: 380)
-
-            Button("Sign Out") { state.signOut() } // AUTH-10
-                .buttonStyle(.link)
+            HStack(spacing: 10) {
+                // Same reason as sign-in: a borderless dialog has no traffic lights, so the way out
+                // lives on it. Nothing is being monitored here — no camera has been chosen — so this
+                // is only quitting, and it ends no watch (BG-11m, MACOS-21).
+                Button("Quit") { NSApp.terminate(nil) }
+                Spacer()
+                Button("Sign Out") { state.signOut() } // AUTH-10
+                    .buttonStyle(.link)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
+        .padding(22)
+        .fixedSize()
+        .panelSurface()
         .onAppear(perform: load)
     }
 
@@ -41,8 +62,7 @@ struct CamerasView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 36)
-            .glassSurface(cornerRadius: 18)
+            .padding(.vertical, 24)
         } else if let error {
             // CAM-5 / APP-3: readable, with a way to retry — never a dead end.
             VStack(spacing: 12) {
@@ -57,8 +77,7 @@ struct CamerasView: View {
                     .buttonStyle(.borderedProminent)
             }
             .frame(maxWidth: .infinity)
-            .padding(24)
-            .glassSurface(cornerRadius: 18)
+            .padding(.vertical, 12)
         } else if cameras.isEmpty {
             VStack(spacing: 12) {
                 Image(systemName: "video.slash")
@@ -70,8 +89,7 @@ struct CamerasView: View {
                     .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity)
-            .padding(24)
-            .glassSurface(cornerRadius: 18)
+            .padding(.vertical, 12)
         } else {
             VStack(spacing: 0) {
                 ForEach(Array(cameras.enumerated()), id: \.element.did) { index, camera in
@@ -84,13 +102,24 @@ struct CamerasView: View {
                     }
                 }
             }
-            .glassSurface(cornerRadius: 18)
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+            )
         }
     }
 
     private func load() {
         busy = true
         error = nil
+        guard !Preview.active else {
+            // The harness poses the account rather than asking Xiaomi for it (see `Preview`).
+            busy = false
+            cameras = Preview.cameras
+            error = Preview.camerasError
+            return
+        }
         BabyMonitor.shared.loadCameras { list, message in
             busy = false
             cameras = list ?? []
@@ -108,8 +137,10 @@ private struct CameraRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: "web.camera.fill")
-                    .font(.system(size: 16))
+                // `web.camera.fill` reads as a map pin at this size — a symbol nobody can identify is
+                // worse than no symbol.
+                Image(systemName: "video.fill")
+                    .font(.system(size: 15))
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 2) {

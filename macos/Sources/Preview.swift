@@ -28,6 +28,49 @@ enum Preview {
     /// Pretend a sign-in is in flight, so the spinning button can be looked at without a Mi account.
     static var busy: Bool { env["BM_UI_BUSY"] != nil }
 
+    /// Pose a step of sign-in that only Xiaomi can normally produce: `captcha`, `code`, `error`.
+    static var loginStep: String { env["BM_UI_STEP"] ?? "" }
+
+    /// A drawn stand-in for the captcha Xiaomi would send.
+    static var captchaImage: NSImage {
+        let size = NSSize(width: 160, height: 44)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor(calibratedWhite: 0.92, alpha: 1).setFill()
+        NSRect(origin: .zero, size: size).fill()
+        let text = "7K4M" as NSString
+        text.draw(
+            at: NSPoint(x: 26, y: 8),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 24, weight: .bold),
+                .foregroundColor: NSColor(calibratedWhite: 0.2, alpha: 1),
+                .kern: 6,
+            ]
+        )
+        image.unlockFocus()
+        return image
+    }
+
+    /// The cameras the picker should show. `BM_UI_CAMERAS=` (empty) poses an account with none;
+    /// `BM_UI_CAMERAS_ERROR=…` poses the failure the picker must never be a dead end in (CAM-5).
+    static var cameras: [CameraInfo] {
+        let names = env["BM_UI_CAMERAS"] ?? "Nursery,Toddler Room"
+        return names.split(separator: ",").enumerated().map { index, name in
+            CameraInfo(
+                did: "11784950\(index)",
+                name: String(name),
+                model: "chuangmi.camera.077ac1",
+                mac: "B8:88:80:5E:BE:4\(index)",
+                ip: "192.168.1.13\(index)"
+            )
+        }
+    }
+
+    static var camerasError: String? { env["BM_UI_CAMERAS_ERROR"] }
+
+    /// Which alert to put on screen and photograph: `quit`, `update`, `uptodate`, `failed`.
+    static var alert: String? { env["BM_UI_ALERT"] }
+
     /// Pretend the camera sends a picture of this shape (`BM_UI_ASPECT=1.333`), so MACOS-19 can be
     /// checked against a camera that is not 16:9 without owning one.
     static var aspect: CGFloat { CGFloat(env["BM_UI_ASPECT"].flatMap(Double.init) ?? 0) }

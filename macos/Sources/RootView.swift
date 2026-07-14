@@ -6,6 +6,11 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var state: AppState
 
+    /// Black is the *picture's* background, not the app's. Sign-in and the camera picker are dialogs
+    /// (see `MonitorWindow.Chrome`) — borderless panels floating on their own shadow — so behind them
+    /// there is nothing at all, and a black rectangle would be the window pretending to be a window.
+    private var showsVideo: Bool { state.ui.screen == "viewer" }
+
     var body: some View {
         Group {
             switch state.ui.screen {
@@ -14,7 +19,7 @@ struct RootView: View {
             default: MonitorView()
             }
         }
-        .background(state.shape == .mini ? Color.clear : Color.black)
+        .background(showsVideo && state.shape != .mini ? Color.black : Color.clear)
         .preferredColorScheme(.dark) // UI-1: dark, for a dark room, always
     }
 }

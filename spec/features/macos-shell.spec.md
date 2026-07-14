@@ -18,10 +18,25 @@ only about the shell around it.
   expired session, an unsupported camera, a failed monitor — each get their own icon, in their own
   colour. A menu bar that looks the same whether the monitor is live or dead is the whole failure
   this project exists to prevent, so the *fault* states are loud; the working state is quiet.
-- **MACOS-2** The menu bar menu names the camera being monitored and its current state in words,
-  and offers, at minimum: mute, show the monitor, switch it between its two shapes (MACOS-5),
-  acknowledge (only while an alarm rings), start (only when the monitor has stopped working —
-  BG-11m), check for updates (UPD-9), settings, and quit.
+- **MACOS-2** **The menu bar menu offers what the app can actually do right now, and nothing else.**
+  There are three situations and they are genuinely different, so the menu is:
+  - **Not signed in** — it says so, and offers to sign in. Mute, Show Camera and the rest are not
+    dimmed, they are *absent*: a menu describing a monitor that does not exist is a menu that lies.
+  - **Signed in, no camera chosen** — it says so, and offers to choose one, or to sign out.
+  - **Watching** — it names the camera and its state in words, and offers, at minimum: mute, show the
+    monitor, switch it between its two shapes (MACOS-5), acknowledge (only while an alarm rings),
+    start (only when the monitor has stopped working — BG-11m), **the cameras on the account as a
+    submenu with the watched one checked** (CAM-4), settings, and sign out.
+  Every one of them offers to check for updates (UPD-9), and to quit (BG-11m).
+  Picking another camera from the submenu switches to it there and then — a parent with two children
+  must not have to walk back through the picker to look at the other room. The list is fetched when
+  the menu is opened, never on the state tick: it is a signed request to Xiaomi, and an account that
+  rate-limits itself is an account that cannot reconnect.
+- **MACOS-21** `[device]` Sign-in and the camera picker are **borderless dialogs** (they have no
+  video to fill a window with, so they take the shape of the system's own authorisation panel). A
+  panel has no traffic lights, so the way out is *on* it: each offers Quit. Nothing is being
+  monitored on either screen, so quitting there is only quitting — it ends no watch, and asks
+  nothing (BG-11m).
 - **MACOS-3** `[device]` The menu's Quit is how a Mac stops monitoring (BG-11m), and it asks to be
   confirmed while the monitor is running — a stray click in a menu can no more end a watch than a
   stray tap can.

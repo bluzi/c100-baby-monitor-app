@@ -7,7 +7,7 @@ import SwiftUI
 /// monitor behind it do not. **Quit is the only thing that ends the app** — closing a window never
 /// does, because closing a window must never stop a monitor (BG-5).
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation, NSMenuDelegate {
     /// Built in `applicationDidFinishLaunching`, NOT at construction. Reading the stored session
     /// touches the Keychain, and macOS may want to put an access prompt on screen to allow it —
     /// which it cannot do before `NSApplication.run()` has a run loop to show it on. Doing this
@@ -24,6 +24,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// True only between "the user said yes to a restart" and the process going away — see
     /// `applicationShouldTerminate`.
     private var relaunchingForUpdate = false
+
+    /// The cameras on the account, and which one is being watched — for the menu bar's camera
+    /// submenu (MACOS-2). Held rather than fetched on demand: the device list is a *signed request to
+    /// Xiaomi*, and this menu is rebuilt on every state tick. It is refreshed when the menu opens,
+    /// which is the only moment its freshness can matter.
+    private var cameras: [CameraInfo] = []
+    private var selectedCameraDid: String?
+
+    /// Everything the menu's contents depend on, as one string. The state ticks about twenty times a
+    /// second while live; rebuilding a menu at that rate is absurd, and it would also fight the user
+    /// by rebuilding the menu they are currently reading.
+    private var menuSignature = ""
 
     static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
@@ -47,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu = NSMenu()
+        refreshCameraList() // so the camera submenu is populated the first time it is opened
 
         monitor = MonitorWindowController(state: state)
         monitor.onVisibilityChanged = { [weak self] in self?.updateActivationPolicy() }
@@ -79,6 +92,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// Says out loud what the menu bar actually contains — because MACOS-13's whole failure mode was
     /// a menu that silently was not there, and "the code looks right" is what let that ship.
     private func logMenus() {
+        // The menu bar's own menu, which is the one that changes with what the app can do (MACOS-2).
+        if let tray = statusItem.menu {
+            let items = tray.items.filter { !$0.isSeparatorItem }.map { item -> String in
+                let mark = item.state == .on ? "✓" : ""
+                let sub = item.submenu.map { s in
+                    " ▸ [" + s.items.filter { !$0.isSeparatorItem }
+                        .map { ($0.state == .on ? "✓" : "") + $0.title }
+                        .joined(separator: " · ") + "]"
+                } ?? ""
+                return mark + item.title + sub
+            }
+            Log.info("ui", "tray (\(state.ui.screen)): \(items.joined(separator: " · "))")
+        }
+
         NSApp.mainMenu?.update() // what the menu bar would show if it were pulled down right now
         for menu in NSApp.mainMenu?.items.compactMap(\.submenu) ?? [] {
             menu.update()
@@ -94,6 +121,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// The visual harness (see `Preview`): draw the window, photograph it, quit. Never reached in a
     /// real run — `BM_UI_SNAPSHOT` is not set in one.
     private func takePreviewSnapshot(to path: String) {
+        // An alert is a window like any other, so it can be put on screen and photographed without
+        // being run modally — which is the only way to look at these without a real camera, a real
+        // Mi account and a real published release.
+        if let kind = Preview.alert {
+            let alert: NSAlert
+            switch kind {
+            case "quit": alert = Alerts.quit()
+            case "update": alert = Alerts.updateInstalled(version: "0.1.31", monitoring: true)
+            case "update-idle": alert = Alerts.updateInstalled(version: "0.1.31", monitoring: false)
+            case "uptodate": alert = Alerts.plain(title: "Baby Monitor is up to date.", body: "You are running \(Self.version).")
+            default: alert = Alerts.plain(
+                title: "Could not check for updates.",
+                body: "GitHub rejected the token — it may have expired."
+            )
+            }
+            alert.layout()
+            let window = alert.window
+            window.center()
+            window.orderFrontRegardless()
+            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                Preview.snapshot(window, to: path) { NSApp.terminate(nil) }
+            }
+            return
+        }
+
         let wantsSettings = ProcessInfo.processInfo.environment["BM_UI_PREVIEW"] == "settings"
         if wantsSettings { showSettings(nil) }
 
@@ -167,9 +220,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         button.toolTip = ui.statusLine
     }
 
+    /// **MACOS-2: the menu offers what the app can actually do right now, and nothing else.**
+    ///
+    /// There are three of them, because there are three genuinely different situations — and putting
+    /// Mute and Show Camera in front of someone who has not signed in is the app describing a monitor
+    /// that does not exist:
+    ///
+    ///  - **not signed in**: sign in. Nothing else is true yet.
+    ///  - **signed in, no camera chosen**: choose one, or sign out.
+    ///  - **watching**: everything, plus the account's cameras as a submenu with the watched one
+    ///    checked, so a parent with two children can look at the other room from the menu bar
+    ///    instead of walking back through the picker.
     private func rebuildMenu(_ ui: UiState) {
-        let menu = NSMenu()
+        let signature = [
+            ui.screen, ui.statusLine, String(ui.running), String(ui.muted), ui.activeAlarm ?? "",
+            String(ui.canResume), ui.sleepOutage ?? "", String(state.sleepUnprotected),
+            String(describing: state.updateStatus), state.shape.rawValue,
+            cameras.map(\.did).joined(separator: ","), selectedCameraDid ?? "",
+        ].joined(separator: "|")
+        guard signature != menuSignature else { return }
+        menuSignature = signature
 
+        let menu = NSMenu()
+        switch ui.screen {
+        case "login": buildSignedOutMenu(menu)
+        case "devices": buildNoCameraMenu(menu)
+        default: buildMonitorMenu(menu, ui)
+        }
+        appendAppItems(to: menu)
+        menu.delegate = self // menuWillOpen — see refreshCameraList()
+        statusItem.menu = menu
+    }
+
+    /// AUTH-1: nothing is being monitored and nothing can be. The menu says so, and offers the one
+    /// thing that changes it.
+    private func buildSignedOutMenu(_ menu: NSMenu) {
+        let header = NSMenuItem(title: "Not signed in", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        menu.addItem(.separator())
+
+        let signIn = NSMenuItem(title: "Sign In…", action: #selector(showMonitorWindow(_:)), keyEquivalent: "")
+        signIn.target = self
+        menu.addItem(signIn)
+        menu.addItem(.separator())
+    }
+
+    /// CAM-1: signed in, but no camera chosen — so there is still nothing to mute, and nothing to show.
+    private func buildNoCameraMenu(_ menu: NSMenu) {
+        let header = NSMenuItem(title: "No camera chosen", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        menu.addItem(.separator())
+
+        let choose = NSMenuItem(title: "Choose Camera…", action: #selector(showMonitorWindow(_:)), keyEquivalent: "")
+        choose.target = self
+        menu.addItem(choose)
+
+        let signOut = NSMenuItem(title: "Sign Out", action: #selector(signOut), keyEquivalent: "")
+        signOut.target = self
+        menu.addItem(signOut)
+        menu.addItem(.separator())
+    }
+
+    private func buildMonitorMenu(_ menu: NSMenu, _ ui: UiState) {
         // MACOS-2: what is happening, in words, before anything you can click.
         let header = NSMenuItem(title: ui.statusLine, action: nil, keyEquivalent: "")
         header.isEnabled = false
@@ -187,19 +301,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 action: nil,
                 keyEquivalent: ""
             )
-            item.isEnabled = false
-            menu.addItem(item)
-        }
-        if case let .failing(reason) = state.updateStatus {
-            // UPD-4: an app that has silently stopped updating looks exactly like one that is current.
-            let item = NSMenuItem(title: "⚠︎ Can't check for updates: \(reason)", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-        }
-        if case let .installed(version) = state.updateStatus {
-            // UPD-7: it is on disk and it will run next time. Said once, quietly — the parent
-            // already declined a restart, and an app that keeps asking is an app that gets ignored.
-            let item = NSMenuItem(title: "\(version) installed — runs at the next launch", action: nil, keyEquivalent: "")
             item.isEnabled = false
             menu.addItem(item)
         }
@@ -240,12 +341,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             menu.addItem(resume)
         }
 
+        menu.addItem(cameraMenuItem())
+
         // The ellipsis is Apple's, and it means one thing: "this opens something that needs more
-        // from you." Settings opens a window; a check goes and asks GitHub. Neither happens on the
-        // click itself, so both say so.
+        // from you." Settings opens a window; it does not happen on the click itself, so it says so.
         let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
+
+        let signOut = NSMenuItem(title: "Sign Out", action: #selector(signOut), keyEquivalent: "") // AUTH-10
+        signOut.target = self
+        menu.addItem(signOut)
+
+        menu.addItem(.separator())
+    }
+
+    /// CAM-4 / MACOS-2: **the account's cameras, with the one being watched checked.**
+    ///
+    /// The list is whatever was last fetched, and it is refreshed when the menu opens — never on the
+    /// state tick. Asking Xiaomi for the device list twenty times a second would be a signed request
+    /// per tick, and an account that gets itself rate-limited is an account that cannot reconnect.
+    private func cameraMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Camera", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+
+        if cameras.isEmpty {
+            let loading = NSMenuItem(title: "Looking for cameras…", action: nil, keyEquivalent: "")
+            loading.isEnabled = false
+            submenu.addItem(loading)
+        }
+        for camera in cameras {
+            let entry = NSMenuItem(
+                title: camera.name.isEmpty ? camera.did : camera.name,
+                action: #selector(pickCamera(_:)),
+                keyEquivalent: ""
+            )
+            entry.target = self
+            entry.representedObject = camera
+            entry.state = camera.did == selectedCameraDid ? .on : .off
+            submenu.addItem(entry)
+        }
+
+        submenu.addItem(.separator())
+        let picker = NSMenuItem(title: "Choose Camera…", action: #selector(switchCamera), keyEquivalent: "")
+        picker.target = self
+        submenu.addItem(picker)
+
+        item.submenu = submenu
+        return item
+    }
+
+    /// What is true of the app whatever it happens to be doing.
+    private func appendAppItems(to menu: NSMenu) {
+        if case let .failing(reason) = state.updateStatus {
+            // UPD-4: an app that has silently stopped updating looks exactly like one that is current.
+            let item = NSMenuItem(title: "⚠︎ Can't check for updates: \(reason)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+        if case let .installed(version) = state.updateStatus {
+            // UPD-7: it is on disk and it will run next time. Said once, quietly — the parent already
+            // declined a restart, and an app that keeps asking is an app that gets ignored.
+            let item = NSMenuItem(title: "\(version) installed — runs at the next launch", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
 
         let updates = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdatesNow(_:)), keyEquivalent: "")
         updates.target = self
@@ -263,8 +423,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let quit = NSMenuItem(title: "Quit Baby Monitor", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
 
-        statusItem.menu = menu
+    /// The menu is about to be read, which is the one moment the camera list's freshness matters.
+    func menuWillOpen(_ menu: NSMenu) { refreshCameraList() }
+
+    private func refreshCameraList() {
+        selectedCameraDid = state.selectedCamera?.did
+        guard state.ui.screen == "viewer", !Preview.active else { return }
+        state.loadCameras { [weak self] list in
+            guard let self else { return }
+            self.cameras = list
+            self.rebuildMenu(self.state.ui)
+        }
     }
 
     /// The menu bar menu's items carry their own state; these are the main menu's (MACOS-14).
@@ -286,6 +457,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     @objc private func startMonitoring() { state.start() }
 
+    @objc private func signOut() { state.signOut() } // AUTH-10
+
+    @objc private func switchCamera() { state.switchCamera() } // CAM-4: back to the picker
+
+    /// One click in the menu bar, and the app is watching the other room.
+    @objc private func pickCamera(_ sender: NSMenuItem) {
+        guard let camera = sender.representedObject as? CameraInfo else { return }
+        state.selectCamera(camera)
+        refreshCameraList()
+    }
+
     /// **BG-11m / MACOS-3: quitting is how a Mac stops monitoring, so quitting asks first.**
     ///
     /// The phone protects its Stop button with a confirmation because a single stray tap must never
@@ -303,15 +485,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         guard !relaunchingForUpdate else { return .terminateNow }
         guard state != nil, state.ui.running, !Preview.active else { return .terminateNow }
 
-        let alert = NSAlert()
-        alert.messageText = "Quit Baby Monitor?"
-        alert.informativeText = "Quitting stops monitoring: audio, the alarm and the connection all "
-            + "end. The baby will not be monitored until you open it again."
-        alert.addButton(withTitle: "Quit and Stop Monitoring")
-        alert.addButton(withTitle: "Keep Monitoring")
-        alert.alertStyle = .warning
         NSApp.activate(ignoringOtherApps: true)
-        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+        return Alerts.quit().runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 
     @objc private func dismissOutage() { state.dismissSleepOutage() }
@@ -465,15 +640,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         try await updater.install()
         state.updateStatus = .installed(version: version)
 
-        let alert = NSAlert()
-        alert.messageText = "Baby Monitor \(version) is installed."
-        alert.informativeText = state.ui.running
-            ? "It will run the next time you open Baby Monitor. Restarting now takes a few seconds, "
-                + "during which the baby is not monitored — monitoring resumes by itself afterwards."
-            : "It will run the next time you open Baby Monitor."
-        alert.addButton(withTitle: "Restart Now")
-        alert.addButton(withTitle: "Later")
-        alert.alertStyle = .informational
+        let alert = Alerts.updateInstalled(version: version, monitoring: state.ui.running)
         NSApp.activate(ignoringOtherApps: true)
 
         guard alert.runModal() == .alertFirstButtonReturn else {
@@ -485,12 +652,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     private func tellUser(title: String, body: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = body
-        alert.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        Alerts.plain(title: title, body: body).runModal()
     }
 
     /// UPD-5: apply an update a previous run staged but could not install because the monitor was

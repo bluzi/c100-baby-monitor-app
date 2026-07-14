@@ -1,7 +1,12 @@
 # Device checklist
 
-Manual verification for `[device]` criteria — run on a real phone with a reachable C100 camera
-before calling a release done. Each step names the criteria it verifies.
+Manual verification for `[device]` criteria — run against a real, reachable C100 camera before
+calling a release done. Each step names the criteria it verifies.
+
+Steps 1–25 are the **Android** checklist, run on a real phone. The **macOS** checklist follows,
+and covers only what differs: the monitor itself is the same code, proven by the same tests on
+both platforms, so what needs a human is the shell — and the places where a Mac can do less than
+a phone.
 
 1. **Live playback (LIVE-1):** open the app (signed in, camera selected). Video renders and
    room audio is audible within a few seconds.
@@ -132,3 +137,62 @@ before calling a release done. Each step names the criteria it verifies.
     Acknowledge a crying alarm from the notification with the app closed — the question waits on
     the viewer the next time the app opens. Kill and reopen the app — learned tuning survives;
     Reset in settings clears it and the trigger mark returns to the slider's own point.
+
+
+---
+
+# macOS checklist
+
+Run on a real Mac with a reachable camera. The shared behaviour (crying detection, reconnect,
+watchdog, alarm timing) is not re-verified here — it is the same code, and the same tests run on
+this platform. What follows is the shell, and the honesty about what a Mac cannot do.
+
+M1. **Menu bar is the app (MACOS-1, MACOS-2):** launch it. A menu bar item appears and its icon
+    shows the state; the menu names the camera and reads live/reconnecting/stopped in words.
+    Unplug the camera — the icon and the menu both change within seconds.
+
+M2. **Closing a window is not quitting (MACOS-7, MACOS-9, BG-5):** with audio playing, close the
+    main window. Audio keeps playing, the menu bar item stays. Reopen from the menu — the feed is
+    live immediately, with no reconnect in the log (`log stream --predicate 'process ==
+    "BabyMonitor"'` shows no new "connecting"). Only Quit ends the app.
+
+M3. **Mute keeps the alarm working (MACOS-4, LIVE-3):** mute from the menu bar. The speaker goes
+    silent, the menu says muted. Make noise at the camera — the level indicator still moves and,
+    with the alarm on, it still rings. Only the speaker was silent.
+
+M4. **Mini window floats (MACOS-5, BG-7m):** show the mini window. It sits on top of other apps,
+    stays visible when another app is full-screened, and follows across spaces. Move and resize
+    it, quit and relaunch — it comes back where it was. Close it — monitoring carries on.
+
+M5. **Stop and start (MACOS-3, BG-11):** Stop from the menu — it asks for confirmation; cancel and
+    nothing changes; confirm and audio, alarm and connection all stop. Start again from the menu.
+
+M6. **Alarm audibility (ALRM-4, ALRM-10):** mute the feed, turn the Mac's output volume down, and
+    play a crying clip at the camera for ~3 s. It is still audible, it rings until acknowledged,
+    and the menu bar icon is unmistakable while it rings.
+
+M7. **Idle sleep is held off (BG-12, MACOS-10):** set the Mac to sleep after 1 minute of
+    inactivity. Start monitoring and leave it alone for 5 minutes without touching anything. The
+    Mac does not sleep and audio never stops. Stop monitoring — the Mac sleeps normally again.
+
+M8. **The lid is the honest one (BG-12, MACOS-11):** this is the step that matters most, because
+    it is where the Mac is weaker than the phone and must say so.
+    a. Before relying on it overnight, the app states plainly that a closed lid stops the monitor.
+       Find that message. If a parent could miss it, it is not good enough.
+    b. While monitoring, close the lid for 2 minutes. Open it. The app reports that monitoring was
+       **down**, and for **how long** — it does not simply reconnect as though nothing happened.
+    c. With the watchdog armed, the sleep gap is treated as a real outage (WATCH-2), not as a live
+       feed that happened to be quiet.
+
+M9. **Restart (BG-13, MACOS-8):** while monitoring, restart the Mac. On next launch the app says
+    monitoring stopped and resumes in one click. Turn on "open at login" and restart again — it
+    comes back by itself.
+
+M10. **Updates never interrupt (UPD-3, UPD-5, UPD-7):** with monitoring running, publish a newer
+     release. The app downloads and verifies it, says it is ready, and **does not restart**.
+     Monitoring is untouched. Stop monitoring — the update applies. Confirm the new version under
+     About (UPD-6, LIVE-15).
+
+M11. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. Within a few
+     check cycles the app reports that it can no longer check for updates. Monitoring is
+     completely unaffected. Restore the token — the complaint clears.

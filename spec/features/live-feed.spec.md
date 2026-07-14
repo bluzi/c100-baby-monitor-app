@@ -42,25 +42,30 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   (startup burst, network hiccup, slow decoding), the app skips forward: video drops the backlog
   and resumes at the next clean entry point, audio drops its backlog — a brief glitch, not a
   growing lag. Audio and video never stall each other.
-- **LIVE-9** `[device]` The live feed is landscape only: opening it turns the display to
+- **LIVE-9** `[android]` `[device]` The live feed is landscape only: opening it turns the display to
   landscape no matter how the phone is held, and leaving it lets the phone rotate freely again.
   The video fills the screen and the controls are icon buttons overlaying it in two rows —
   status and level indicator along the top, buttons along the bottom. Less-used actions —
   switching camera, signing out, About — sit behind a menu at the top right instead of being
   always-visible buttons. An unacknowledged alarm's acknowledge control is always visible.
-- **LIVE-11** `[device]` The controls are shown or hidden **only** by tapping the **video**: each
+- **LIVE-9m** `[macos]` `[device]` A Mac has no orientation to lock, so the same intent lands as a
+  window: video full-bleed, the same two rows of overlaid controls, the same rare actions behind a
+  menu, the same always-visible acknowledge (MACOS-6). Which controls appear, and when, is the
+  shared decision (BG-11, WATCH-11) — the phone's button row and the Mac's cannot disagree.
+- **LIVE-11** `[android]` `[device]` The controls are shown or hidden **only** by tapping the **video**: each
   tap toggles them. They never hide on their own — a parent watching the room is never made to
   tap to get them back. Tapping the controls themselves uses the control and never hides them:
   nothing can make them vanish under the user's own finger.
-- **LIVE-13** `[device]` The camera is reachable only on its own network. While the phone has no
-  Wi-Fi (or wired) connection, the live feed warns in plain words that the camera cannot be
-  reached without it; tapping the warning takes the user straight to where Wi-Fi is turned on
-  (the system's Wi-Fi panel or settings). The warning disappears once Wi-Fi is back.
-- **LIVE-14** `[device]` While the live feed is on screen and the feed is live, the screen stays
+- **LIVE-13** `[device]` The camera is reachable only on its own network. While the device has no
+  connection to that network, the live feed warns in plain words that the camera cannot be
+  reached without it, and offers the shortest route to fixing it — on Android `[android]` tapping
+  the warning opens the system's Wi-Fi panel. The warning disappears once the network is back.
+- **LIVE-14** `[device]` While the live feed is on screen and the feed is live, the display stays
   awake — watching the baby never ends in a sleeping screen. When the feed is not live (or the
-  live feed is left), the screen may sleep normally again.
-- **LIVE-15** `[device]` The live feed's menu has an About entry that shows the running app
-  version — enough to tell at a glance whether an update landed.
+  live feed is left), the display may sleep normally again. On macOS this is the display only;
+  keeping the *machine* from suspending the monitor is BG-12, and is a separate promise.
+- **LIVE-15** `[device]` The app shows the running version (on the live feed's menu, under About)
+  — enough to tell at a glance whether an update landed (UPD-6).
 - **LIVE-10** `[device]` The live feed has a night-vision control offering the camera's three modes — off,
   auto, and on. It shows the camera's current mode (read when the feed opens) and, on change,
   sets the mode on the camera. Because the mode lives on the camera, it is shared by everyone

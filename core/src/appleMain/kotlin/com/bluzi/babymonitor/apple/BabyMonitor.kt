@@ -152,7 +152,18 @@ object BabyMonitor {
         val status = MonitorHub.status.value
         val running = MonitorHub.running.value
         val screen = route(hasSession, hasDevice) // cached — see refreshRouting()
+        // MACOS-16: is the monitor doing exactly what the parent thinks it is? Decided once, here,
+        // so the window and the tile cannot come to different answers.
+        val health = MonitorHealth(
+            running = running,
+            status = status,
+            activeAlarm = MonitorHub.activeAlarm.value?.name,
+            sessionExpired = MonitorHub.sessionExpired.value,
+            sleepOutage = sleepOutage,
+        )
         return UiState(
+            health = health,
+            needsAttention = MacShell.needsAttention(health),
             screen = when (screen) {
                 Screen.Login -> "login"
                 Screen.Devices -> "devices"
@@ -424,6 +435,9 @@ object BabyMonitor {
 // --- values that cross the bridge -------------------------------------------
 
 data class UiState(
+    /** MACOS-16: everything the shell needs to know before it may let the monitor fade. */
+    val health: MonitorHealth,
+    val needsAttention: Boolean,
     val screen: String, // "login" | "devices" | "viewer"
     val running: Boolean,
     val status: String,

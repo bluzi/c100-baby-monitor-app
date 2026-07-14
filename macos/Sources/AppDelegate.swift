@@ -1,14 +1,13 @@
 import AppKit
 import BabyMonitorCore
 import Combine
-import ServiceManagement
 import SwiftUI
 
 /// MACOS-1/2/9: the app lives in the menu bar. Windows come and go; the menu bar item and the
 /// monitor behind it do not. **Quit is the only thing that ends the app** — closing a window never
 /// does, because closing a window must never stop a monitor (BG-5).
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation {
     /// Built in `applicationDidFinishLaunching`, NOT at construction. Reading the stored session
     /// touches the Keychain, and macOS may want to put an access prompt on screen to allow it —
     /// which it cannot do before `NSApplication.run()` has a run loop to show it on. Doing this
@@ -17,17 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private var cancellables = Set<AnyCancellable>()
 
-    private var mainWindow: NSWindow?
-    private var miniWindow: NSPanel?
+    private var monitor: MonitorWindowController!
     private var settingsWindow: NSWindow?
 
     private lazy var updater = Updater(currentVersion: Self.version)
     private var updateTimer: Timer?
-
-    /// Cached, because the menu is rebuilt on every state tick (~20 Hz while live) and reading the
-    /// Keychain that often is both absurd and, when the read is not pre-authorised, a machine gun
-    /// of password prompts. It only changes when the user sets or removes the token.
-    private var hasUpdateToken = UpdaterToken.load() != nil
 
     static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
@@ -38,19 +31,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // starts monitoring almost immediately, and once it does, an update may not be applied. If
         // a previous run staged one and then found the monitor running, this is its moment — the
         // only one where installing costs nothing, because nothing is being watched yet.
-        if installStagedFromEarlierRun() { return } // we are relaunching; do not set the app up
+        //
+        // The visual harness does none of it: it must not install anything, and — the part that
+        // bites — it must not touch a Keychain item, because a throwaway build is not the binary
+        // that wrote one, and macOS answers that with a password prompt.
+        if !Preview.active, installStagedFromEarlierRun() { return } // relaunching; do not set up
 
         state = AppState()
         Log.info("app", "Baby Monitor \(Self.version) starting — screen=\(state.ui.screen)")
+
+        MainMenu.install() // MACOS-13: and with it, ⌘V
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu = NSMenu()
+
+        monitor = MonitorWindowController(state: state)
+        monitor.onVisibilityChanged = { [weak self] in self?.updateActivationPolicy() }
 
         state.$ui
             .receive(on: RunLoop.main)
             .sink { [weak self] ui in
                 self?.refreshStatusItem(ui)
                 self?.rebuildMenu(ui)
-                self?.routeWindows(ui)
             }
             .store(in: &cancellables)
 
@@ -63,17 +65,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         startUpdateChecks()
 
         // BG-13: a Mac that restarted overnight comes back with the monitor stopped. Say so, and
-        // let one click fix it — the window opens on the viewer with Resume right there.
-        if state.ui.screen == "viewer" {
-            showMain()
-        } else {
-            showMain() // sign-in / camera picker also live in the main window
+        // let one click fix it — the window opens on the viewer with Start right there. Sign-in and
+        // the camera picker live in the same window (MACOS-14).
+        monitor.show()
+
+        if Preview.active { logMenus() }
+        if let path = Preview.snapshotPath { takePreviewSnapshot(to: path) }
+    }
+
+    /// Says out loud what the menu bar actually contains — because MACOS-13's whole failure mode was
+    /// a menu that silently was not there, and "the code looks right" is what let that ship.
+    private func logMenus() {
+        NSApp.mainMenu?.update() // what the menu bar would show if it were pulled down right now
+        for menu in NSApp.mainMenu?.items.compactMap(\.submenu) ?? [] {
+            menu.update()
+            // Alternates (Close/Close All and the like) are in the list but never on screen at the
+            // same time as the item they replace — so they are marked, not miscounted as duplicates.
+            let items = menu.items
+                .filter { !$0.isSeparatorItem && !$0.isAlternate && !$0.isHidden }
+                .map { $0.keyEquivalent.isEmpty ? $0.title : "\($0.title) [⌘\($0.keyEquivalent)]" }
+            Log.info("ui", "menu \(menu.title): \(items.joined(separator: " · "))")
         }
     }
 
-    /// MACOS-9: the app has no Dock icon and no windows to speak of. Closing the last one is not a
-    /// reason to quit — the monitor is still running.
+    /// The visual harness (see `Preview`): draw the window, photograph it, quit. Never reached in a
+    /// real run — `BM_UI_SNAPSHOT` is not set in one.
+    private func takePreviewSnapshot(to path: String) {
+        let wantsSettings = ProcessInfo.processInfo.environment["BM_UI_PREVIEW"] == "settings"
+        if wantsSettings { showSettings(nil) }
+
+        // BM_UI_TOGGLE: change shape and change back before the picture is taken. The log then says
+        // whether the video surface survived it (MACOS-14) — the one promise of the one-window
+        // design that a still picture cannot show.
+        if ProcessInfo.processInfo.environment["BM_UI_TOGGLE"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.state.toggleShape() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { self.state.toggleShape() }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self, let window = wantsSettings ? self.settingsWindow : self.monitor.nsWindow else {
+                return NSApp.terminate(nil)
+            }
+            Preview.snapshot(window, to: path) { NSApp.terminate(nil) }
+        }
+    }
+
+    /// MACOS-9: closing the last window is not a reason to quit — the monitor is still running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Clicking the Dock icon (which only exists while a window is open) brings the monitor back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows { monitor.show() }
+        return true
+    }
+
+    /// MACOS-12: an app with no windows recedes into the menu bar and stops cluttering the switcher;
+    /// an app with one is reachable by Cmd-Tab and Mission Control like any other.
+    private func updateActivationPolicy() {
+        let hasWindow = monitor.isVisible || settingsWindow?.isVisible == true
+        NSApp.setActivationPolicy(hasWindow ? .regular : .accessory)
+        rebuildMenu(state.ui)
+    }
 
     // MARK: - Menu bar (MACOS-1, MACOS-2)
 
@@ -156,25 +208,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // MACOS-4 / LIVE-2: says which state it is IN, never what clicking would do.
-        let mute = NSMenuItem(
-            title: ui.muted ? "Muted (sound off)" : "Sound on",
-            action: #selector(toggleMute),
-            keyEquivalent: "m"
-        )
+        let mute = NSMenuItem(title: ui.muted ? "Muted (sound off)" : "Sound on", action: #selector(toggleMute), keyEquivalent: "")
         mute.target = self
         mute.state = ui.muted ? .on : .off
         menu.addItem(mute)
 
-        let main = NSMenuItem(title: "Show camera", action: #selector(showMain), keyEquivalent: "1")
-        main.target = self
-        menu.addItem(main)
+        // MACOS-2/14: one window, two shapes — so one item shows it and one changes its shape.
+        let show = NSMenuItem(title: "Show Camera", action: #selector(showMonitorWindow(_:)), keyEquivalent: "")
+        show.target = self
+        menu.addItem(show)
 
-        let mini = NSMenuItem(
-            title: miniWindow?.isVisible == true ? "Hide mini window" : "Show mini window",
-            action: #selector(toggleMini),
-            keyEquivalent: "2"
-        )
+        let mini = NSMenuItem(title: "Mini Window", action: #selector(toggleShape(_:)), keyEquivalent: "")
         mini.target = self
+        mini.state = state.shape == .mini ? .on : .off
         menu.addItem(mini)
 
         menu.addItem(.separator())
@@ -182,32 +228,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // BG-11 / WATCH-11 / MACOS-3: which of these exist is the SHARED decision (core's
         // viewerActionKinds), so this menu and the phone's button row cannot disagree.
         if ui.canResume {
-            let resume = NSMenuItem(title: "Start monitoring", action: #selector(startMonitoring), keyEquivalent: "")
+            let resume = NSMenuItem(title: "Start Monitoring", action: #selector(startMonitoring), keyEquivalent: "")
             resume.target = self
             menu.addItem(resume)
         }
         if ui.canStop {
-            let stop = NSMenuItem(title: "Stop monitoring…", action: #selector(stopMonitoring), keyEquivalent: "")
+            let stop = NSMenuItem(title: "Stop Monitoring…", action: #selector(stopMonitoring), keyEquivalent: "")
             stop.target = self
             menu.addItem(stop)
         }
 
-        let settings = NSMenuItem(title: "Alerts…", action: #selector(showSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
 
-        let token = NSMenuItem(
-            title: hasUpdateToken ? "Change update token…" : "Set up automatic updates…",
-            action: #selector(setUpdateToken),
-            keyEquivalent: ""
-        )
-        token.target = self
-        menu.addItem(token)
-
         menu.addItem(.separator())
 
-        let about = NSMenuItem(title: "Baby Monitor \(Self.version)", action: nil, keyEquivalent: "")
-        about.isEnabled = false
+        let about = NSMenuItem(title: "About Baby Monitor", action: #selector(showAbout(_:)), keyEquivalent: "")
+        about.target = self
         menu.addItem(about)
 
         let quit = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
@@ -215,6 +253,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(quit)
 
         statusItem.menu = menu
+    }
+
+    /// The menu bar menu's items carry their own state; these are the main menu's (MACOS-14).
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(toggleShape(_:)):
+            menuItem.state = state.shape == .mini ? .on : .off
+            return state.ui.screen == "viewer" // a sign-in form does not go in a tile
+        default:
+            return true
+        }
     }
 
     // MARK: - Actions
@@ -230,7 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let alert = NSAlert()
         alert.messageText = "Stop monitoring?"
         alert.informativeText = "Audio, the alarm and the connection all stop. The baby will not be monitored."
-        alert.addButton(withTitle: "Stop monitoring")
+        alert.addButton(withTitle: "Stop Monitoring")
         alert.addButton(withTitle: "Cancel")
         alert.alertStyle = .warning
         NSApp.activate(ignoringOtherApps: true)
@@ -242,158 +291,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func dismissOutage() { state.dismissSleepOutage() }
 
-    /// UPD-5: only reachable while monitoring is stopped — the menu item is disabled otherwise.
-    @objc private func installUpdate() { installStagedUpdateIfIdle() }
+    @objc func showMonitorWindow(_ sender: Any?) { monitor.show() }
 
-    /// The repository is private, so the updater needs a credential to read it — exactly as
-    /// Obtainium does on the phone. A fine-grained token with read-only Contents access, kept in
-    /// the Keychain and never in the binary or the repo.
-    @objc private func setUpdateToken() {
-        let alert = NSAlert()
-        alert.messageText = "Automatic updates"
-        alert.informativeText = """
-        Baby Monitor updates itself from the private repository, and needs a GitHub token to read it.
+    /// MACOS-7: the window closes; the monitor does not notice.
+    @objc func hideMonitorWindow(_ sender: Any?) { monitor.hide() }
 
-        Create a fine-grained personal access token with read-only access to Contents on
-        bluzi/c100-baby-monitor-app, and paste it below. It is stored in your Keychain.
-
-        Updates are downloaded and verified in the background, and only ever installed while \
-        monitoring is stopped — the app will never restart itself while it is watching the baby.
-        """
-        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.placeholderString = "github_pat_…"
-        alert.accessoryView = field
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        if hasUpdateToken { alert.addButton(withTitle: "Remove") }
-
-        NSApp.activate(ignoringOtherApps: true)
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            let token = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !token.isEmpty else { return }
-            UpdaterToken.save(token)
-            hasUpdateToken = true
-            Log.info("update", "update token stored — checking now")
-            Task { await checkForUpdate() }
-        case .alertThirdButtonReturn:
-            UpdaterToken.clear()
-            hasUpdateToken = false
-            state.updateStatus = .idle
-            Log.warn("update", "update token removed — the app will no longer update itself")
-        default:
-            break
-        }
-        rebuildMenu(state.ui)
+    /// MACOS-14: the same window, worn small — or worn full again.
+    @objc func toggleShape(_ sender: Any?) {
+        if !monitor.isVisible { monitor.show() }
+        state.toggleShape()
     }
+
+    @objc func showAbout(_ sender: Any?) {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "Baby Monitor",
+            .credits: NSAttributedString(
+                string: "Turns a Xiaomi camera into a baby monitor.\nIt keeps watching when the window is closed — only Quit stops it.",
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 11),
+                    .foregroundColor: NSColor.secondaryLabelColor,
+                ]
+            ),
+        ])
+    }
+
+    @objc func checkForUpdatesNow(_ sender: Any?) {
+        Task { await checkForUpdate() }
+    }
+
+    /// UPD-5: only ever with monitoring stopped — the menu item is disabled otherwise.
+    @objc private func installUpdate() { installStagedUpdateIfIdle() }
 
     @objc private func quit() { NSApp.terminate(nil) }
 
-    // MARK: - Windows
+    // MARK: - Settings
 
-    @objc private func showMain() {
-        if mainWindow == nil {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "Baby Monitor"
-            window.titlebarAppearsTransparent = true
-            window.isReleasedWhenClosed = false // MACOS-7: closing it is not destroying it
-            window.center()
-            window.setFrameAutosaveName("BabyMonitorMain")
-            window.contentView = NSHostingView(rootView: RootView().environmentObject(state))
-            window.appearance = NSAppearance(named: .darkAqua) // UI-1
-            window.delegate = self
-            mainWindow = window
-        }
-        present(mainWindow)
-    }
-
-    /// MACOS-12: a window you cannot Cmd-Tab to is a window you have to go hunting for, and at 3am
-    /// that is the difference between glancing at the baby and giving up.
-    ///
-    /// A pure `.accessory` app is deliberately excluded from the app switcher and the Dock. So the
-    /// app is `.accessory` only when it has nothing to switch *to*: open a window and it becomes a
-    /// regular app (Cmd-Tab, Dock icon, Mission Control); close the last one and it recedes back
-    /// into the menu bar. The monitor is untouched by any of it — it never lived in a window (BG-5).
-    private func present(_ window: NSWindow?) {
-        guard let window else { return }
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
-    }
-
-    /// The last real window closed — go back to being a menu bar app. The mini panel does not
-    /// count: it is a floating view, and keeping a Dock icon alive for it would defeat the point.
-    func windowWillClose(_ notification: Notification) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let stillOpen = [self.mainWindow, self.settingsWindow].contains { $0?.isVisible == true }
-            if !stillOpen { NSApp.setActivationPolicy(.accessory) }
-        }
-    }
-
-    /// MACOS-5: small, always on top, over full-screen apps and across spaces. A view, not the
-    /// monitor — closing it never stops anything (BG-7m).
-    @objc private func toggleMini() {
-        if let miniWindow, miniWindow.isVisible {
-            miniWindow.orderOut(nil)
-            rebuildMenu(state.ui)
-            return
-        }
-        if miniWindow == nil {
-            let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 320, height: 200),
-                styleMask: [.titled, .closable, .resizable, .nonactivatingPanel, .utilityWindow],
-                backing: .buffered,
-                defer: false
-            )
-            panel.title = "Baby Monitor"
-            panel.level = .floating // above ordinary windows
-            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            panel.isReleasedWhenClosed = false
-            panel.hidesOnDeactivate = false
-            panel.setFrameAutosaveName("BabyMonitorMini") // MACOS-5: its position is remembered
-            panel.contentView = NSHostingView(rootView: MiniView().environmentObject(state))
-            panel.appearance = NSAppearance(named: .darkAqua)
-            if panel.frame.origin == .zero, let screen = NSScreen.main {
-                let visible = screen.visibleFrame
-                panel.setFrameOrigin(NSPoint(x: visible.maxX - 340, y: visible.maxY - 220))
-            }
-            miniWindow = panel
-        }
-        miniWindow?.orderFrontRegardless()
-        rebuildMenu(state.ui)
-    }
-
-    @objc private func showSettings() {
+    @objc func showSettings(_ sender: Any?) {
         if settingsWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 460, height: 620),
-                styleMask: [.titled, .closable],
+                contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
+                styleMask: [.titled, .closable, .resizable],
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Alerts"
+            window.title = "Settings"
             window.isReleasedWhenClosed = false
             window.center()
+            window.setFrameAutosaveName("BabyMonitorSettings")
+            window.minSize = NSSize(width: 480, height: 420)
             window.contentView = NSHostingView(rootView: SettingsView().environmentObject(state))
             window.appearance = NSAppearance(named: .darkAqua)
             window.delegate = self
             settingsWindow = window
         }
-        present(settingsWindow)
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        updateActivationPolicy()
     }
 
-    /// APP-1: the main window follows the stored state — sign-in, camera picker, or the feed.
-    private func routeWindows(_ ui: UiState) {
-        if ui.screen != "viewer", miniWindow?.isVisible == true {
-            miniWindow?.orderOut(nil) // nothing to show
-        }
+    /// The settings window closed. If it was the last one, the app goes back to being a menu bar
+    /// item (MACOS-12) — and the monitor, as ever, does not notice (BG-5).
+    func windowWillClose(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in self?.updateActivationPolicy() }
     }
 
     // MARK: - Sleep and wake (BG-12, MACOS-11)
@@ -413,9 +374,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.state.systemDidWake()
+                guard let self else { return }
+                self.state.systemDidWake()
                 // MACOS-11: the outage is surfaced, not swallowed. Put it where it will be seen.
-                if self?.state.ui.sleepOutage != nil { self?.showMain() }
+                if self.state.ui.sleepOutage != nil { self.monitor.show() }
             }
         }
     }
@@ -423,6 +385,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Updates
 
     private func startUpdateChecks() {
+        // The visual harness must never reach for a Keychain item. Checking for an update reads the
+        // updater's GitHub token, and a throwaway build is not the binary that wrote it — so macOS
+        // stops and asks the person at the Mac for their login password. Looking at a window is not
+        // worth a password prompt, let alone one per launch.
+        guard !Preview.active else { return }
+
         Task { await self.checkForUpdate() }
         // Every 6 hours. This is a monitor, not a package manager — checking harder buys nothing.
         updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
@@ -440,7 +408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 state.updateStatus = .idle
             }
         } catch Updater.UpdaterError.noToken {
-            // Not a failure — updates simply have not been set up yet, and the menu says so. UPD-4
+            // Not a failure — updates simply have not been set up yet, and settings say so. UPD-4
             // is about an updater that HAS been set up and has quietly stopped working; an updater
             // that cries wolf on a fresh install is one nobody reads by the time it matters.
             state.updateStatus = .idle
@@ -473,7 +441,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     /// **UPD-5.** The whole reason this updater exists. It applies only with monitoring stopped.
-    private func installStagedUpdateIfIdle() {
+    func installStagedUpdateIfIdle() {
         guard !state.ui.running else {
             Log.info("update", "an update is staged but monitoring is running — it waits")
             return

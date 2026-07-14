@@ -56,10 +56,20 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   tap toggles them. They never hide on their own — a parent watching the room is never made to
   tap to get them back. Tapping the controls themselves uses the control and never hides them:
   nothing can make them vanish under the user's own finger.
+- **LIVE-11m** `[macos]` `[device]` A Mac has a pointer, so the controls follow it instead of a tap:
+  they are there whenever the pointer is over the window, and they fade away a few seconds after it
+  leaves or stops moving — any movement brings them straight back, with no click needed. What the
+  feed is *doing* never fades: **the status line, the level indicator, and any warning or ringing
+  alarm are always on screen**, whatever the pointer is doing. The rule is the phone's rule
+  (LIVE-11) against the same hazard: a parent must never have to go looking for the state of the
+  monitor, and a control that hides is never one that matters.
 - **LIVE-13** `[device]` The camera is reachable only on its own network. While the device has no
   connection to that network, the live feed warns in plain words that the camera cannot be
   reached without it, and offers the shortest route to fixing it — on Android `[android]` tapping
-  the warning opens the system's Wi-Fi panel. The warning disappears once the network is back.
+  the warning opens the system's Wi-Fi panel; on macOS `[macos]` it opens Network settings. The
+  warning disappears once the network is back. (A Mac may sit on the camera's network over
+  Ethernet, so the Mac warns about having *no* network rather than about not being on Wi-Fi: the
+  hazard is a camera that cannot be reached, not a particular radio being off.)
 - **LIVE-14** `[device]` While the live feed is on screen and the feed is live, the display stays
   awake — watching the baby never ends in a sleeping screen. When the feed is not live (or the
   live feed is left), the display may sleep normally again. On macOS this is the display only;

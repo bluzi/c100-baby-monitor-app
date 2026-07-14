@@ -1,0 +1,3 @@
+package = copus
+headers = opus/opus.h
+staticLibraries = libopus.a

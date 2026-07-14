@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>BabyMonitor</string>
+    <key>CFBundleDisplayName</key>
+    <string>Baby Monitor</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.bluzi.babymonitor</string>
+    <key>CFBundleExecutable</key>
+    <string>BabyMonitor</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION_NAME__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION_CODE__</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <!-- MACOS-1: menu bar only. No Dock icon, no app menu. -->
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <!-- BG-5: the monitor is the app. macOS must never decide to suspend it for us. -->
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
+</dict>
+</plist>

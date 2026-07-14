@@ -327,6 +327,21 @@ W1. **The tray is the app, and it is quiet while it works (WIN-1, WIN-2, BG-2w):
     alarm: it changes again, to its own icon. The menu opens with either mouse button and dismisses
     when you click away, like every other tray menu.
 
+W1a. **The menu changes with what the app can do (WIN-2):** sign out. The tray menu now reads
+    **"Not signed in"** and offers **Sign in…** — Mute, Show camera and Mini window are *gone*, not
+    dimmed. Click Sign in… and the window appears. Sign in but do not choose a camera: the menu reads
+    "No camera chosen" and offers Choose camera… and Sign out. Choose one — the full menu comes back.
+
+W1b. **The camera submenu (WIN-2, CAM-4):** with two cameras on the account, open the tray menu →
+    Camera. Both are listed and **the one being watched has a checkmark**. Pick the other one: the app
+    switches to it within seconds (the status line names the new camera), and reopening the submenu
+    shows the checkmark has moved. "Choose camera…" at the bottom still opens the picker.
+
+W1c. **A way out on the sign-in screen (WIN-23):** on the sign-in panel and on the camera picker there
+    is an **Exit Baby Monitor** link. Click it: the app exits **without asking**, because nothing was
+    being monitored. (Closing the window with the X only hides it to the tray — which is right for a
+    monitor, and is why the way out has to be on the screen.)
+
 W2. **Closing a window is not exiting (WIN-7, WIN-9, WIN-12, BG-5):** with audio playing, close the
     window (the X, and again with Alt-F4). Audio keeps playing, the tray icon stays, and the first
     close says where the app went. With the window closed, Alt-Tab and the taskbar no longer show the

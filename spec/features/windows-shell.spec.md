@@ -23,17 +23,35 @@ item), never the promise.
   A tray that looks the same whether the feed is live or dead is the failure this whole project is
   built against, so the fault states are loud; the working state is quiet. (Connecting and
   reconnecting are the monitor working, not failing, and stay quiet.)
-- **WIN-2** The tray menu names the camera being monitored and its current state in words, and
-  offers, at minimum: mute, show the monitor, switch it between its two shapes (WIN-5), acknowledge
-  (only while an alarm rings), start (only when the monitor has stopped working — BG-11w), check for
-  updates (UPD-9), settings, and exit. It is a real Windows context menu, opened with either mouse
-  button, and it dismisses the way every other one on the desktop does.
+- **WIN-2** **The tray menu offers what the app can actually do right now, and nothing else.**
+  There are three situations and they are genuinely different, so the menu is:
+  - **Not signed in** — it says so, and offers to sign in. Mute, Show Camera and the rest are not
+    dimmed, they are *absent*: a menu describing a monitor that does not exist is a menu that lies.
+  - **Signed in, no camera chosen** — it says so, and offers to choose one, or to sign out.
+  - **Watching** — it names the camera and its state in words, and offers, at minimum: mute, show the
+    monitor, switch it between its two shapes (WIN-5), acknowledge (only while an alarm rings), start
+    (only when the monitor has stopped working — BG-11w), **the cameras on the account as a submenu
+    with the watched one checked** (CAM-4), settings, and sign out.
+
+  Every one of them offers to check for updates (UPD-9), and to exit (BG-11w).
+  Picking another camera from the submenu switches to it there and then — a parent with two children
+  must not have to walk back through the picker to look at the other room. The list is fetched when
+  the menu is opened, never on the state tick: it is a signed request to Xiaomi, and an account that
+  rate-limits itself is an account that cannot reconnect.
+
+  It is a real Windows context menu, opened with either mouse button, and it dismisses the way every
+  other one on the desktop does.
 - **WIN-3** `[device]` **The menu's Exit is how a PC stops monitoring** (BG-11w), and it asks to be
   confirmed while the monitor is running — a stray click in a menu can no more end a watch than a
   stray tap can. There is no Stop control anywhere: a PC does not have one.
 - **WIN-4** `[device]` Mute in the menu is the same mute as everywhere else (LIVE-2): it silences
   the speaker only. **Level monitoring and the crying alarm keep working while muted** (LIVE-3), and
   the menu says which state it is in (a checked item) rather than what clicking would do.
+- **WIN-23** `[device]` Sign-in and the camera picker offer **Exit** on the screen itself. Closing
+  their window only hides the app to the tray (WIN-7), which is the right answer for a monitor and
+  the wrong one for a parent who has decided not to use the app at all — the way out must be where
+  they are looking, not behind a tray icon they have not learned yet. Nothing is being monitored on
+  either screen, so exiting there is only exiting: it ends no watch, and asks nothing (BG-11w).
 - **WIN-9** Exit is the only thing that ends the app — and, because the app watches until it is
   exited (BG-11w), it is also the only thing that ends the watch. Closing a window never does
   (BG-5): it hides to the tray. The app never exits or restarts itself: not on an update (UPD-5),

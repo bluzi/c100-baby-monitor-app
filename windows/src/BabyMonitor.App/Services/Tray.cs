@@ -3,12 +3,23 @@ using Log = BabyMonitor.App.Services.Logging.Log;
 
 namespace BabyMonitor.App.Services;
 
-/// <summary>One item in the tray menu. A null <see cref="Action"/> makes it a disabled label.</summary>
-public sealed record TrayItem(string Text, Action? Action = null, bool Checked = false, bool Separator = false)
+/// <summary>
+/// One item in the tray menu. A null <see cref="Action"/> makes it a disabled label; a non-null
+/// <see cref="Children"/> makes it a submenu.
+/// </summary>
+public sealed record TrayItem(
+    string Text,
+    Action? Action = null,
+    bool Checked = false,
+    bool Separator = false,
+    IReadOnlyList<TrayItem>? Children = null)
 {
     public static TrayItem Divider => new(string.Empty, Separator: true);
 
     public static TrayItem Label(string text) => new(text);
+
+    public static TrayItem Submenu(string text, IReadOnlyList<TrayItem> children) =>
+        new(text, Children: children);
 }
 
 /// <summary>
@@ -49,6 +60,7 @@ public sealed class TrayIcon : IDisposable
     private const uint MfSeparator = 0x00000800;
     private const uint MfChecked = 0x00000008;
     private const uint MfGrayed = 0x00000001;
+    private const uint MfPopup = 0x00000010;
 
     private const uint TpmRightButton = 0x0002;
     private const uint TpmReturnCmd = 0x0100;
@@ -249,28 +261,7 @@ public sealed class TrayIcon : IDisposable
         try
         {
             _commands.Clear();
-            foreach (var item in items)
-            {
-                if (item.Separator)
-                {
-                    AppendMenu(menu, MfSeparator, IntPtr.Zero, null);
-                    continue;
-                }
-
-                uint flags = MfString;
-                if (item.Checked)
-                {
-                    flags |= MfChecked;
-                }
-
-                if (item.Action == null)
-                {
-                    flags |= MfGrayed; // a label, not a control
-                }
-
-                _commands.Add(item.Action ?? (() => { }));
-                AppendMenu(menu, flags, new IntPtr(_commands.Count), item.Text);
-            }
+            Fill(menu, items);
 
             GetCursorPos(out var point);
 
@@ -287,7 +278,50 @@ public sealed class TrayIcon : IDisposable
         }
         finally
         {
-            DestroyMenu(menu);
+            DestroyMenu(menu); // takes its submenus with it
+        }
+    }
+
+    /// <summary>
+    /// Builds one level of the menu, recursing into submenus (CAM-4's camera list is one). A submenu
+    /// carries no command id of its own — Windows never sends WM_COMMAND for the parent of a popup.
+    /// </summary>
+    private void Fill(IntPtr menu, IReadOnlyList<TrayItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.Separator)
+            {
+                AppendMenu(menu, MfSeparator, IntPtr.Zero, null);
+                continue;
+            }
+
+            if (item.Children != null)
+            {
+                var submenu = CreatePopupMenu();
+                if (submenu == IntPtr.Zero)
+                {
+                    continue;
+                }
+
+                Fill(submenu, item.Children);
+                AppendMenu(menu, MfPopup, submenu, item.Text);
+                continue;
+            }
+
+            uint flags = MfString;
+            if (item.Checked)
+            {
+                flags |= MfChecked;
+            }
+
+            if (item.Action == null)
+            {
+                flags |= MfGrayed; // a label, not a control
+            }
+
+            _commands.Add(item.Action ?? (() => { }));
+            AppendMenu(menu, flags, new IntPtr(_commands.Count), item.Text);
         }
     }
 

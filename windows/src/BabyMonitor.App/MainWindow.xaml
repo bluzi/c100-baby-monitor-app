@@ -429,6 +429,12 @@
 
                 <!-- AUTH-9: words, never the gateway's raw JSON. -->
                 <InfoBar x:Name="LoginError" IsOpen="False" Severity="Error" IsClosable="False" />
+
+                <!-- WIN-23: the way out is where they are looking. Closing this window only hides the
+                     app to the tray, which is the right answer for a monitor and the wrong one for
+                     someone who has decided not to use the app at all. Nothing is being watched here,
+                     so this exits without asking (BG-11w). -->
+                <HyperlinkButton Content="Exit Baby Monitor" Click="OnExit" HorizontalAlignment="Center" />
             </StackPanel>
         </ScrollViewer>
 
@@ -457,7 +463,11 @@
                     </InfoBar.ActionButton>
                 </InfoBar>
 
-                <HyperlinkButton Content="Sign out" Click="OnSignOut" HorizontalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center">
+                    <HyperlinkButton Content="Sign out" Click="OnSignOut" />
+                    <!-- WIN-23: nothing is being watched here either, so this exits without asking. -->
+                    <HyperlinkButton Content="Exit Baby Monitor" Click="OnExit" />
+                </StackPanel>
             </StackPanel>
         </Grid>
 

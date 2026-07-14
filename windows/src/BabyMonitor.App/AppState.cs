@@ -361,6 +361,32 @@ public sealed class AppState : INotifyPropertyChanged
         Emit();
     }
 
+    /// <summary>The camera being watched, for the tray's camera submenu (WIN-2).</summary>
+    public CameraInfo? SelectedCamera => _store.LoadDevice() is { } d
+        ? new CameraInfo(d.Did, d.Name, d.Model, d.Mac, d.Ip)
+        : null;
+
+    /// <summary>
+    /// CAM-4 / WIN-2: switch straight to a named camera, without going through the picker.
+    ///
+    /// The engine reads the selected camera when it connects, so stopping it, changing the choice and
+    /// starting it again is all it takes — and the app is watching the new room within seconds, which
+    /// is the point: a parent with two children should not have to visit a settings screen to look at
+    /// the other one.
+    /// </summary>
+    public void SwitchToCamera(CameraInfo camera)
+    {
+        if (camera.Did == SelectedCamera?.Did)
+        {
+            return; // already watching it; restarting the stream would only cost them a few seconds
+        }
+
+        Log.Info("ui", $"switching camera to {camera.Name} did={camera.Did}");
+        Stop();
+        SelectCamera(camera);
+        Start();
+    }
+
     /// <summary>CAM-4: switching camera stops the old stream and sends the user back to the picker.</summary>
     public void SwitchCamera()
     {

@@ -41,6 +41,15 @@ public sealed partial class MainWindow : Window
     private readonly IntPtr _hwnd;
 
     private SettingsWindow? _settings;
+
+    /// <summary>
+    /// The cameras on the account, for the tray's camera submenu (WIN-2). Held rather than fetched on
+    /// demand: the device list is a *signed request to Xiaomi*, and the menu must be buildable the
+    /// instant it is opened.
+    /// </summary>
+    private IReadOnlyList<CameraInfo> _cameras = Array.Empty<CameraInfo>();
+
+    private bool _camerasRefreshing;
     private string _shape = DesktopShell.ShapeFull;
     private bool _pointerInside;
     private bool _chromePinned;
@@ -112,6 +121,7 @@ public sealed partial class MainWindow : Window
             }
 
             _ = LoadNightVisionAsync(); // LIVE-10: show the mode the camera is actually in
+            RefreshCameraList(); // so the camera submenu is populated the first time it is opened
         }
 
         if (_state.Screen == "login")
@@ -124,13 +134,60 @@ public sealed partial class MainWindow : Window
 
     // --- the tray (WIN-1, WIN-2) ---------------------------------------------
 
+    /// <summary>
+    /// **WIN-2: the menu offers what the app can actually do right now, and nothing else.**
+    ///
+    /// There are three of them, because there are three genuinely different situations — and putting
+    /// Mute and Show Camera in front of someone who has not signed in is the app describing a monitor
+    /// that does not exist:
+    ///
+    ///  - **not signed in**: sign in. Nothing else is true yet.
+    ///  - **signed in, no camera chosen**: choose one, or sign out.
+    ///  - **watching**: everything, plus the account's cameras as a submenu with the watched one
+    ///    checked, so a parent with two children can look at the other room from the tray instead of
+    ///    walking back through the picker.
+    ///
+    /// It is built here, when the menu is opened — never on the state tick, which fires about twenty
+    /// times a second while the feed is live.
+    /// </summary>
     private IReadOnlyList<TrayItem> BuildTrayMenu()
     {
-        var items = new List<TrayItem>
+        RefreshCameraList(); // the menu is about to be read: the one moment its freshness matters
+
+        var items = new List<TrayItem>();
+
+        switch (_state.Screen)
         {
-            // WIN-2: what is happening, in words, before anything you can click.
-            TrayItem.Label(_state.StatusLine),
-        };
+            case "login":
+                // AUTH-1: nothing is being monitored and nothing can be. Say so, and offer the one
+                // thing that changes it.
+                items.Add(TrayItem.Label("Not signed in"));
+                items.Add(TrayItem.Divider);
+                items.Add(new TrayItem("Sign in…", () => Post(ShowWindow)));
+                break;
+
+            case "devices":
+                // CAM-1: signed in, but no camera chosen — so there is still nothing to mute, and
+                // nothing to show.
+                items.Add(TrayItem.Label("No camera chosen"));
+                items.Add(TrayItem.Divider);
+                items.Add(new TrayItem("Choose camera…", () => Post(ShowWindow)));
+                items.Add(new TrayItem("Sign out", () => Post(OnSignOutFromTray)));
+                break;
+
+            default:
+                BuildMonitorMenu(items);
+                break;
+        }
+
+        AppendAppItems(items);
+        return items;
+    }
+
+    private void BuildMonitorMenu(List<TrayItem> items)
+    {
+        // WIN-2: what is happening, in words, before anything you can click.
+        items.Add(TrayItem.Label(_state.StatusLine));
 
         if (_state.SleepOutage != null)
         {
@@ -140,19 +197,6 @@ public sealed partial class MainWindow : Window
         if (_state.SleepUnprotected)
         {
             items.Add(TrayItem.Label("⚠ The PC may sleep and stop monitoring"));
-        }
-
-        if (_state.UpdateStatus.State == UpdateState.Failing)
-        {
-            // UPD-4: an app that has silently stopped updating looks exactly like one that is current.
-            items.Add(TrayItem.Label($"⚠ Can't check for updates: {_state.UpdateStatus.Reason}"));
-        }
-
-        if (_state.UpdateStatus.State == UpdateState.Installed)
-        {
-            // UPD-7: it is on disk and it will run next time. Said once, quietly — the parent already
-            // declined a restart, and an app that keeps asking is an app that gets ignored.
-            items.Add(TrayItem.Label($"{_state.UpdateStatus.Version} installed — runs at the next launch"));
         }
 
         items.Add(TrayItem.Divider);
@@ -179,6 +223,8 @@ public sealed partial class MainWindow : Window
             }),
             Checked: _shape == DesktopShell.ShapeMini));
 
+        items.Add(CameraSubmenu());
+
         items.Add(TrayItem.Divider);
 
         // BG-11w / WATCH-11: there is no Stop on a PC — exiting is how a PC stops. Start is here only
@@ -189,10 +235,61 @@ public sealed partial class MainWindow : Window
             items.Add(new TrayItem("Start monitoring", () => Post(_state.Start)));
         }
 
-        // The ellipsis means one thing: "this opens something, or goes and asks somebody". Neither of
-        // these happens on the click itself, so both say so.
-        items.Add(new TrayItem("Check for updates…", () => Post(() => _ = CheckForUpdateAsync(askedByUser: true))));
         items.Add(new TrayItem("Settings…", () => Post(ShowSettings)));
+        items.Add(new TrayItem("Sign out", () => Post(OnSignOutFromTray))); // AUTH-10
+    }
+
+    /// <summary>
+    /// CAM-4 / WIN-2: **the account's cameras, with the one being watched checked.**
+    ///
+    /// The list is whatever was last fetched, and it is refreshed when the menu opens — never on the
+    /// state tick. Asking Xiaomi for the device list twenty times a second would be a signed request
+    /// per tick, and an account that gets itself rate-limited is an account that cannot reconnect.
+    /// </summary>
+    private TrayItem CameraSubmenu()
+    {
+        var watched = _state.SelectedCamera?.Did;
+        var children = new List<TrayItem>();
+
+        if (_cameras.Count == 0)
+        {
+            children.Add(TrayItem.Label("Looking for cameras…"));
+        }
+
+        foreach (var camera in _cameras)
+        {
+            children.Add(new TrayItem(
+                camera.Title,
+                () => Post(() => _state.SwitchToCamera(camera)), // one click, and it is watching the other room
+                Checked: camera.Did == watched));
+        }
+
+        children.Add(TrayItem.Divider);
+        children.Add(new TrayItem("Choose camera…", () => Post(OnSwitchCameraFromTray)));
+        return TrayItem.Submenu("Camera", children);
+    }
+
+    /// <summary>What is true of the app whatever it happens to be doing.</summary>
+    private void AppendAppItems(List<TrayItem> items)
+    {
+        items.Add(TrayItem.Divider);
+
+        if (_state.UpdateStatus.State == UpdateState.Failing)
+        {
+            // UPD-4: an app that has silently stopped updating looks exactly like one that is current.
+            items.Add(TrayItem.Label($"⚠ Can't check for updates: {_state.UpdateStatus.Reason}"));
+        }
+
+        if (_state.UpdateStatus.State == UpdateState.Installed)
+        {
+            // UPD-7: it is on disk and it will run next time. Said once, quietly — the parent already
+            // declined a restart, and an app that keeps asking is an app that gets ignored.
+            items.Add(TrayItem.Label($"{_state.UpdateStatus.Version} installed — runs at the next launch"));
+        }
+
+        // The ellipsis means one thing: "this opens something, or goes and asks somebody". Neither
+        // happens on the click itself, so it says so.
+        items.Add(new TrayItem("Check for updates…", () => Post(() => _ = CheckForUpdateAsync(askedByUser: true))));
 
         items.Add(TrayItem.Divider);
         items.Add(TrayItem.Label($"Baby Monitor {_state.Version}"));
@@ -200,7 +297,64 @@ public sealed partial class MainWindow : Window
         // BG-11w / WIN-3: exiting IS stopping, so this is the control that ends the watch — and it
         // asks first while the monitor is running.
         items.Add(new TrayItem("Exit Baby Monitor", () => Post(() => _ = ConfirmExitAsync())));
-        return items;
+    }
+
+    /// <summary>
+    /// The menu is about to be read, which is the one moment the camera list's freshness matters.
+    ///
+    /// This runs on the UI thread (the tray's window pumps its messages there), so it simply starts
+    /// the fetch and lets the menu be built from what is already known. A menu cannot wait on Xiaomi:
+    /// the shell would freeze under the pointer.
+    /// </summary>
+    private void RefreshCameraList()
+    {
+        if (_state.Screen != "viewer" || _camerasRefreshing)
+        {
+            return;
+        }
+
+        _camerasRefreshing = true;
+        _ = RefreshCamerasAsync();
+    }
+
+    private async Task RefreshCamerasAsync()
+    {
+        try
+        {
+            // LoadCamerasAsync answers with a message rather than throwing (CAM-5) — a camera list the
+            // tray could not refresh is not worth a word to the parent: the menu still works, and the
+            // monitor never noticed.
+            var (cameras, error) = await _state.LoadCamerasAsync();
+            if (cameras != null)
+            {
+                _cameras = cameras;
+            }
+            else if (error != null)
+            {
+                Log.Debug("ui", $"could not refresh the tray's camera list: {error}");
+            }
+        }
+        finally
+        {
+            _camerasRefreshing = false;
+        }
+    }
+
+    private void OnSignOutFromTray()
+    {
+        _camerasLoaded = false;
+        _cameras = Array.Empty<CameraInfo>();
+        _state.SignOut();
+        ApplyShape(DesktopShell.ShapeFull, restoreFrame: true);
+        ShowWindow();
+    }
+
+    private void OnSwitchCameraFromTray()
+    {
+        _camerasLoaded = false;
+        _state.SwitchCamera();
+        ApplyShape(DesktopShell.ShapeFull, restoreFrame: true);
+        ShowWindow();
     }
 
     /// <summary>

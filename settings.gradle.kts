@@ -15,4 +15,8 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "c100-baby-monitor"
-include(":app")
+
+// One core, many shells. `core` is the whole monitor — protocol, engine, alarm, DSP — and every
+// app is a thin platform shell over it. Windows (a jvm target) and iOS slot into core the same way.
+include(":core")
+include(":android")

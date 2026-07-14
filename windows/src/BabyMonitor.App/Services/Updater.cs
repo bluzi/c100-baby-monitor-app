@@ -212,9 +212,22 @@ public sealed class Updater : IDisposable
         }
         catch (Exception e)
         {
-            // The swap rolls itself back, so the old version is still on disk and still works. Start it
-            // again and leave it alone — an update that cannot be applied must never cost a night.
-            Log.Error("update", $"could not apply the update: {e.Message}", e);
+            // The swap rolls itself back, so the old version is still on disk and still works. Two
+            // things then have to happen, and the order matters. First DISCARD the staged update:
+            // without this, the restarted old build would find it again, try the same swap again, fail
+            // again, and relaunch — an infinite loop that never reaches the monitor. Dropping the zip
+            // and digest makes the next launch see nothing staged and simply monitor on the old
+            // version (the normal check re-downloads it later). Then start the old build again.
+            Log.Error("update", $"could not apply the update: {e.Message} — discarding it so it is not retried", e);
+            try
+            {
+                new UpdateStaging(AppPaths.StagingRoot).Discard(CurrentVersion);
+            }
+            catch (Exception discard)
+            {
+                Log.Error("update", $"and could not discard the failed update: {discard.Message}", discard);
+            }
+
             StartInstalled(installDir);
             return true;
         }
@@ -267,7 +280,9 @@ public sealed class Updater : IDisposable
             throw new UpdaterException(HttpFailureMessage((int)response.StatusCode));
         }
 
-        var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        // Through the same inactivity-bounded reader as the asset download — the releases list is small,
+        // but a body read that can hang forever is a check that goes quiet, which UPD-4 forbids.
+        var json = await ReadBodyAsync(response, ct).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
 
         foreach (var release in doc.RootElement.EnumerateArray())
@@ -361,20 +376,23 @@ public sealed class Updater : IDisposable
                 throw new UpdaterException(HttpFailureMessage((int)response.StatusCode));
             }
 
-            return await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+            return await ReadBodyAsync(response, ct).ConfigureAwait(false);
         }
 
         throw new UpdaterException("GitHub redirected the download too many times.");
     }
 
-    /// <summary>
-    /// One request, with an *inactivity* budget rather than a total one: a stall is a failure, a slow
-    /// line is not. `HttpClient.Timeout` is off (infinite) precisely so this can be the only clock.
-    /// </summary>
+    // Not HttpClient.Timeout (which bounds the whole operation, so a big update on a slow line fails
+    // every launch) and not a total per-request cap (a mid-body stall on flaky wifi would still hang
+    // for the whole cap). A genuine INACTIVITY budget: as long as bytes keep arriving, the download
+    // has as long as it needs; the moment it goes quiet this long, it is a failure the app reports.
+    private static readonly TimeSpan Inactivity = TimeSpan.FromMinutes(2);
+
+    /// <summary>Send a request, bounding only the wait for the response *headers* (see SendAsync).</summary>
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        budget.CancelAfter(TimeSpan.FromMinutes(2));
+        budget.CancelAfter(Inactivity);
         try
         {
             return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, budget.Token)
@@ -383,6 +401,37 @@ public sealed class Updater : IDisposable
         catch (OperationCanceledException) when (budget.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             throw new UpdaterException("GitHub did not respond in time.");
+        }
+    }
+
+    /// <summary>
+    /// Read the whole body, streaming, resetting the inactivity clock on every chunk that arrives. This
+    /// is the fix for the download that would otherwise hang forever: `ResponseHeadersRead` means the
+    /// body is read *here*, not inside <see cref="SendAsync"/>, so it must carry its own timeout — and a
+    /// per-read one, so a slow-but-progressing download is never mistaken for a stalled one.
+    /// </summary>
+    private static async Task<byte[]> ReadBodyAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        idle.CancelAfter(Inactivity);
+
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var buffer = new MemoryStream();
+            var chunk = new byte[81920];
+            int read;
+            while ((read = await stream.ReadAsync(chunk, idle.Token).ConfigureAwait(false)) > 0)
+            {
+                buffer.Write(chunk, 0, read);
+                idle.CancelAfter(Inactivity); // progress: give it the full budget again
+            }
+
+            return buffer.ToArray();
+        }
+        catch (OperationCanceledException) when (idle.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            throw new UpdaterException("The download stalled and was abandoned.");
         }
     }
 

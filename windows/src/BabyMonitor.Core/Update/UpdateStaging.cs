@@ -165,11 +165,11 @@ public sealed class UpdateStaging
             foreach (var path in Directory.GetFileSystemEntries(_root))
             {
                 var name = Path.GetFileName(path);
-                var version = name.EndsWith(PendingSuffix, StringComparison.Ordinal)
-                    ? Path.GetFileNameWithoutExtension(name[..^PendingSuffix.Length])
-                    : Path.GetFileNameWithoutExtension(name);
+                var version = VersionOf(name);
 
-                // Anything still ahead of us is waiting to be installed. Everything else is disk.
+                // Anything still ahead of us is waiting to be installed. Everything else is disk —
+                // including any `.incoming` rubbish, whatever version it claims, since a half-written
+                // thing is never a real staged update.
                 if (UpdateRules.IsNewer(version, currentVersion) &&
                     !name.EndsWith(PendingSuffix, StringComparison.Ordinal))
                 {
@@ -189,13 +189,14 @@ public sealed class UpdateStaging
     /// Replace the installed app with the one at <paramref name="from"/>, atomically enough that an
     /// interrupted swap cannot leave a monitor that will not start.
     ///
-    /// The old directory is *renamed* aside, the new one is put in its place, and only then is the old
-    /// one deleted. A file-by-file copy over a live install has none of that: interrupt it and the
-    /// install directory is a mixture of two builds, with no way back, and the parent finds out in the
-    /// morning. Renames are atomic, so at every instant the install directory is either wholly the old
-    /// app or wholly the new one — and if anything goes wrong, the old one is put back.
-    ///
-    /// Renaming also removes files the new version dropped, which copying-over never would.
+    /// The old directory is *renamed* aside (an atomic move), the new tree is copied into a now-empty
+    /// install directory, and only then is the old one deleted. The copy — rather than a second rename —
+    /// is deliberate: staging and the install may sit on different volumes, where a rename would fail.
+    /// What matters for safety is the rename-aside: it means the old app is never overwritten in place,
+    /// so if the copy is interrupted, the install directory is not a mixture of two builds with no way
+    /// back — the rollback deletes the half-copy and renames the old one back. Starting from an empty
+    /// directory also removes files the new version dropped, which copying over a live install would
+    /// leave behind.
     /// </summary>
     public static void Swap(string from, string to)
     {
@@ -246,6 +247,32 @@ public sealed class UpdateStaging
         Delete(aside);
     }
 
+    /// <summary>
+    /// The version a staging entry names, whatever form it takes: `0.1.43.zip`, `0.1.43.sha256`,
+    /// `0.1.43` (an extracted tree), `0.1.43.incoming`, `0.1.43.zip.incoming`. NOT
+    /// <c>Path.GetFileNameWithoutExtension</c>, which treats the last dotted segment of a bare version
+    /// as an extension and turns `0.1.43` into `0.1` — wrong on exactly the strings this deals in. We
+    /// strip the suffixes we actually append, and nothing else.
+    /// </summary>
+    private static string VersionOf(string name)
+    {
+        if (name.EndsWith(PendingSuffix, StringComparison.Ordinal))
+        {
+            name = name[..^PendingSuffix.Length];
+        }
+
+        if (name.EndsWith(ZipExtension, StringComparison.Ordinal))
+        {
+            name = name[..^ZipExtension.Length];
+        }
+        else if (name.EndsWith(DigestExtension, StringComparison.Ordinal))
+        {
+            name = name[..^DigestExtension.Length];
+        }
+
+        return name;
+    }
+
     private static string Digest(byte[] data) => Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
 
     private static void CopyTree(string from, string to)
@@ -278,7 +305,14 @@ public sealed class UpdateStaging
         }
     }
 
-    private void Discard(string version)
+    /// <summary>
+    /// Forget a staged version — its zip, its digest, and any extracted tree. Called when the swap into
+    /// it failed: deleting at least the zip and digest makes <see cref="Find"/> stop offering it, which
+    /// is what stops the app relaunching into the same doomed swap at every launch and never reaching
+    /// the monitor. The extracted tree may be locked (the failed swap could be running from it) — that
+    /// delete is allowed to fail; losing the digest alone is enough.
+    /// </summary>
+    public void Discard(string version)
     {
         Delete(Path.Combine(_root, version + ZipExtension));
         Delete(Path.Combine(_root, version + DigestExtension));

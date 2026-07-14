@@ -165,6 +165,28 @@ public class UpdateChainTest : IDisposable
         Assert.Equal("0.1.43", staging.Find("0.1.42")?.Version);
     }
 
+    [Fact(DisplayName = "UPD-10 Clean sweeps an extracted tree too — a bare dotted version is not misread")]
+    public void CleanRemovesTheExtractedTree()
+    {
+        // Open leaves an extracted directory named for the version — a bare `0.1.43`, whose last
+        // segment a naive parse would read as a file extension (`0.1.43` -> `0.1`) and mis-file. It
+        // must be recognised as 0.1.43 and, once we ARE 0.1.43, swept with the zip and the digest —
+        // otherwise a whole app tree is left on disk after every update.
+        var staging = new UpdateStaging(_root);
+        var zip = AppZip("0.1.43");
+        var staged = staging.Stage(zip, "0.1.43", Sha(zip));
+        staging.Open(staged); // extracts the tree into <root>/0.1.43
+
+        Assert.True(Directory.Exists(Path.Combine(_root, "0.1.43"))); // the tree is there
+
+        staging.Clean("0.1.43"); // we are 0.1.43 now — every trace of it is just disk
+
+        Assert.False(Directory.Exists(Path.Combine(_root, "0.1.43")));
+        Assert.False(File.Exists(Path.Combine(_root, "0.1.43.zip")));
+        Assert.False(File.Exists(Path.Combine(_root, "0.1.43.sha256")));
+        Assert.Empty(Directory.GetFileSystemEntries(_root));
+    }
+
     // --- the swap itself (UPD-10) --------------------------------------------
 
     [Fact(DisplayName = "UPD-10 the swap replaces the install whole — including removing what the new version dropped")]
@@ -198,6 +220,22 @@ public class UpdateChainTest : IDisposable
 
         Assert.True(File.Exists(Path.Combine(install, "BabyMonitor.exe")));
         Assert.Equal("old", File.ReadAllText(Path.Combine(install, "BabyMonitor.exe")));
+    }
+
+    [Fact(DisplayName = "UPD-10 discarding a failed update stops it being retried — the loop that never monitors")]
+    public void DiscardStopsAFailedUpdateRepeating()
+    {
+        // When a swap fails, the failed version must be forgotten, or the next launch finds it, tries
+        // the same swap, fails, relaunches — forever, never reaching the monitor. After Discard, Find
+        // offers nothing, so the app simply monitors on the version it has.
+        var staging = new UpdateStaging(_root);
+        var zip = AppZip("0.1.43");
+        staging.Stage(zip, "0.1.43", Sha(zip));
+        Assert.NotNull(staging.Find("0.1.42"));
+
+        staging.Discard("0.1.43");
+
+        Assert.Null(staging.Find("0.1.42"));
     }
 
     // --- fixtures -------------------------------------------------------------

@@ -113,10 +113,11 @@ are looking at, or close one to be rid of the other.
   and the alarm carry on, and the status icon remains (BG-5). Reopening it shows the ongoing feed
   without restarting the stream, in the shape it was last in.
 - **DESK-14** `[device]` **While a window is open, the app can be reached the way every other app
-  can** — the switcher finds it, and on a Mac it has a Dock icon. With every window closed the app
-  recedes into the status area and stops cluttering the switcher: a monitor watching quietly in the
-  background is not an application anyone is trying to switch to. A window a parent has to go hunting
-  for is a window they will not check.
+  can** — the switcher finds it (on a Mac the app itself, in Cmd-Tab and the Dock; on a PC the full
+  window, in Alt-Tab and the taskbar — the mini tile is the one thing kept out, DESK-15). With every
+  window closed the app recedes into the status area and stops cluttering the switcher: a monitor
+  watching quietly in the background is not an application anyone is trying to switch to. A window a
+  parent has to go hunting for is a window they will not check.
 - **DESK-15** `[device]` **The mini tile is never listed among the windows.** It is already on top of
   everything; listing it among the windows a user is trying to see *past* makes it clutter twice
   over. So it stays out of Mission Control and the window cycles on a Mac, and out of Alt-Tab and the

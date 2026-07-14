@@ -92,9 +92,10 @@ public sealed partial class MainWindow : Window
             _state.SystemDidWake();
             if (_state.SleepOutage != null)
             {
-                // DESK-21: the outage is surfaced, not swallowed. It is a full sentence — how long the
-                // monitor was down — and the mini tile has no room for it, so come up full to say it.
-                ApplyShape(DesktopShell.ShapeFull);
+                // DESK-21: the outage is surfaced, not swallowed. Bring the window forward — in whatever
+                // shape the parent left it (forcing full here would silently erase a mini preference).
+                // The full view shows the whole sentence; the tile shows a short form in its status line
+                // and stays opaque because an unread outage counts as needing attention (DESK-11).
                 ShowWindow();
             }
         });
@@ -357,7 +358,7 @@ public sealed partial class MainWindow : Window
         _camerasLoaded = false;
         _cameras = Array.Empty<CameraInfo>();
         _state.SignOut();
-        ApplyShape(DesktopShell.ShapeFull, restoreFrame: true);
+        ApplyShape(Prefs.Shape, restoreFrame: true); // display full, keep the user's shape (DESK-9)
         ShowWindow();
     }
 
@@ -365,7 +366,7 @@ public sealed partial class MainWindow : Window
     {
         _camerasLoaded = false;
         _state.SwitchCamera();
-        ApplyShape(DesktopShell.ShapeFull, restoreFrame: true);
+        ApplyShape(Prefs.Shape, restoreFrame: true); // display full, keep the user's shape (DESK-9)
         ShowWindow();
     }
 
@@ -449,16 +450,40 @@ public sealed partial class MainWindow : Window
         RememberFrame(); // DESK-9: keep where each shape was, even when the way out is Exit
         _tray.Dispose();
         Application.Current.Exit();
+
+        // A hard backstop. In an unpackaged WinUI 3 app `Application.Exit()` does not always fully
+        // terminate the process; if it hangs, the leftover holds the single-instance mutex, so every
+        // future launch would see "already running" and show nothing — the monitor would be
+        // unstartable until a reboot. A short-delay Environment.Exit guarantees the process actually
+        // goes. On a clean exit the process is gone long before this fires.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            Log.Warn("app", "the app did not exit on its own — forcing it");
+            Environment.Exit(0);
+        });
     }
 
     // --- the window's two shapes (DESK-8, DESK-7, DESK-9) -----------------------
 
-    private void ApplyShape(string preferred, bool restoreFrame = false)
+    /// <summary>
+    /// Give the window a shape. <paramref name="preferred"/> is the shape the user would keep; the
+    /// shape actually shown is what the current screen allows (DESK-5: sign-in and the picker are never
+    /// a tile). <paramref name="persist"/> is what separates a *choice* from a *reshape*: only the user
+    /// toggling shape writes the preference — a screen forcing full (sign-out, an expiry) must not
+    /// quietly rewrite the parent's mini choice, or the floating tile they set up overnight is gone for
+    /// good the first time they sign out (DESK-8, DESK-9).
+    /// </summary>
+    private void ApplyShape(string preferred, bool restoreFrame = false, bool persist = false)
     {
-        // DESK-9: sign-in and the camera picker are never shown in a tile. The core decides that.
         var shape = DesktopShell.WindowShape(_state.Screen, preferred);
         if (!restoreFrame && shape == _shape)
         {
+            if (persist)
+            {
+                Prefs.Shape = preferred; // the choice still counts even if the window need not move
+            }
+
             return;
         }
 
@@ -468,7 +493,11 @@ public sealed partial class MainWindow : Window
         }
 
         _shape = shape;
-        Prefs.Shape = preferred;
+        if (persist)
+        {
+            Prefs.Shape = preferred;
+        }
+
         _applyingShape = true;
 
         var mini = shape == DesktopShell.ShapeMini;
@@ -518,7 +547,7 @@ public sealed partial class MainWindow : Window
     }
 
     private void ToggleShape() =>
-        ApplyShape(_shape == DesktopShell.ShapeMini ? DesktopShell.ShapeFull : DesktopShell.ShapeMini);
+        ApplyShape(_shape == DesktopShell.ShapeMini ? DesktopShell.ShapeFull : DesktopShell.ShapeMini, persist: true);
 
     private void RememberFrame()
     {
@@ -742,6 +771,20 @@ public sealed partial class MainWindow : Window
     private void UpdateUi()
     {
         var screen = _state.Screen;
+
+        // Keep the window's shape consistent with the screen, on EVERY routing change — not just the
+        // button paths. Sign-in and the picker are never a tile (DESK-5), and an expiry that dropped us
+        // back to sign-in (AUTH-8) has no handler to reshape the window, so it would otherwise strand
+        // the login form inside a tiny always-on-top tile. Returning to the viewer restores the user's
+        // chosen shape (DESK-9). ApplyShape re-enters UpdateUi with the shape corrected, then this
+        // guard is satisfied and it falls through.
+        var wantedShape = DesktopShell.WindowShape(screen, Prefs.Shape);
+        if (wantedShape != _shape && !_applyingShape)
+        {
+            ApplyShape(Prefs.Shape, restoreFrame: true);
+            return;
+        }
+
         var viewer = screen == "viewer";
         var mini = viewer && _shape == DesktopShell.ShapeMini;
 
@@ -770,10 +813,13 @@ public sealed partial class MainWindow : Window
         MiniStatusDot.Fill = new SolidColorBrush(color);
         StatusLineText.Text = _state.StatusLine;
 
-        // DESK-22 in the mini tile: with no HEVC decoder the picture is a black square, and the
-        // VideoWarning that explains it lives in the (collapsed) full chrome. A tile too small for the
-        // full sentence still must not be a silent black square, so the status line says it plainly.
-        var miniStatus = _state.VideoUnavailable ? "No video — needs HEVC support" : _state.StatusText;
+        // In the mini tile the warnings that live in the (collapsed) full chrome have nowhere to
+        // appear, so its one status line carries them — a tile too small for the full sentence must
+        // still never be a silent black square or a calm-looking tile over a monitor that was down.
+        // Priority: a sleep outage to be read (DESK-21) > no decoder (DESK-22) > the feed's own state.
+        var miniStatus = _state.SleepOutage != null ? _state.SleepOutage
+            : _state.VideoUnavailable ? "No video — needs HEVC support"
+            : _state.StatusText;
         MiniStatusText.Text = _state.Muted ? $"{miniStatus} · muted" : miniStatus;
         LevelText.Text = _state.Running ? $"{(int)_state.Level} dB" : string.Empty;
 
@@ -896,9 +942,9 @@ public sealed partial class MainWindow : Window
 
     private void OnDeclineStartup(object sender, RoutedEventArgs e) => _state.AnswerStartupOffer();
 
-    private void OnMakeMini(object sender, RoutedEventArgs e) => ApplyShape(DesktopShell.ShapeMini);
+    private void OnMakeMini(object sender, RoutedEventArgs e) => ApplyShape(DesktopShell.ShapeMini, persist: true);
 
-    private void OnMakeFull(object sender, RoutedEventArgs e) => ApplyShape(DesktopShell.ShapeFull);
+    private void OnMakeFull(object sender, RoutedEventArgs e) => ApplyShape(DesktopShell.ShapeFull, persist: true);
 
     private void OnHideWindow(object sender, RoutedEventArgs e) => HideWindow();
 
@@ -906,14 +952,16 @@ public sealed partial class MainWindow : Window
     {
         _camerasLoaded = false;
         _state.SwitchCamera();
-        ApplyShape(DesktopShell.ShapeFull, restoreFrame: true);
+        // The picker forces the full shape for display (DESK-5) — but pass the user's preference, not
+        // ShapeFull, so their mini choice survives the trip through the picker (DESK-9).
+        ApplyShape(Prefs.Shape, restoreFrame: true);
     }
 
     private void OnSignOut(object sender, RoutedEventArgs e)
     {
         _camerasLoaded = false;
         _state.SignOut();
-        ApplyShape(DesktopShell.ShapeFull, restoreFrame: true);
+        ApplyShape(Prefs.Shape, restoreFrame: true); // full for display, mini preference kept (DESK-9)
     }
 
     private void OnShowSettings(object sender, RoutedEventArgs e) => ShowSettings();
@@ -1291,7 +1339,16 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (_updater.Staged != null && Updater.Install(_updater.Staged))
+        if (_updater.Staged is not { } staged)
+        {
+            return;
+        }
+
+        // Install re-verifies and extracts the staged zip (tens of MB) and waits out the new process's
+        // first second — seconds of work that must not freeze the window the parent just clicked. Off
+        // the UI thread, then finish the hand-over back on it.
+        var launched = await Task.Run(() => Updater.Install(staged));
+        if (launched)
         {
             _state.Stop(); // they asked for this restart; the watch resumes on the other side
             Shutdown();    // same clean exit as user Exit: tray icon removed, close not cancelled

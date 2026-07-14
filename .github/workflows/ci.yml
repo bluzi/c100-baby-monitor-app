@@ -63,8 +63,10 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
+          # A numeric version — Inno's VersionInfoVersion rejects anything that is not x.x.x[.x], so
+          # `0.0.0-ci` would fail the very step meant to prove the .iss compiles.
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DAppVersion=0.0.0-ci" `
+            "/DAppVersion=0.0.0" `
             "/Fbabymonitor-ci-windows-setup" `
             "/O$($PWD.Path)" `
             windows\installer\BabyMonitor.iss

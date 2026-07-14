@@ -33,6 +33,13 @@ public sealed class Observable<T>
 
     public Observable(T initial) => _value = initial;
 
+    /// <summary>
+    /// Fired after the value changes, newest-wins and in order (see <see cref="Notify"/>). A handler
+    /// runs while this observable's notify-lock is held, so a handler **must not synchronously set a
+    /// *different* Observable** — two observables whose handlers each write the other can wedge
+    /// (A→B, B→A). Reading any observable, or setting *this* one, is fine. Marshal cross-observable
+    /// writes onto the UI queue instead (the shell already does).
+    /// </summary>
     public event Action<T>? Changed;
 
     public T Value

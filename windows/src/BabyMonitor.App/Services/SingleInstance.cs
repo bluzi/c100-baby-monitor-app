@@ -24,7 +24,11 @@ public static class SingleInstance
 
     private static Mutex? _mutex;
     private static EventWaitHandle? _activate;
-    private static Action? _onActivate;
+
+    // Written on the UI thread (OnActivated), read on the listener thread. volatile so the listener on
+    // ARM64 sees the registration rather than a stale null — the worst case is only a dropped
+    // "show the window" during the startup gap, but airtight is cheap.
+    private static volatile Action? _onActivate;
 
     /// <summary>
     /// True if we are the first instance and may run. False if another instance already holds the

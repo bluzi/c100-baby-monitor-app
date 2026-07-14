@@ -2,14 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- The app menu takes its title from CFBundleName, so this is the name a Mac user reads in
+         the menu bar, in About, and in Force Quit. "BabyMonitor" is a file name, not an app name. -->
     <key>CFBundleName</key>
-    <string>BabyMonitor</string>
+    <string>Baby Monitor</string>
     <key>CFBundleDisplayName</key>
     <string>Baby Monitor</string>
     <key>CFBundleIdentifier</key>
     <string>com.bluzi.babymonitor</string>
     <key>CFBundleExecutable</key>
     <string>BabyMonitor</string>
+    <!-- MACOS-17: the app has an icon of its own, wherever macOS shows one. -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Turns a Xiaomi camera into a baby monitor.</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

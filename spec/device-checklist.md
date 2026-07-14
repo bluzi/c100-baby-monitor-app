@@ -160,9 +160,52 @@ M3. **Mute keeps the alarm working (MACOS-4, LIVE-3):** mute from the menu bar. 
     silent, the menu says muted. Make noise at the camera — the level indicator still moves and,
     with the alarm on, it still rings. Only the speaker was silent.
 
-M4. **Mini window floats (MACOS-5, BG-7m):** show the mini window. It sits on top of other apps,
-    stays visible when another app is full-screened, and follows across spaces. Move and resize
-    it, quit and relaunch — it comes back where it was. Close it — monitoring carries on.
+M4. **Mini shape floats (MACOS-5, BG-7m):** put the window in its mini shape. It sits on top of
+    other apps, stays visible when another app is full-screened, and follows across spaces. Move and
+    resize it (it keeps the video's shape), quit and relaunch — it comes back where it was, in the
+    shape it was in. Close it — monitoring carries on.
+
+M4a. **One window, two shapes (MACOS-14, MACOS-15):** with the feed live, switch full → mini and
+    back, from the window's own control, from the menu bar menu, and from the keyboard. Each time:
+    **the picture never blacks out, audio never stutters, and the log shows no reconnect**
+    (`log stream --predicate 'process == "BabyMonitor"'` — no new "connecting"). Move and resize
+    each shape, switch back and forth: each remembers its own size and position, and still does
+    after a relaunch. Hover the mini — its controls and an explicit "make it full" control appear;
+    move the pointer away — they go, leaving the picture and the feed state.
+
+M4b. **The mini fades, but never over a warning (MACOS-16):** with the feed live and the pointer
+    away, the mini goes translucent and the window underneath is readable through it; move the
+    pointer over it — instantly solid. Turn fading off in settings — it stays solid. Turn it back
+    on, set it faint, then **unplug the camera**: as soon as the feed is not live the mini goes
+    fully opaque by itself and stays that way with the pointer nowhere near it. Same with a ringing
+    alarm. Turn on System Settings → Accessibility → Display → Reduce Transparency: no fading at
+    all (MACOS-18).
+
+M4c. **Controls follow the pointer (LIVE-11m):** in the full shape, move the pointer over the video
+    — the buttons are there. Move it away (or leave it still) for a few seconds — the buttons fade
+    out, while the status line and the level indicator stay. Move the pointer — the buttons are back
+    immediately, with no click. Trigger an alarm and repeat: the alarm banner and its Acknowledge
+    never fade.
+
+M4d. **Paste works (MACOS-13):** on the sign-in screen, copy a password from a password manager and
+    press Cmd-V in the password field — it pastes. Cut, Copy and Select All work too, and the Edit
+    menu lists them. Check the menu bar while the window is focused: App (About, Settings ⌘,, Hide,
+    Quit), Edit, View, Window — the standard set. Cmd-, opens settings from anywhere.
+
+M4e. **It looks like a Mac app (MACOS-17, UI-1):** the app has its own icon in the switcher, the
+    Dock (while a window is open), About, and the Finder — never a generic placeholder. Every screen
+    renders dark.
+
+M4g. **No black bars (MACOS-19):** with the feed live, look at the edges of the picture in the full
+    shape and in the mini shape — the video fills the window completely, with no black band above or
+    below it. Drag a corner to resize: the window keeps the camera's shape and the bands never
+    appear. Go full screen: there the screen's shape wins and any unused area is black, which is
+    expected. Sign out — the sign-in window is freely resizable again.
+
+M4f. **Offline is said out loud (LIVE-13):** turn every network interface off (Wi-Fi and Ethernet).
+    Within a couple of seconds the window warns that this Mac is offline and that the camera can
+    only be reached on its own network, and offers a link that opens Network settings. Turn the
+    network back on — the warning goes by itself.
 
 M5. **Stop and start (MACOS-3, BG-11):** Stop from the menu — it asks for confirmation; cancel and
     nothing changes; confirm and audio, alarm and connection all stop. Start again from the menu.
@@ -175,6 +218,12 @@ M7. **Idle sleep is held off (BG-12, MACOS-10):** set the Mac to sleep after 1 m
     inactivity. Start monitoring and leave it alone for 5 minutes without touching anything. The
     Mac does not sleep and audio never stops. Stop monitoring — the Mac sleeps normally again.
 
+M7a. **The display stays awake, but only while watched (LIVE-14, MACOS-10):** set the display to
+    sleep after 1 minute. With the window open and the feed live, leave the Mac alone for 3 minutes
+    — the screen stays on. Close the window (monitoring carries on): the screen now sleeps on its
+    normal timeout. Reopen it and unplug the camera so the feed leaves "Live": the screen sleeps
+    again. `pmset -g assertions` names the app for exactly as long as it should, and no longer.
+
 M8. **The lid is the honest one (BG-12, MACOS-11):** this is the step that matters most, because
     it is where the Mac is weaker than the phone and must say so.
     a. Before relying on it overnight, the app states plainly that a closed lid stops the monitor.
@@ -185,8 +234,10 @@ M8. **The lid is the honest one (BG-12, MACOS-11):** this is the step that matte
        feed that happened to be quiet.
 
 M9. **Restart (BG-13, MACOS-8):** while monitoring, restart the Mac. On next launch the app says
-    monitoring stopped and resumes in one click. Turn on "open at login" and restart again — it
-    comes back by itself.
+    monitoring stopped and resumes in one click. The app offers — once, and without ever having
+    turned it on for you — to open at login; decline it and it does not ask again, and settings
+    still show it off. Turn "open at login" on in settings and restart again — the app comes back by
+    itself and monitoring resumes. Turn it off — it does not.
 
 M10. **Updates never interrupt (UPD-3, UPD-5, UPD-7):** with monitoring running, publish a newer
      release. The app downloads and verifies it, says it is ready, and **does not restart**.

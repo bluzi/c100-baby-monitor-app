@@ -80,6 +80,7 @@ Gradle is the task runner for the shared core and the Android app; the macOS app
 | Build + install + launch on **connected phone** | `./gradlew runPhone` |
 | Build the macOS app | `./macos/build.sh [debug\|release]` |
 | Run the macOS app | `./macos/run.sh` |
+| Look at a macOS screen without a camera | `BM_UI_PREVIEW=viewer ./macos/build/BabyMonitor.app/Contents/MacOS/BabyMonitor` |
 
 `./gradlew check` must be green before anything is considered done. It runs the core's tests on
 **both** the JVM and Kotlin/Native — a change that breaks the monitor on macOS alone cannot go
@@ -110,6 +111,21 @@ Keychain identifies the app by its *identity*, so an update is still the same ap
 
 Claiming the entitlement **without** the profile makes the kernel SIGKILL the process at exec.
 Certificate, profile and entitlement are a set; drop any one and it breaks, loudly or quietly.
+
+`BM_SIGN=adhoc ./macos/build.sh` signs ad-hoc and never touches the Keychain. It exists for shells
+that cannot answer a Keychain prompt (an agent, a CI runner): there, signing with a real identity
+does not fail, it *blocks*, and the build never returns. Never use it for anything a person
+installs — an ad-hoc build cannot read its own stored session without a password.
+
+### Looking at the Mac UI without a camera
+
+`BM_UI_PREVIEW=<login|devices|viewer|settings>` runs the shell against a **fake `UiState`** — no
+Keychain, no camera, no monitor, and no writes to your real preferences. `BM_UI_ALARM`,
+`BM_UI_STATUS`, `BM_UI_SHAPE=mini`, `BM_UI_HOVER`, `BM_UI_MUTED`, `BM_UI_OUTAGE`, `BM_UI_FEEDBACK`
+pose the state you want to look at; `BM_UI_SNAPSHOT=/path.png` photographs the window and quits
+(it works on a locked screen, where nothing outside the process can see a window at all). It is
+dead code in a real run, and it is how the design in `spec/features/macos-shell.spec.md` was
+actually checked rather than assumed.
 
 ## Releasing
 
@@ -153,7 +169,17 @@ core/                 THE MONITOR. Kotlin Multiplatform: JVM (Android) + Kotlin/
   protocol-vectors.json Interop vectors from the proven c100 TS impl; compiled into the tests
 
 android/              The Android shell: MediaCodec, AudioTrack, foreground service, Compose
-macos/                The macOS shell: AppKit, menu bar, VideoToolbox, Keychain, the updater
+macos/                The macOS shell: AppKit + SwiftUI, menu bar, VideoToolbox, Keychain, updater
+  Sources/
+    AppDelegate.swift   Lifecycle, the menu bar item and its menu, updates, sleep/wake
+    MainMenu.swift      The standard Mac menus — and therefore ⌘V (MACOS-13)
+    MonitorWindow.swift ONE window, two shapes (full / floating mini), and the morph between them
+    RootView.swift      Routing + the video stage that both shapes share
+    ViewerView.swift    The full shape: glass chrome over full-bleed video
+    MiniView.swift      The mini shape: the floating tile's chrome
+    Design.swift        Glass, controls, level bar, pointer tracking
+    Preview.swift       Visual harness (BM_UI_PREVIEW=…) — dead code in a real run
+  tools/make-icon.swift The app icon, drawn in code (./macos/make-icon.sh regenerates it)
 ```
 
 ## Architecture conventions

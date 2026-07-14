@@ -65,6 +65,7 @@ final class KeychainSecretBox: NSObject, SecretBox {
     /// that declined to store a token took the whole monitor down. AUTH-6 says drop the session; a
     /// nil says it in the one way that cannot be misunderstood across a language bridge.
     func seal(plain: String) -> String? {
+        guard !Preview.active else { return nil } // the harness never touches a real Keychain
         var query = base
         SecItemDelete(query as CFDictionary)
 
@@ -80,6 +81,7 @@ final class KeychainSecretBox: NSObject, SecretBox {
     }
 
     func open(sealed: String) -> String? {
+        guard !Preview.active else { return nil } // the harness never touches a real Keychain
         guard sealed == "keychain" else { return nil }
         var query = base
         query[kSecReturnData as String] = true
@@ -101,6 +103,7 @@ final class KeychainSecretBox: NSObject, SecretBox {
     }
 
     func clear() {
+        guard !Preview.active else { return }
         SecItemDelete(base as CFDictionary)
     }
 }
@@ -111,7 +114,12 @@ enum UpdaterToken {
     private static let service = "com.bluzi.babymonitor.updater"
     private static let account = "github-token"
 
+    /// The one door, locked at the door rather than at each of the places that might walk through
+    /// it. A build that is not the one that stored an item cannot read it without macOS asking the
+    /// person at the Mac for their login password — so the visual harness, which is never that
+    /// build, does not get to ask. (It asked. Once per launch. It was as annoying as it sounds.)
     static func load() -> String? {
+        guard !Preview.active else { return nil }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -129,6 +137,7 @@ enum UpdaterToken {
     }
 
     static func save(_ token: String) {
+        guard !Preview.active else { return }
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -141,6 +150,7 @@ enum UpdaterToken {
     }
 
     static func clear() {
+        guard !Preview.active else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

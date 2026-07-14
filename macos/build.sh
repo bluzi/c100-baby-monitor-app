@@ -22,10 +22,16 @@ if [ "$CONFIG" = "release" ]; then
   GRADLE_TASK="linkReleaseFrameworkMacosArm64"
   FRAMEWORK_DIR="$ROOT/core/build/bin/macosArm64/releaseFramework"
   SWIFT_FLAGS="-O"
+  # A trusted timestamp is what keeps a signature valid after the certificate expires. It is worth
+  # a round-trip to Apple's server for something people install; it is not worth one for a build
+  # that exists for ninety seconds. (And on a machine without a route to timestamp.apple.com, the
+  # signing step does not fail — it *hangs*, which is a far worse way to spend an afternoon.)
+  TIMESTAMP_FLAG="--timestamp"
 else
   GRADLE_TASK="linkDebugFrameworkMacosArm64"
   FRAMEWORK_DIR="$ROOT/core/build/bin/macosArm64/debugFramework"
   SWIFT_FLAGS="-Onone -g"
+  TIMESTAMP_FLAG="--timestamp=none"
 fi
 
 echo "==> Building the shared monitor ($CONFIG)"
@@ -47,6 +53,14 @@ swiftc $SWIFT_FLAGS \
 
 sed -e "s/__VERSION_NAME__/$VERSION_NAME/" -e "s/__VERSION_CODE__/$VERSION_CODE/" \
   "$ROOT/macos/Resources/Info.plist" > "$APP/Contents/Info.plist"
+
+# MACOS-17: the icon. Committed rather than generated at build time — regenerate it with
+# ./macos/make-icon.sh after changing tools/make-icon.swift.
+if [ -f "$ROOT/macos/Resources/AppIcon.icns" ]; then
+  cp "$ROOT/macos/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+else
+  echo "!! macos/Resources/AppIcon.icns is missing — run ./macos/make-icon.sh" >&2
+fi
 
 # The Kotlin framework is static, so nothing to embed — the binary carries the monitor, libopus and
 # all. Verified below, because a missing dylib would only show up at 3am on someone else's Mac.
@@ -77,6 +91,15 @@ fi
 # SIGKILLs the process at exec — Developer ID or not.
 DEV_ID="$(security find-identity -v -p codesigning 2>/dev/null \
   | grep -m1 "Developer ID Application" | sed -E 's/.*"(.*)"/\1/' || true)"
+
+# BM_SIGN=adhoc: sign ad-hoc and never touch the Keychain. For an agent, a CI runner, or any shell
+# with no way to answer a Keychain prompt — where signing with a real identity does not fail, it
+# *blocks*, and the build simply never finishes. The app still runs; it will just ask for the login
+# password when it wants its session back, which a throwaway build has no business having anyway.
+if [ "${BM_SIGN:-}" = "adhoc" ]; then
+  DEV_ID=""
+  SKIP_SELF_SIGNED=1
+fi
 # The team id is the parenthesised part of the identity — "Developer ID Application: Name (TEAMID)".
 # Taken from the certificate rather than hard-coded, so nothing drifts if the team ever changes.
 TEAM_ID="${BM_TEAM_ID:-$(printf '%s' "$DEV_ID" | sed -nE 's/.*\(([A-Z0-9]{10})\)$/\1/p')}"
@@ -106,13 +129,13 @@ if [ -n "$DEV_ID" ] && [ -f "$PROFILE" ]; then
 </dict>
 </plist>
 EOF
-  codesign --force --deep --timestamp --options runtime \
+  codesign --force --deep $TIMESTAMP_FLAG --options runtime \
     --entitlements "$ENTITLEMENTS" --sign "$DEV_ID" "$APP"
   echo "==> Signed with '$DEV_ID' + entitlement (data-protection Keychain — no password prompts)"
 elif [ -n "$DEV_ID" ]; then
-  codesign --force --deep --timestamp --options runtime --sign "$DEV_ID" "$APP"
+  codesign --force --deep $TIMESTAMP_FLAG --options runtime --sign "$DEV_ID" "$APP"
   echo "==> Signed with '$DEV_ID' (no provisioning profile — one Keychain prompt per update)"
-elif security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SELF_SIGNED"; then
+elif [ -z "${SKIP_SELF_SIGNED:-}" ] && security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SELF_SIGNED"; then
   codesign --force --deep --sign "$SELF_SIGNED" "$APP"
   echo "==> Signed with '$SELF_SIGNED'"
   echo "   (macOS will ask for your login password once after each update — see AUTH-6m)"

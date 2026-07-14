@@ -152,9 +152,11 @@ Run on a real Mac with a reachable camera. The shared behaviour (crying detectio
 watchdog, alarm timing) is not re-verified here — it is the same code, and the same tests run on
 this platform. What follows is the shell, and the honesty about what a Mac cannot do.
 
-M1. **Menu bar is the app (MACOS-1, MACOS-2):** launch it. A menu bar item appears and its icon
-    shows the state; the menu names the camera and reads live/reconnecting/stopped in words.
-    Unplug the camera — the icon and the menu both change within seconds.
+M1. **Menu bar is the app (MACOS-1, MACOS-2):** launch it. The menu bar item is the app's own
+    waveform, drawn in the bar's own colour — **never a black blob, never a moon** — and it stays
+    that way through connecting, live and reconnecting. The menu names the camera and reads
+    live/reconnecting in words. Now break it: trigger an alarm (the icon turns into a red bell) and
+    expire the session (an orange warning triangle). Those two, and only those two, change the icon.
 
 M2. **Closing a window is not quitting (MACOS-7, MACOS-9, BG-5):** with audio playing, close the
     main window. Audio keeps playing, the menu bar item stays. Reopen from the menu — the feed is
@@ -177,6 +179,18 @@ M4a. **One window, two shapes (MACOS-14, MACOS-15):** with the feed live, switch
     each shape, switch back and forth: each remembers its own size and position, and still does
     after a relaunch. Hover the mini — its controls and an explicit "make it full" control appear;
     move the pointer away — they go, leaving the picture and the feed state.
+
+M4h. **The tile is out of Mission Control, and says "muted" with its button (MACOS-20, MACOS-5,
+    LIVE-2):** with the tile up, open Mission Control — the tile is **not** among the windows shown
+    (the full window, when open, is). Mute from the tile: the mute button is on it **at all times**,
+    not only on hover, and while muted it is a filled red well — there is no "muted" word anywhere
+    on the tile, and none is needed. Click it again for sound.
+
+M4i. **Switching to the tile does not leave it stuck bright (MACOS-16):** with fading on, click the
+    mini-window button in the full window and then **do not move the mouse at all**. The tile flies
+    to the corner and, within a moment, fades — it does not sit at full brightness with its controls
+    showing until you happen to hover it. (It did exactly that: the window moved out from under a
+    stationary pointer, so nothing ever told the app the pointer had left.)
 
 M4b. **The mini fades, but never over a warning (MACOS-16):** with the feed live and the pointer
     away, the mini goes translucent and the window underneath is readable through it; move the
@@ -212,8 +226,16 @@ M4f. **Offline is said out loud (LIVE-13):** turn every network interface off (W
     only be reached on its own network, and offers a link that opens Network settings. Turn the
     network back on — the warning goes by itself.
 
-M5. **Stop and start (MACOS-3, BG-11):** Stop from the menu — it asks for confirmation; cancel and
-    nothing changes; confirm and audio, alarm and connection all stop. Start again from the menu.
+M5. **There is no Stop, and Quit asks (BG-11m, MACOS-3):** look for a stop control — in the window,
+    in the menu bar's menu, in the feed's menu. **There is none, anywhere.** Now press ⌘Q while
+    monitoring: it asks, plainly, and says the baby will not be monitored. Cancel — audio carries on
+    and nothing changed. Repeat from the menu bar's Quit and from the feed's menu Quit: both ask the
+    same question. Confirm one — the app quits and monitoring ends with it. Reopen — it is watching
+    again within seconds, with no Start needed.
+
+M5a. **Start exists only for a monitor that broke (WATCH-11, BG-11m):** force the monitor into its
+    failed state and check the window and the menu bar both offer Start — a monitor that failed on
+    its own must be recoverable without quitting the app. Once it is live again, Start is gone.
 
 M6. **Alarm audibility (ALRM-4, ALRM-10):** mute the feed, turn the Mac's output volume down, and
     play a crying clip at the camera for ~3 s. It is still audible, it rings until acknowledged,
@@ -244,18 +266,23 @@ M9. **Restart (BG-13, MACOS-8):** while monitoring, restart the Mac. On next lau
     still show it off. Turn "open at login" on in settings and restart again — the app comes back by
     itself and monitoring resumes. Turn it off — it does not.
 
-M10. **Updates never interrupt (UPD-3, UPD-5, UPD-7):** with monitoring running, publish a newer
-     release. The app downloads and verifies it, says it is ready, and **does not restart**.
-     Monitoring is untouched. Stop monitoring — the update applies. Confirm the new version under
-     About (UPD-6, LIVE-15).
+M10. **Updates: at launch, and only at launch (UPD-3, UPD-5):** publish a newer release, then open
+     the app. Within seconds of launch it installs the new version **on disk** and asks whether to
+     restart. Monitoring, meanwhile, has already started and is *untouched* — audio keeps playing
+     behind the dialog. Choose **Later**: nothing happens, the question is not asked again, and the
+     app keeps watching on the old version. Quit and reopen — it comes up on the **new** version
+     (check About: UPD-6/LIVE-15). Now leave the app running for hours with another release
+     published: **it must never check, never install and never ask again.** The only thing that can
+     start a check while it runs is a human (UPD-9).
 
-M10a. **The update actually lands (UPD-5, both halves):** the step above proves the update WAITS.
-     This proves it eventually arrives. With the update staged and monitoring still running, quit
-     the app and reopen it — it installs the staged version *before* monitoring starts, relaunches,
-     and comes back live on the new version. Check About.
-     Without this half the app would never update at all: it starts monitoring the instant it
-     launches, so "monitoring is stopped" never comes around by itself, and it would sit on one
-     version forever, re-downloading the new one and throwing it away. It did exactly that.
+M10a. **Restart Now (UPD-5):** repeat, and choose **Restart Now** while monitoring is live. The app
+     relaunches, comes back on the new version, and monitoring resumes by itself within seconds. The
+     outage is seconds long and you are standing there — which is the only condition under which
+     this app restarts at all.
+
+M10c. **A check on demand (UPD-9):** with no update published, use "Check for Updates…" from the
+     menu bar's menu, from the feed's ⋯ menu, and from the app menu. Each one answers — it says the
+     app is up to date rather than leaving you wondering whether the click did anything.
 
 M10b. **The update does not ask for a password (AUTH-6m):** the step above must complete with **no
      Keychain prompt at all** — the updated app reads its own stored session in silence and comes
@@ -277,10 +304,14 @@ Run on a real PC with a reachable camera. The shared behaviour (crying detection
 watchdog, alarm timing) is not re-verified here — the same spec suite runs against the Windows port,
 criterion for criterion. What follows is the shell, and the honesty about what a PC cannot do.
 
-W1. **The tray is the app (WIN-1, WIN-2, BG-2w):** launch it. A tray icon appears and shows the
-    state; its menu names the camera and reads live/reconnecting/stopped in words. Unplug the camera
-    — the icon and the menu both change within seconds. The menu opens with either mouse button and
-    dismisses when you click away, like every other tray menu.
+W1. **The tray is the app, and it is quiet while it works (WIN-1, WIN-2, BG-2w):** launch it. A tray
+    icon appears — **the app's own mark, nothing else**. Its menu names the camera and reads live in
+    words. Unplug the camera: the menu goes to reconnecting within seconds, and **the icon does not
+    change** — the monitor is working on it, and an icon that flinches at every blip is one a parent
+    stops reading. Now break it for real (sign out of the Mi account elsewhere, so the session
+    expires): the icon changes, unmistakably, to say the monitor is no longer watching. Trigger an
+    alarm: it changes again, to its own icon. The menu opens with either mouse button and dismisses
+    when you click away, like every other tray menu.
 
 W2. **Closing a window is not exiting (WIN-7, WIN-9, WIN-12, BG-5):** with audio playing, close the
     window (the X, and again with Alt-F4). Audio keeps playing, the tray icon stays, and the first
@@ -303,12 +334,15 @@ W4. **Mini shape floats (WIN-5, BG-7w):** put the window in its mini shape. It s
     apps, including a maximised one. Move and resize it (it keeps the video's shape), exit and
     relaunch — it comes back where it was, in the shape it was in. Close it — monitoring carries on.
 
-W4a. **One window, two shapes (WIN-14, WIN-15):** with the feed live, switch full → mini and back,
-    from the window's own control, from the tray menu, and from the keyboard. Each time: **the
+W4a. **One window, two shapes (WIN-14, WIN-15, WIN-22):** with the feed live, switch full → mini and
+    back, from the window's own control, from the tray menu, and from the keyboard. Each time: **the
     picture never blacks out, audio never stutters, and the log shows no reconnect.** Move and
     resize each shape and switch back and forth: each remembers its own size and position, and still
-    does after a relaunch. Hover the mini — its controls and an explicit "make it full" control
-    appear; move the pointer away — they go, leaving the picture and the feed state.
+    does after a relaunch. Hover the mini — its close, acknowledge and "make it full" controls appear;
+    move the pointer away — they go, leaving the picture, the feed state **and mute** (WIN-5), which is
+    always there because a tile has no room to say "muted" in words (LIVE-2). While the tile is up,
+    press Alt-Tab and look at the taskbar: **it is in neither** (WIN-22) — it is already on top of
+    everything, and it must not clutter the list of windows you are trying to see past.
 
 W4b. **The mini fades, but never over a warning (WIN-16, WIN-18):** with the feed live and the
     pointer away, the mini goes translucent and the window underneath is readable through it; move
@@ -343,9 +377,13 @@ W4g. **Offline is said out loud (LIVE-13):** disable every network adapter (Wi-F
     be reached on its own network, and offers a link that opens Network & internet settings. Turn the
     network back on — the warning goes by itself.
 
-W5. **Stop and start (WIN-3, BG-11, BG-3w):** Stop from the tray menu — it asks for confirmation;
-    cancel and nothing changes; confirm and audio, alarm and connection all stop, without opening a
-    window. Start again from the menu.
+W5. **There is no Stop, and Exit asks (BG-11w, WIN-3, BG-3w):** look for a stop control — in the
+    window, in the "…" menu, in the tray menu. **There is none, in any state**, and there is no way to
+    leave the app sitting in the tray, alive, with the watch ended. Now Exit from the tray while
+    monitoring: it asks first. Choose "Keep monitoring" — nothing changes, the feed is untouched.
+    Exit again and confirm: the app goes, and with it the watch. Reopen it — it starts watching by
+    itself. Finally, break the monitor (WATCH-11) and check that **Start** appears, in the window and
+    in the tray: a monitor that failed on its own must be recoverable without exiting the app.
 
 W6. **Alarm audibility (ALRM-4, WIN-21):** mute the feed, turn the PC's output volume down, and play
     a crying clip at the camera for ~3 s. It is still audible, it rings until acknowledged, and the
@@ -384,16 +422,23 @@ W10. **No H.265 decoder (WIN-20):** on a PC **without** the HEVC Video Extension
      This is the one place a PC is weaker than the Mac, and a black rectangle with no explanation would
      be exactly the kind of silence this app exists to prevent.
 
-W11. **Updates never interrupt (UPD-3, UPD-5, UPD-7):** with monitoring running, publish a newer
-     release. The app downloads and verifies it, says it is ready, and **does not restart**. Monitoring
-     is untouched. Stop monitoring — the update applies and the app comes back on the new version.
-     Confirm it under About (UPD-6, LIVE-15).
+W11. **The app never restarts itself (UPD-3, UPD-5, UPD-5w, UPD-7):** with a newer release published,
+     launch the app. It checks **once, at launch**, downloads and verifies the update, puts it in place
+     beside the running app — which keeps watching, untouched — and then asks, **once**, whether to
+     restart into it.
+     Answer **Later**. Nothing happens: monitoring carries on, and **the app never asks again and never
+     restarts on its own** — leave it running for hours, overnight if you can, and it must still be the
+     old version, still watching. The tray menu and Settings say quietly that the new version is
+     installed and runs at the next launch (UPD-7).
+     Then quit and reopen: it comes back on the new version, before monitoring starts. Check About
+     (UPD-6, LIVE-15).
 
-W11a. **The update actually lands (UPD-5, both halves):** with an update staged and monitoring still
-     running, exit the app and start it again — it installs the staged version *before* monitoring
-     starts, relaunches, and comes back live on the new version. Check About. Without this half the app
-     would never update at all: it starts monitoring the instant it launches, so "monitoring is
-     stopped" never comes around by itself.
+W11a. **Restart now (UPD-5):** repeat, and this time answer **Restart now**. The app restarts within
+     seconds, comes back on the new version, and **monitoring resumes by itself**.
+
+W11c. **A check can be asked for (UPD-9):** with no update available, choose "Check for updates…" from
+     the tray menu, and again from the live feed's "…" menu. Both answer — up to date, and which version
+     you are running. A parent who wants to know is never made to relaunch the app to find out.
 
 W11b. **The update does not ask for anything (AUTH-6w):** the step above must complete with **no
      prompt of any kind** — the updated app reads its own stored session in silence and comes straight

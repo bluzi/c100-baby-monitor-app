@@ -120,10 +120,13 @@ public sealed class AppState : INotifyPropertyChanged
 
     public int CalibrationSteps => MonitorHub.CalibrationSteps.Value;
 
-    /// <summary>BG-11 / WATCH-11: the shared decision. The tray menu and the window cannot disagree.</summary>
-    public bool CanStop => ViewerActions.Kinds(Running, Status).Contains(ViewerActionKind.Stop);
-
-    public bool CanResume => ViewerActions.Kinds(Running, Status).Contains(ViewerActionKind.Resume);
+    /// <summary>
+    /// BG-11w / WATCH-11: the shared decision, so the tray menu and the window cannot disagree — and
+    /// so nobody can quietly hand a PC a Stop button back. There is deliberately no `CanStop`: a PC
+    /// stops by exiting (WIN-3), and Start exists only for a monitor that failed on its own.
+    /// </summary>
+    public bool CanResume =>
+        DesktopShell.ViewerActions(Running, Status).Contains(ViewerActionKind.Resume);
 
     public MonitorHealth Health => new(
         Running: Running,
@@ -234,10 +237,15 @@ public sealed class AppState : INotifyPropertyChanged
         Emit();
     }
 
+    /// <summary>
+    /// BG-11w: **not a control.** There is no Stop on a PC — the app watches until it is exited. This
+    /// is the machinery behind the things that *do* end a watch: exiting, signing out, and switching
+    /// camera (which stops one stream to start another).
+    /// </summary>
     public void Stop()
     {
         _engine?.Stop();
-        _store.SetMonitoring(false); // the user meant it: a restart must not resume by itself (BG-13w)
+        _store.SetMonitoring(false); // deliberate: a restart must not resume by itself (BG-13w)
         Emit();
     }
 

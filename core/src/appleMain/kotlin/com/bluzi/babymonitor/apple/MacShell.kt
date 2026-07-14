@@ -1,6 +1,8 @@
 package com.bluzi.babymonitor.apple
 
 import com.bluzi.babymonitor.monitor.STATUS_LIVE
+import com.bluzi.babymonitor.ui.ViewerActionKind
+import com.bluzi.babymonitor.ui.viewerActionKinds
 
 /**
  * The Mac shell's decisions — the ones that could hide a warning if they were wrong.
@@ -62,6 +64,26 @@ object MacShell {
     fun clampMiniOpacity(value: Double): Double =
         if (value.isNaN()) MINI_OPACITY_DEFAULT
         else value.coerceIn(MINI_OPACITY_MIN, MINI_OPACITY_MAX)
+
+    /**
+     * BG-11m: **which controls the Mac's feed offers — and Stop is never one of them.**
+     *
+     * On a Mac the app *is* the monitor: it watches from the moment it opens until it is quit, so
+     * there is no such thing as Baby Monitor running and not monitoring. That state — an app sitting
+     * on screen looking alive over a watch that ended hours ago — is the quietest failure this
+     * project could ship, and removing the control removes the state.
+     *
+     * Start survives, because a monitor that failed *on its own* (WATCH-11) must be recoverable
+     * without quitting the app.
+     *
+     * It is derived from the shared decision rather than written out fresh, so a control added for
+     * the phone tomorrow appears here too — and it is tested, so nobody can quietly hand a Mac a
+     * Stop button back.
+     */
+    fun macViewerActions(running: Boolean, status: String): List<String> =
+        viewerActionKinds(running, status)
+            .filter { it != ViewerActionKind.Stop }
+            .map { it.name }
 
     /**
      * MACOS-14: which shape the window may take. The mini shape is a *view of a feed* — there is

@@ -145,6 +145,9 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
             self.morphing = false
             self.window.invalidateShadow() // the shape changed under the shadow
             self.applyAspectPolicy() // MACOS-19: and it settles into the camera's shape
+            // The window has just moved out from under the pointer — ask where the pointer actually
+            // is rather than trusting an "entered" that will never be matched by an "exited".
+            self.state.pointerMayHaveLeft(windowFrame: self.window.frame, visible: self.window.isVisible)
             self.applyAlpha(animated: true)
         }
 
@@ -256,8 +259,13 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         window.isMovableByWindowBackground = true // drag it anywhere by its picture
         window.level = .floating // MACOS-5: above ordinary windows
         // Over full-screen apps and across spaces (BG-7m): the glance must never require leaving
-        // what you are doing.
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // what you are doing — and OUT of Mission Control and the window cycles (MACOS-20).
+        //
+        // `.transient` is the one that does it: it tells the window server this window is not part
+        // of the user's document space. It is already floating on top of everything; listing it
+        // among the windows someone opened Mission Control to see *past* is clutter twice over.
+        // (`.transient`, `.managed` and `.stationary` are alternatives — setting two is undefined.)
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         window.backgroundColor = .clear // its corners are rounded, so its background cannot be opaque
         window.isOpaque = false
         window.hasShadow = true
@@ -374,14 +382,22 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         // MACOS-7 / BG-5: the window is closing. The monitor is not.
         DispatchQueue.main.async { [weak self] in
-            self?.updateDisplayWake()
-            self?.onVisibilityChanged()
+            guard let self else { return }
+            self.updateDisplayWake()
+            self.state.pointerMayHaveLeft(windowFrame: self.window.frame, visible: false)
+            self.onVisibilityChanged()
         }
     }
 
-    func windowDidMove(_ notification: Notification) { rememberFrame() }
+    func windowDidMove(_ notification: Notification) {
+        rememberFrame()
+        state.pointerMayHaveLeft(windowFrame: window.frame, visible: window.isVisible)
+    }
 
-    func windowDidResize(_ notification: Notification) { rememberFrame() }
+    func windowDidResize(_ notification: Notification) {
+        rememberFrame()
+        state.pointerMayHaveLeft(windowFrame: window.frame, visible: window.isVisible)
+    }
 
     private func rememberFrame() {
         guard !morphing, let shape = currentShape, window.isVisible else { return }

@@ -1,4 +1,5 @@
 using BabyMonitor.Core.Monitor;
+using BabyMonitor.Core.Ui;
 
 namespace BabyMonitor.Core.Shell;
 
@@ -64,6 +65,26 @@ public static class DesktopShell
 
     public static double ClampMiniOpacity(double value) =>
         double.IsNaN(value) ? MiniOpacityDefault : Math.Clamp(value, MiniOpacityMin, MiniOpacityMax);
+
+    /// <summary>
+    /// BG-11w: **which controls the PC's feed offers — and Stop is never one of them.**
+    ///
+    /// On a PC the app *is* the monitor: it watches from the moment it opens until it is exited, so
+    /// there is no such thing as Baby Monitor running and not monitoring. That state — an app sitting
+    /// in the tray looking alive over a watch that ended hours ago — is the quietest failure this
+    /// project could ship, and removing the control removes the state.
+    ///
+    /// Start survives, because a monitor that failed *on its own* (WATCH-11) must be recoverable
+    /// without exiting the app.
+    ///
+    /// It is derived from the shared decision rather than written out fresh, so a control added for
+    /// the phone tomorrow appears here too — and it is tested, so nobody can quietly hand a PC a Stop
+    /// button back.
+    /// </summary>
+    public static IReadOnlyList<ViewerActionKind> ViewerActions(bool running, string status) =>
+        Ui.ViewerActions.Kinds(running, status)
+            .Where(kind => kind != ViewerActionKind.Stop)
+            .ToList();
 
     /// <summary>
     /// WIN-14: which shape the window may take. The mini shape is a *view of a feed* — there is nothing

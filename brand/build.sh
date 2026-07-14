@@ -47,13 +47,12 @@ BASE="$ICONSET/icon_256x256.png"
 magick "$BASE" -define icon:auto-resize=256,128,64,48,32,16 "$ASSETS/BabyMonitor.ico"
 magick "$ICONSET/icon_128x128.png" "$ASSETS/BabyMonitor.png"
 
-# WIN-1: the tray icon shows the feed state at a glance. Same mark, four states — the way the Mac's
-# menu bar item changes, and for the same reason: a parent must be able to read the monitor without
-# opening it.
+# WIN-1: while the monitor is doing its job the icon is just the mark — a tray icon that keeps
+# changing its face is one a parent learns to stop reading. It changes for the two things that mean
+# "go and look", and for nothing else:
 #
-#   live      the mark, as it is everywhere else
-#   stopped   drained of colour — the quietest failure there is, and it must not look normal
-#   warning   an amber badge: connecting, reconnecting, an expired session, a monitor that failed
+#   live      the mark, as it is everywhere else (live, connecting, reconnecting — it is working)
+#   warning   an amber badge: the monitor is NOT watching (expired session, unsupported camera, failure)
 #   alarm     a red badge: unmistakable, even on a PC with its speakers off
 badge() { # badge <colour> <out>
   magick "$BASE" \
@@ -64,8 +63,6 @@ badge() { # badge <colour> <out>
 }
 
 magick "$BASE" -define icon:auto-resize=48,32,24,20,16 "$ASSETS/tray-live.ico"
-magick "$BASE" -colorspace Gray -brightness-contrast -12 \
-  -define icon:auto-resize=48,32,24,20,16 "$ASSETS/tray-stopped.ico"
 badge '#F5A524' "$ASSETS/tray-warning.ico"
 badge '#E53935' "$ASSETS/tray-alarm.ico"
 

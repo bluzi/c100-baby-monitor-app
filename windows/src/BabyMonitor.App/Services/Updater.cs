@@ -12,7 +12,14 @@ public enum UpdateState
 {
     Idle,
     Checking,
-    ReadyToInstall,
+
+    /// <summary>
+    /// UPD-5/7: downloaded, verified, and **already on disk** — the running monitor was never touched.
+    /// It takes over at the next launch. The app does not restart itself to get there.
+    /// </summary>
+    Installed,
+
+    /// <summary>UPD-4: the check failed. The app says so rather than going quiet.</summary>
     Failing,
 }
 

@@ -232,18 +232,17 @@
                         PointerEntered="OnChromePointerEntered"
                         PointerExited="OnChromePointerExited">
                     <StackPanel Orientation="Horizontal" Spacing="4">
+                        <!-- BG-11w: Start, and no Stop. A PC watches until it is exited, so there is no
+                             such thing as Baby Monitor running and not monitoring — and no control to
+                             create it. Start is here only for a monitor that failed on its own
+                             (WATCH-11), which must be recoverable without exiting the app. -->
                         <Button x:Name="StartButton" Click="OnStart"
                                 Background="Transparent" BorderThickness="0" CornerRadius="20"
                                 ToolTipService.ToolTip="Start monitoring">
                             <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE768;" FontSize="15" />
                         </Button>
-                        <Button x:Name="StopButton" Click="OnStop"
-                                Background="Transparent" BorderThickness="0" CornerRadius="20"
-                                ToolTipService.ToolTip="Stop monitoring…">
-                            <FontIcon FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" Glyph="&#xE71A;" FontSize="15" />
-                        </Button>
 
-                        <Rectangle Width="1" Height="20" Fill="#33FFFFFF" Margin="4,0" />
+                        <Rectangle x:Name="StartSeparator" Width="1" Height="20" Fill="#33FFFFFF" Margin="4,0" />
 
                         <!-- LIVE-2: muted draws latched — a changed glyph is never the only clue. -->
                         <Button x:Name="MuteButton" Click="OnToggleMute"
@@ -290,7 +289,14 @@
                                     <MenuFlyoutItem Text="Switch camera…" Click="OnSwitchCamera" />
                                     <MenuFlyoutItem Text="Sign out" Click="OnSignOut" />
                                     <MenuFlyoutSeparator />
+                                    <!-- UPD-9: a check can always be asked for, so a parent who wants to
+                                         know is never made to relaunch the app to find out. -->
+                                    <MenuFlyoutItem Text="Check for updates…" Click="OnCheckForUpdates" />
                                     <MenuFlyoutItem x:Name="AboutItem" IsEnabled="False" />
+                                    <MenuFlyoutSeparator />
+                                    <!-- BG-11w / WIN-3: exiting is how a PC stops monitoring, and it
+                                         asks first while the monitor is running. -->
+                                    <MenuFlyoutItem Text="Exit Baby Monitor" Click="OnExit" />
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
@@ -354,7 +360,10 @@
                         <Button x:Name="MiniAcknowledge" Click="OnAcknowledge" Visibility="Collapsed"
                                 Background="#E6C62828" BorderThickness="0" CornerRadius="12"
                                 Padding="10,4" Content="Acknowledge" FontSize="12" />
-                        <Button x:Name="MiniMute" Click="OnToggleMute" Opacity="0"
+                        <!-- WIN-5 / LIVE-2: mute is ALWAYS here, not only on hover. A tile is too small
+                             to spend a word of its status line on "muted", so the control itself has to
+                             carry it — latched, unmistakable, and always there to be clicked. -->
+                        <Button x:Name="MiniMute" Click="OnToggleMute"
                                 Width="26" Height="26" Padding="0" CornerRadius="13"
                                 Background="#99000000" BorderThickness="0">
                             <FontIcon x:Name="MiniMuteIcon" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"

@@ -86,10 +86,13 @@ public sealed partial class SettingsWindow : Window
             UpdateStatusText.Text = _state.UpdateStatus.State switch
             {
                 UpdateState.Checking => "Checking…",
-                UpdateState.ReadyToInstall =>
-                    $"{_state.UpdateStatus.Version} is ready — it installs when monitoring stops",
+                // UPD-6/7: a parent who declined the restart can still tell what will run next time,
+                // and what is running now.
+                UpdateState.Installed =>
+                    $"{_state.UpdateStatus.Version} is installed — it runs at the next launch " +
+                    $"(you are running {_state.Version})",
                 UpdateState.Failing => _state.UpdateStatus.Reason ?? "Update checks are failing",
-                _ => hasToken ? "Up to date" : "Not set up",
+                _ => hasToken ? $"Up to date ({_state.Version})" : "Not set up",
             };
         }
         finally

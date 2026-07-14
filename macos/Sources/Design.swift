@@ -67,12 +67,26 @@ extension View {
 struct ControlGlyph: View {
     let symbol: String
 
+    /// Optical sizing, which is not the same as sizing.
+    ///
+    /// Every glyph here is drawn at the same point size, and the moon *still* looked smaller than
+    /// the speaker — because a crescent is a small shape in a large box, while a speaker with waves
+    /// fills its box corner to corner. Type designers correct this by eye rather than by arithmetic,
+    /// and so do we: the handful of symbols that sit small in their own box are drawn a little
+    /// larger, so that the row reads as one row. The number is not a fudge; it is the correction.
+    private var opticalSize: CGFloat {
+        switch symbol {
+        case let s where s.hasPrefix("moon"): return 16
+        case "ellipsis": return 16
+        default: return 15
+        }
+    }
+
     var body: some View {
         Image(systemName: symbol)
             .symbolVariant(.fill)
             .symbolRenderingMode(.hierarchical)
-            .font(.system(size: 15, weight: .semibold))
-            .imageScale(.medium)
+            .font(.system(size: opticalSize, weight: .semibold))
             .frame(width: 34, height: 34)
     }
 }
@@ -107,30 +121,110 @@ struct ControlButton: View {
     }
 }
 
-/// The same glyph, on a menu instead of a button — night vision and the overflow. A menu is still
-/// a control on that bar, and must look like one.
-struct ControlMenu<Content: View>: View {
+/// A control on the bar that opens a menu — night vision, and the overflow.
+///
+/// It is a **Button that pops a real `NSMenu`**, not a SwiftUI `Menu`, and that is the whole point.
+/// A SwiftUI `Menu` insists on drawing its own label: it sized the glyph its own way (so the moon
+/// came out smaller than the speaker beside it) and it would not take the hover highlight every
+/// other control on the bar has (so two of the six buttons stayed dead under the pointer). Both are
+/// symptoms of the same thing — a menu pretending to be a button. This *is* a button, and the menu
+/// it pops is the system's, with the system's own hover, keyboard handling and checkmarks.
+struct ControlMenuButton: View {
     let symbol: String
     let label: String
-    @ViewBuilder var content: Content
+    let items: () -> [ControlMenuItem]
 
+    @StateObject private var anchor = MenuAnchorHolder()
     @State private var hovering = false
 
     var body: some View {
-        Menu {
-            content
-        } label: {
+        Button(action: present) {
             ControlGlyph(symbol: symbol)
+                .foregroundStyle(.white)
                 .background(Circle().fill(Color.white.opacity(hovering ? 0.16 : 0)))
                 .contentShape(Circle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
         .buttonStyle(.plain)
-        .frame(width: 34, height: 34)
         .onHover { hovering = $0 }
         .help(label)
         .accessibilityLabel(label)
+        .background(MenuAnchor(holder: anchor)) // an NSView to hang the menu off
+    }
+
+    private func present() {
+        guard let view = anchor.view else { return }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        anchor.targets.removeAll() // the previous menu's closures; nothing keeps them alive but this
+
+        for item in items() {
+            switch item {
+            case .separator:
+                menu.addItem(.separator())
+            case let .info(text):
+                let entry = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+                entry.isEnabled = false
+                menu.addItem(entry)
+            case let .action(title, checked, destructive, handler):
+                let target = MenuActionTarget(handler)
+                anchor.targets.append(target)
+                let entry = NSMenuItem(title: title, action: #selector(MenuActionTarget.fire), keyEquivalent: "")
+                entry.target = target
+                entry.state = checked ? .on : .off
+                if destructive, #available(macOS 14.0, *) {
+                    // The system draws a destructive item as its own kind of item, so we do not have
+                    // to invent a way to say "this one ends the watch".
+                    entry.attributedTitle = NSAttributedString(
+                        string: title,
+                        attributes: [.foregroundColor: NSColor.systemRed]
+                    )
+                }
+                menu.addItem(entry)
+            }
+        }
+
+        // The bar sits at the bottom of the window, so the menu is asked to open at the button's
+        // bottom-left. macOS flips it upwards by itself when there is no room below, which there
+        // never is.
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: view)
+    }
+}
+
+enum ControlMenuItem {
+    case action(title: String, checked: Bool = false, destructive: Bool = false, handler: () -> Void)
+    case info(String)
+    case separator
+}
+
+/// An NSMenu item's action needs an ObjC target, and a closure is not one.
+final class MenuActionTarget: NSObject {
+    private let handler: () -> Void
+
+    init(_ handler: @escaping () -> Void) {
+        self.handler = handler
+    }
+
+    @objc func fire() { handler() }
+}
+
+@MainActor
+final class MenuAnchorHolder: ObservableObject {
+    weak var view: NSView?
+    var targets: [MenuActionTarget] = []
+}
+
+/// A zero-drawing NSView that exists only so an NSMenu has something to open from.
+struct MenuAnchor: NSViewRepresentable {
+    let holder: MenuAnchorHolder
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        holder.view = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        holder.view = nsView
     }
 }
 

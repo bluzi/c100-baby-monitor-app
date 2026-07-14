@@ -15,23 +15,29 @@ item), never the promise.
 
 ## The tray icon is the app
 
-- **WIN-1** `[device]` The app lives in the notification area. Its icon shows the feed state at a
-  glance — monitoring and live, reconnecting, stopped, or in error — and stays current as the state
-  changes. A ringing, unacknowledged alarm is unmistakable in the icon (ALRM-4).
+- **WIN-1** `[device]` The app lives in the notification area, and **while the monitor is doing its
+  job the icon is the app's own mark** — the same waveform it shows everywhere else (UI-3). It
+  changes only when something is wrong, and then it changes unmistakably: a **ringing,
+  unacknowledged alarm** (ALRM-4), and a **monitor that is not watching** — an expired session, an
+  unsupported camera, a monitor that failed — each get their own icon, in their own colour.
+  A tray that looks the same whether the feed is live or dead is the failure this whole project is
+  built against, so the fault states are loud; the working state is quiet. (Connecting and
+  reconnecting are the monitor working, not failing, and stay quiet.)
 - **WIN-2** The tray menu names the camera being monitored and its current state in words, and
-  offers, at minimum: mute, show the monitor, switch it between its two shapes (WIN-5),
-  acknowledge (only while an alarm rings), stop/start monitoring, settings, and exit. It is a real
-  Windows context menu, opened with either mouse button, and it dismisses the way every other one
-  on the desktop does.
-- **WIN-3** `[device]` Stop and start in the menu do exactly what the live feed's controls do
-  (BG-11), and Stop asks to be confirmed — a stray click in a menu can no more end monitoring than
-  a stray tap can.
+  offers, at minimum: mute, show the monitor, switch it between its two shapes (WIN-5), acknowledge
+  (only while an alarm rings), start (only when the monitor has stopped working — BG-11w), check for
+  updates (UPD-9), settings, and exit. It is a real Windows context menu, opened with either mouse
+  button, and it dismisses the way every other one on the desktop does.
+- **WIN-3** `[device]` **The menu's Exit is how a PC stops monitoring** (BG-11w), and it asks to be
+  confirmed while the monitor is running — a stray click in a menu can no more end a watch than a
+  stray tap can. There is no Stop control anywhere: a PC does not have one.
 - **WIN-4** `[device]` Mute in the menu is the same mute as everywhere else (LIVE-2): it silences
   the speaker only. **Level monitoring and the crying alarm keep working while muted** (LIVE-3), and
   the menu says which state it is in (a checked item) rather than what clicking would do.
-- **WIN-9** Exit is the only thing that ends the app. Closing a window never does (BG-5) — it hides
-  to the tray, and says so the first time — and the app never exits itself: not on an update
-  (UPD-5), not on an error.
+- **WIN-9** Exit is the only thing that ends the app — and, because the app watches until it is
+  exited (BG-11w), it is also the only thing that ends the watch. Closing a window never does
+  (BG-5): it hides to the tray. The app never exits or restarts itself: not on an update (UPD-5),
+  not on an error.
 
 ## One window, two shapes
 
@@ -40,14 +46,16 @@ small tile that stays on top of everything else. These are two shapes of the sam
 windows: at most one of them is ever on screen.
 
 - **WIN-6** `[device]` In its **full** shape the window shows the camera's video edge to edge with
-  the status, the level indicator and the controls overlaid on it — the same controls, in the same
-  states, as the phone's and the Mac's (BG-11, LIVE-2, LIVE-4, LIVE-6, LIVE-10). It can go full
-  screen (F11).
+  the status, the level indicator and the controls overlaid on it (LIVE-2, LIVE-4, LIVE-6, LIVE-10)
+  — minus the phone's stop control, which a PC does not have (BG-11w) — and the rare actions behind
+  a menu: switch camera, sign out, check for updates (UPD-9), and exit. It can go full screen (F11).
 - **WIN-5** `[device]` In its **mini** shape it is small and always on top, sitting where the user
   left it. It floats over other applications and over maximised windows, so the baby is visible
-  while working (BG-7w). It shows the video, the feed state, and — while the pointer is over it —
-  mute, acknowledge, and the control that makes it full again. It can be moved and resized, and it
-  keeps the video's shape while resizing.
+  while working (BG-7w). It shows the video, the feed state, and **mute — always, not only on
+  hover**: a tile is too small to spend words on "muted", so the mute control itself carries it,
+  latched and unmistakable (LIVE-2), and is always there to be clicked. Acknowledge, close and the
+  control that makes it full again appear with the pointer (WIN-15). It can be moved and resized,
+  and it keeps the video's shape while resizing.
 - **WIN-14** Switching shape is one action, available from the window, from the tray menu and from
   the keyboard, and it goes both ways. **It never restarts the stream**: the picture does not black
   out, no reconnect happens, and audio is not interrupted — because it is the same window and the
@@ -69,9 +77,13 @@ windows: at most one of them is ever on screen.
 - **WIN-7** `[device]` Closing the window closes the window and nothing else: monitoring, audio and
   the alarm carry on, and the tray icon remains (BG-5). Reopening it shows the ongoing feed without
   restarting the stream, in the shape it was last in.
-- **WIN-12** `[device]` While the window is open, the app can be reached the way every other app
-  can — the taskbar and Alt-Tab find it. With it closed the app recedes into the tray and stops
-  cluttering the switcher. A window a parent has to go hunting for is a window they will not check.
+- **WIN-12** `[device]` While the window is open in its **full** shape, the app can be reached the way
+  every other app can — the taskbar and Alt-Tab find it. With it closed the app recedes into the tray
+  and stops cluttering the switcher. A window a parent has to go hunting for is a window they will
+  not check.
+- **WIN-22** `[device]` **The mini shape stays out of the taskbar and out of Alt-Tab.** It is already
+  on top of everything; listing it among the windows a user is trying to see *past* makes it clutter
+  twice over.
 
 ## A Windows app behaves like a Windows app
 

@@ -10,15 +10,21 @@ only about the shell around it.
 
 ## The menu bar is the app
 
-- **MACOS-1** `[device]` The app lives in the menu bar. Its icon shows the feed state at a glance —
-  monitoring and live, reconnecting, stopped, or in error — and stays current as the state changes.
-  A ringing, unacknowledged alarm is unmistakable in the icon (ALRM-4).
+- **MACOS-1** `[device]` The app lives in the menu bar, and **while the monitor is doing its job the
+  icon is the app's own mark — a plain waveform, drawn like every other menu bar icon** (a template,
+  so it is white on a dark bar and black on a light one, and never a blob of the wrong colour).
+  It changes only when something is wrong, and then it changes unmistakably:
+  a **ringing, unacknowledged alarm** (ALRM-4) and a **monitor that has stopped working** — an
+  expired session, an unsupported camera, a failed monitor — each get their own icon, in their own
+  colour. A menu bar that looks the same whether the monitor is live or dead is the whole failure
+  this project exists to prevent, so the *fault* states are loud; the working state is quiet.
 - **MACOS-2** The menu bar menu names the camera being monitored and its current state in words,
   and offers, at minimum: mute, show the monitor, switch it between its two shapes (MACOS-5),
-  acknowledge (only while an alarm rings), stop/start monitoring, settings, and quit.
-- **MACOS-3** `[device]` Stop and start in the menu do exactly what the live feed's controls do
-  (BG-11), and Stop asks to be confirmed — a stray click in a menu can no more end monitoring than
-  a stray tap can.
+  acknowledge (only while an alarm rings), start (only when the monitor has stopped working —
+  BG-11m), check for updates (UPD-9), settings, and quit.
+- **MACOS-3** `[device]` The menu's Quit is how a Mac stops monitoring (BG-11m), and it asks to be
+  confirmed while the monitor is running — a stray click in a menu can no more end a watch than a
+  stray tap can.
 - **MACOS-4** `[device]` Mute in the menu is the same mute as everywhere else (LIVE-2): it silences
   the speaker only. **Level monitoring and the crying alarm keep working while muted** (LIVE-3), and
   the menu says which state it is in rather than what clicking would do.
@@ -33,13 +39,20 @@ windows: at most one of them is ever on screen, and the parent never has to wond
 are looking at or close one to be rid of the other.
 
 - **MACOS-6** `[device]` In its **full** shape the window shows the camera's video full-bleed with
-  the status, the level indicator and the controls overlaid on it — the same controls, in the same
-  states, as the phone's (BG-11, LIVE-2, LIVE-4, LIVE-6, LIVE-10). It can go full screen.
+  the status, the level indicator and the controls overlaid on it (LIVE-2, LIVE-4, LIVE-6, LIVE-10)
+  — minus the phone's stop control, which a Mac does not have (BG-11m), and plus the rare actions
+  behind a menu: switch camera, sign out, check for updates (UPD-9), and quit. It can go full screen.
 - **MACOS-5** `[device]` In its **mini** shape it is small and always on top, sitting where the user
   left it. It floats over other applications, over full-screen apps and across spaces, so the baby
-  is visible while working (BG-7m). It shows the video, the feed state, and — while the pointer is
-  over it — mute, acknowledge, and the control that makes it full again. It can be moved and
+  is visible while working (BG-7m). It shows the video, the feed state, and **mute — always, not
+  only on hover**: a tile is too small to spend words on "muted", so the mute control itself carries
+  it, latched and unmistakable (LIVE-2), and is always there to be clicked. Acknowledge, close, and
+  the control that makes it full again appear with the pointer (MACOS-15). It can be moved and
   resized, and it keeps the video's shape while resizing.
+- **MACOS-20** `[device]` **The mini shape stays out of Mission Control**, and out of the window
+  cycles that go with it. It is already on top of everything; listing it among the windows a user is
+  trying to see *past* makes it clutter twice over. The full shape is a normal window and appears
+  there normally (MACOS-12).
 - **MACOS-14** Switching shape is one action, available from the window, from the menu bar menu and
   from the keyboard, and it goes both ways. **It never restarts the stream**: the picture does not
   black out, no reconnect happens, and audio is not interrupted — because it is the same window and
@@ -65,9 +78,9 @@ are looking at or close one to be rid of the other.
   and the alarm carry on, and the menu bar item remains (BG-5). Reopening it shows the ongoing feed
   without restarting the stream, in the shape it was last in.
 - **MACOS-12** `[device]` While the window is open, the app can be reached the way every other app
-  can — Cmd-Tab and Mission Control find it. With it closed the app recedes into the menu bar and
-  stops cluttering the switcher. A window a parent has to go hunting for is a window they will not
-  check.
+  can — Cmd-Tab finds it, and Mission Control shows its full shape (but not its mini shape —
+  MACOS-20). With it closed the app recedes into the menu bar and stops cluttering the switcher. A
+  window a parent has to go hunting for is a window they will not check.
 
 ## A Mac app behaves like a Mac app
 

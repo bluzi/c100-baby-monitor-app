@@ -134,7 +134,14 @@ jobs:
   macos:
     needs: [plan, create-release]
     if: needs.plan.outputs.macos == 'true'
-    runs-on: macos-14 # Apple silicon: the app is arm64-only
+    # Apple silicon (the app is arm64-only), and macOS 26 for its SDK — not for its OS.
+    #
+    # A Mac app adopts the current design system only when it is BUILT against the current SDK, so
+    # an app compiled on the macos-14 image (SDK 14.5) comes out looking like a 2023 app on a 2026
+    # Mac, however new the Mac is. That is not a warning anyone gets: it just quietly looks wrong.
+    # macos-26 carries SDK 26.5, which is what the app is developed against, so what ships is what
+    # was designed. build.sh refuses to build on anything older rather than ship the old look.
+    runs-on: macos-26
     # A macOS runner bills at 10x on a private repo. A build takes minutes; anything approaching
     # this cap means something is hung, and a hung job must not quietly cost a fortune.
     timeout-minutes: 45

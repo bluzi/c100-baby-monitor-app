@@ -1,5 +1,6 @@
 using BabyMonitor.Core.Monitor;
 using BabyMonitor.Core.Shell;
+using BabyMonitor.Core.Ui;
 using Xunit;
 
 namespace BabyMonitor.Core.Tests;
@@ -126,6 +127,52 @@ public class DesktopShellTest
         Assert.Equal(
             DesktopShell.MiniOpacityMin,
             DesktopShell.MiniOpacity(Healthy, hovering: false, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.0));
+    }
+
+    // --- BG-11w: a PC has no Stop --------------------------------------------
+
+    [Fact(DisplayName = "BG-11w the PC never offers Stop, however the monitor is doing")]
+    public void ThereIsNoStopOnAPc()
+    {
+        // On a PC the app IS the monitor: it watches until it is exited. So Baby Monitor cannot sit in
+        // the tray, alive, over a watch that ended hours ago — the state does not exist, because the
+        // control that creates it does not.
+        var states = new (bool Running, string Status)[]
+        {
+            (true, Statuses.Live),
+            (true, Statuses.Connecting),
+            (true, "reconnecting in 3s"),
+            (true, "error: connection reset"),
+            (true, Statuses.MonitorFailed),
+            (false, Statuses.Stopped),
+            (true, Statuses.SessionExpired),
+        };
+
+        foreach (var (running, status) in states)
+        {
+            Assert.DoesNotContain(
+                ViewerActionKind.Stop,
+                DesktopShell.ViewerActions(running, status));
+        }
+    }
+
+    [Fact(DisplayName = "BG-11w a monitor that failed on its own can still be started without exiting")]
+    public void AFailedMonitorCanStillBeStarted()
+    {
+        // WATCH-11: `running` stays true when the monitor fails, and that failure has to be recoverable
+        // right there — otherwise the only cure for a broken monitor is exiting the app.
+        Assert.Contains(ViewerActionKind.Resume, DesktopShell.ViewerActions(true, Statuses.MonitorFailed));
+        Assert.Contains(ViewerActionKind.Resume, DesktopShell.ViewerActions(false, Statuses.Stopped));
+        Assert.DoesNotContain(ViewerActionKind.Resume, DesktopShell.ViewerActions(true, Statuses.Live));
+    }
+
+    [Fact(DisplayName = "BG-11w the PC still gets everything else the phone gets")]
+    public void ThePcGetsEverythingElse()
+    {
+        var live = DesktopShell.ViewerActions(true, Statuses.Live);
+        Assert.Contains(ViewerActionKind.Mute, live);
+        Assert.Contains(ViewerActionKind.NightVision, live);
+        Assert.Contains(ViewerActionKind.Alerts, live);
     }
 
     // --- WIN-14: which shape the one window is in ----------------------------

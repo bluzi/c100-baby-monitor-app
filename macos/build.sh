@@ -34,7 +34,23 @@ else
   TIMESTAMP_FLAG="--timestamp=none"
 fi
 
-echo "==> Building the shared monitor ($CONFIG)"
+# The SDK is not a detail of the build machine — it is part of what ships.
+#
+# A Mac app takes the system's *current* look only if it was compiled against the current SDK. Build
+# this on an older one and it still compiles, still runs, and comes out wearing the previous decade's
+# design on a brand-new Mac — silently, with nothing in the log to say so. CI did exactly that for a
+# while (the release image was macos-14, SDK 14.5), which is why this check exists: a build that
+# cannot produce the app as designed must fail, not quietly produce a different app.
+SDK_VERSION="$(xcrun --show-sdk-version 2>/dev/null || echo 0)"
+SDK_MAJOR="${SDK_VERSION%%.*}"
+if [ "${SDK_MAJOR:-0}" -lt 26 ]; then
+  echo "!! macOS SDK $SDK_VERSION is too old — this app is designed against SDK 26 (Xcode 26)." >&2
+  echo "!! Building against an older SDK would ship an app that silently looks a decade out of" >&2
+  echo "!! date on a current Mac. Install Xcode 26, or select it: sudo xcode-select -s /Applications/Xcode_26.app" >&2
+  exit 1
+fi
+
+echo "==> Building the shared monitor ($CONFIG)  [SDK $SDK_VERSION]"
 "$ROOT/gradlew" -p "$ROOT" ":core:$GRADLE_TASK" --console=plain -q
 
 echo "==> Compiling the macOS shell (v$VERSION_NAME)"

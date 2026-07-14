@@ -128,6 +128,43 @@ class MacShellTest {
         )
     }
 
+    // --- BG-11m: a Mac has no Stop -------------------------------------------
+
+    @Test
+    fun `BG-11m the Mac never offers Stop however the monitor is doing`() {
+        val states = listOf(
+            true to STATUS_LIVE,
+            true to STATUS_CONNECTING,
+            true to "reconnecting in 3s",
+            true to "error: connection reset",
+            true to STATUS_MONITOR_FAILED,
+            false to STATUS_STOPPED,
+            true to STATUS_SESSION_EXPIRED,
+        )
+        for ((running, status) in states) {
+            assertFalse(
+                MacShell.macViewerActions(running, status).contains("Stop"),
+                "Stop leaked into the Mac's controls for running=$running status=$status",
+            )
+        }
+    }
+
+    @Test
+    fun `BG-11m a monitor that failed on its own can still be started without quitting`() {
+        // WATCH-11: `running` stays true when the monitor fails, and that failure has to be
+        // recoverable right there — otherwise the only cure for a broken monitor is quitting the app.
+        assertTrue(MacShell.macViewerActions(running = true, status = STATUS_MONITOR_FAILED).contains("Resume"))
+        assertTrue(MacShell.macViewerActions(running = false, status = STATUS_STOPPED).contains("Resume"))
+    }
+
+    @Test
+    fun `BG-11m the Mac still gets everything else the phone gets`() {
+        val live = MacShell.macViewerActions(running = true, status = STATUS_LIVE)
+        assertTrue(live.contains("Mute"))
+        assertTrue(live.contains("NightVision"))
+        assertTrue(live.contains("Alerts"))
+    }
+
     // --- MACOS-14: which shape the one window is in --------------------------
 
     @Test

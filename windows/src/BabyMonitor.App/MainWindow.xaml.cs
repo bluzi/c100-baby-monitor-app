@@ -37,7 +37,6 @@ public sealed partial class MainWindow : Window
     private readonly TrayIcon _tray;
     private readonly MediaFoundationVideoRenderer _renderer = new();
     private readonly DispatcherTimer _chromeTimer = new() { Interval = TimeSpan.FromSeconds(3) };
-    private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(6) };
     private readonly Updater _updater = new(Updater.CurrentVersion);
     private readonly IntPtr _hwnd;
 
@@ -149,14 +148,11 @@ public sealed partial class MainWindow : Window
             items.Add(TrayItem.Label($"⚠ Can't check for updates: {_state.UpdateStatus.Reason}"));
         }
 
-        if (_state.UpdateStatus.State == UpdateState.ReadyToInstall)
+        if (_state.UpdateStatus.State == UpdateState.Installed)
         {
-            // UPD-7: it is ready and it is waiting. Not a nag, not a surprise.
-            items.Add(_state.Running
-                ? TrayItem.Label($"Update {_state.UpdateStatus.Version} ready — installs when monitoring stops")
-                : new TrayItem(
-                    $"Install update {_state.UpdateStatus.Version}",
-                    () => Post(InstallStagedUpdateIfIdle)));
+            // UPD-7: it is on disk and it will run next time. Said once, quietly — the parent already
+            // declined a restart, and an app that keeps asking is an app that gets ignored.
+            items.Add(TrayItem.Label($"{_state.UpdateStatus.Version} installed — runs at the next launch"));
         }
 
         items.Add(TrayItem.Divider);
@@ -185,40 +181,91 @@ public sealed partial class MainWindow : Window
 
         items.Add(TrayItem.Divider);
 
-        // BG-11 / WATCH-11 / WIN-3: which of these exist is the SHARED decision (the core's
-        // ViewerActions), so this menu and the window's button row cannot disagree.
+        // BG-11w / WATCH-11: there is no Stop on a PC — exiting is how a PC stops. Start is here only
+        // for a monitor that failed on its own, and whether it appears is the core's decision
+        // (DesktopShell.ViewerActions), tested there, so it cannot quietly drift from the window's.
         if (_state.CanResume)
         {
             items.Add(new TrayItem("Start monitoring", () => Post(_state.Start)));
         }
 
-        if (_state.CanStop)
-        {
-            items.Add(new TrayItem("Stop monitoring…", () => Post(() => _ = ConfirmStopAsync())));
-        }
-
+        // The ellipsis means one thing: "this opens something, or goes and asks somebody". Neither of
+        // these happens on the click itself, so both say so.
+        items.Add(new TrayItem("Check for updates…", () => Post(() => _ = CheckForUpdateAsync(askedByUser: true))));
         items.Add(new TrayItem("Settings…", () => Post(ShowSettings)));
+
         items.Add(TrayItem.Divider);
         items.Add(TrayItem.Label($"Baby Monitor {_state.Version}"));
-        items.Add(new TrayItem("Exit", () => Post(ExitApp)));
+
+        // BG-11w / WIN-3: exiting IS stopping, so this is the control that ends the watch — and it
+        // asks first while the monitor is running.
+        items.Add(new TrayItem("Exit Baby Monitor", () => Post(() => _ = ConfirmExitAsync())));
         return items;
     }
 
-    /// <summary>WIN-1: the state, at a glance, in the icon and its tooltip.</summary>
+    /// <summary>
+    /// WIN-1. **While the monitor is doing its job, this is just the app's mark.** No spinner, no
+    /// grey, no second face for "reconnecting" — a tray icon that keeps changing is one a parent
+    /// learns to stop reading.
+    ///
+    /// It changes for exactly two things, and both mean *go and look*: an alarm is ringing, or the
+    /// monitor is not watching. A tray that looks the same whether the feed is live or dead would be
+    /// the failure this whole project is built against, so those two are loud — and everything else,
+    /// including the reconnect that fixes itself, is quiet.
+    /// </summary>
     private void RefreshTray()
     {
-        var icon = _state.Alarming ? "tray-alarm.ico"
-            : !_state.Running ? "tray-stopped.ico"
-            : _state.Status == Statuses.Live ? "tray-live.ico"
-            : "tray-warning.ico";
+        var icon = _state.Alarming ? "tray-alarm.ico" // ALRM-4: unmistakable, even with the speakers off
+            : NotWatching() ? "tray-warning.ico" // an expired session, an unsupported camera, a failure
+            : "tray-live.ico"; // the app's own mark: live, connecting, reconnecting — it is working
 
         _tray.Update(Path.Combine(AppContext.BaseDirectory, "Assets", icon), _state.StatusLine);
     }
 
-    /// <summary>WIN-9: Exit is the only thing that ends the app.</summary>
+    /// <summary>The monitor has stopped watching, and only a person can fix it.</summary>
+    private bool NotWatching() =>
+        !_state.Running ||
+        _state.Status is Statuses.SessionExpired or Statuses.UnsupportedCamera or Statuses.MonitorFailed;
+
+    /// <summary>
+    /// **BG-11w / WIN-3: exiting is how a PC stops monitoring, so exiting asks first.**
+    ///
+    /// The phone protects its Stop button with a confirmation because a single stray tap must never
+    /// end a watch. On a PC that weight has moved onto Exit — so the question lives here, on the one
+    /// path out of the app, rather than on each of the buttons that happen to lead to it.
+    ///
+    /// It asks only while the monitor is actually running. Exiting an app that is not watching
+    /// anything is just exiting an app.
+    /// </summary>
+    private async Task ConfirmExitAsync()
+    {
+        if (_state.Running)
+        {
+            ShowWindow(); // a question nobody can see is not a question
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Root.XamlRoot,
+                Title = "Exit Baby Monitor?",
+                Content = "Exiting stops monitoring: audio, the alarm and the connection all end. " +
+                          "The baby will not be monitored until you open it again.",
+                PrimaryButtonText = "Exit and stop monitoring",
+                CloseButtonText = "Keep monitoring",
+                DefaultButton = ContentDialogButton.Close,
+            };
+
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+        }
+
+        ExitApp();
+    }
+
+    /// <summary>WIN-9: Exit is the only thing that ends the app — and therefore the watch.</summary>
     private void ExitApp()
     {
-        Log.Info("app", "exiting on the user's request");
+        Log.Info("app", "exiting on the user's request — monitoring ends here");
         _state.Stop();
         _tray.Dispose();
         Application.Current.Exit();
@@ -257,8 +304,10 @@ public sealed partial class MainWindow : Window
                 presenter.IsMinimizable = !mini;
             }
 
-            // WIN-12: with a window open the app is in the taskbar and Alt-Tab, like any other.
-            AppWindow.IsShownInSwitchers = true;
+            // WIN-12 / WIN-22: the full window is in the taskbar and Alt-Tab like any other app. The
+            // mini tile is not — it is already on top of everything, and listing it among the windows
+            // a user is trying to see *past* would make it clutter twice over.
+            AppWindow.IsShownInSwitchers = !mini;
 
             // The full shape is dragged by the strip under its caption buttons; the mini tile has no
             // caption at all, so it is dragged by its middle — and the strip is taken out of the way,
@@ -418,10 +467,10 @@ public sealed partial class MainWindow : Window
         ControlBar.Opacity = visible ? 1 : 0;
         ControlBar.IsHitTestVisible = visible;
 
+        // WIN-15: close, make-it-full and acknowledge come and go with the pointer. Mute does not —
+        // it is what tells a tile too small for words that the sound is off (WIN-5 / LIVE-2).
         MiniTopControls.Opacity = _pointerInside ? 1 : 0;
         MiniTopControls.IsHitTestVisible = _pointerInside;
-        MiniMute.Opacity = _pointerInside ? 1 : 0;
-        MiniMute.IsHitTestVisible = _pointerInside;
 
         // WIN-16: how solid the tile is drawn is the core's decision, not this file's.
         SetWindowOpacity(_shape == DesktopShell.ShapeMini ? _state.MiniOpacity(_pointerInside) : 1.0);
@@ -541,8 +590,10 @@ public sealed partial class MainWindow : Window
             MuteButton,
             _state.Muted ? "Muted — the alarm still works. Click for sound" : "Mute the speaker");
 
+        // BG-11w: Start appears only for a monitor that stopped working. There is no Stop to sit
+        // beside it — so its separator goes with it rather than floating at the head of the row.
         StartButton.Visibility = _state.CanResume ? Visibility.Visible : Visibility.Collapsed;
-        StopButton.Visibility = _state.CanStop ? Visibility.Visible : Visibility.Collapsed;
+        StartSeparator.Visibility = StartButton.Visibility;
 
         AlarmBanner.Visibility = _state.Alarming ? Visibility.Visible : Visibility.Collapsed;
         AlarmText.Text = _state.AlarmText;
@@ -613,32 +664,16 @@ public sealed partial class MainWindow : Window
 
     // --- the controls ---------------------------------------------------------
 
+    /// <summary>
+    /// BG-11w: Start, and no Stop. It is here only for a monitor that failed on its own (WATCH-11) —
+    /// which must be recoverable right where the parent is looking, not by exiting the app.
+    /// </summary>
     private void OnStart(object sender, RoutedEventArgs e) => _state.Start();
 
-    private void OnStop(object sender, RoutedEventArgs e) => _ = ConfirmStopAsync();
+    private void OnCheckForUpdates(object sender, RoutedEventArgs e) =>
+        _ = CheckForUpdateAsync(askedByUser: true); // UPD-9
 
-    /// <summary>BG-11 / WIN-3: a single stray click can never stop monitoring.</summary>
-    private async Task ConfirmStopAsync()
-    {
-        ShowWindow();
-        var dialog = new ContentDialog
-        {
-            XamlRoot = Root.XamlRoot,
-            Title = "Stop monitoring?",
-            Content = "Audio, the alarm and the connection all stop. The baby will not be monitored.",
-            PrimaryButtonText = "Stop monitoring",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-        };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
-        _state.Stop();
-        InstallStagedUpdateIfIdle(); // UPD-5: the one moment an update costs nothing
-    }
+    private void OnExit(object sender, RoutedEventArgs e) => _ = ConfirmExitAsync();
 
     private void OnToggleMute(object sender, RoutedEventArgs e) => _state.ToggleMute();
 
@@ -932,74 +967,129 @@ public sealed partial class MainWindow : Window
 
     // --- updates (UPD-3/4/5/7) ------------------------------------------------
 
+    /// <summary>
+    /// **UPD-3: the app checks for an update at launch, and never again while it runs.**
+    ///
+    /// An updater that checked every few hours could find one at 3am — and an update nobody asked for,
+    /// arriving in the middle of the night, is a risk with no upside whatsoever. A monitor has nothing
+    /// to gain from learning about a new version before morning. So: once, at launch, when the parent
+    /// is demonstrably at the machine, because they just opened it. After that, only the checks a
+    /// human asks for (UPD-9).
+    /// </summary>
     private void StartUpdateChecks()
     {
-        // UPD-5's other half: a staged update from an earlier run installs here, before monitoring
-        // starts — the only moment it costs nothing, because nothing is being watched yet.
+        // UPD-5w: an update a previous run put in place is applied HERE, before monitoring starts —
+        // the one moment the swap costs nothing, because nothing is being watched yet. (Windows will
+        // not let a running program overwrite its own files, so this is where "it takes over at the
+        // next launch" actually happens.)
         var staged = Updater.FindStaged(Updater.CurrentVersion);
-        if (staged != null && !_state.Running && Updater.Install(staged))
+        if (staged != null && Updater.Install(staged))
         {
             Application.Current.Exit();
             return;
         }
 
-        // Nothing newer is waiting, so whatever is left in staging is this version or older: the
-        // update landed, and the folder it came out of is just disk now.
+        // Nothing newer is waiting, so whatever is left beside us is this version or older: the update
+        // landed, and the folder it came out of is just disk now.
         Updater.CleanStaging(Updater.CurrentVersion);
 
-        _updateTimer.Tick += (_, _) => _ = CheckForUpdateAsync();
-        _updateTimer.Start();
-        _ = CheckForUpdateAsync();
+        _ = CheckForUpdateAsync(askedByUser: false);
     }
 
-    private async Task CheckForUpdateAsync()
+    private async Task CheckForUpdateAsync(bool askedByUser)
     {
         _state.UpdateStatus = new UpdateStatus(UpdateState.Checking);
         try
         {
             var version = await _updater.CheckAsync();
-            _state.UpdateStatus = version == null
-                ? UpdateStatus.Idle
-                : new UpdateStatus(UpdateState.ReadyToInstall, version);
-
-            if (version != null)
+            if (version == null)
             {
-                InstallStagedUpdateIfIdle(); // UPD-5: only ever when nothing is being monitored
+                _state.UpdateStatus = UpdateStatus.Idle;
+                if (askedByUser)
+                {
+                    await TellUserAsync("Baby Monitor is up to date.", $"You are running {_state.Version}.");
+                }
+
+                return;
             }
+
+            await OfferRestartAsync(version);
         }
         catch (NoTokenException)
         {
-            // Not a failure — updates simply have not been set up yet, and settings say so.
+            // Not a failure — updates simply have not been set up yet, and settings say so. An updater
+            // that cried wolf on a fresh install is one nobody reads by the time it matters.
             _state.UpdateStatus = UpdateStatus.Idle;
+            if (askedByUser)
+            {
+                await TellUserAsync(
+                    "Updates are not set up.",
+                    "Baby Monitor needs a GitHub token to read its private repository. Add one in Settings.");
+            }
         }
         catch (Exception e)
         {
             // UPD-8: a failed check never touches monitoring. UPD-4: nor is it swallowed.
             Log.Warn("update", $"check failed: {e.Message}");
-            _state.UpdateStatus = _updater.IsFailingPersistently
-                ? new UpdateStatus(UpdateState.Failing, Reason: e.Message)
-                : UpdateStatus.Idle;
+            _state.UpdateStatus = new UpdateStatus(UpdateState.Failing, Reason: e.Message);
+            if (askedByUser)
+            {
+                await TellUserAsync("Could not check for updates.", e.Message);
+            }
         }
     }
 
-    /// <summary>**UPD-5.** The whole reason this updater exists. It applies only with monitoring stopped.</summary>
-    private void InstallStagedUpdateIfIdle()
+    /// <summary>
+    /// **UPD-5.** The new version is on disk; the running monitor was never touched and is still
+    /// watching. Then — and only then — the app asks, once, whether to restart into it.
+    ///
+    /// Saying no is a real answer: nothing happens, nothing is asked again, and the version already on
+    /// disk takes over at the next launch. The app never restarts itself, which is the promise this
+    /// updater exists to keep.
+    /// </summary>
+    private async Task OfferRestartAsync(string version)
     {
-        if (_updater.Staged == null)
+        _state.UpdateStatus = new UpdateStatus(UpdateState.Installed, version);
+        ShowWindow(); // the question is asked where it can be seen, and answered
+
+        var dialog = new ContentDialog
         {
+            XamlRoot = Root.XamlRoot,
+            Title = $"Baby Monitor {version} is installed.",
+            Content = _state.Running
+                ? "It will run the next time you open Baby Monitor. Restarting now takes a few " +
+                  "seconds, during which the baby is not monitored — monitoring resumes by itself " +
+                  "afterwards."
+                : "It will run the next time you open Baby Monitor.",
+            PrimaryButtonText = "Restart now",
+            CloseButtonText = "Later",
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            Log.Info("update", $"the user chose not to restart — {version} will run at the next launch");
             return;
         }
 
-        if (_state.Running)
+        if (_updater.Staged != null && Updater.Install(_updater.Staged))
         {
-            Log.Info("update", "an update is staged but monitoring is running — it waits");
-            return;
-        }
-
-        if (Updater.Install(_updater.Staged))
-        {
+            _state.Stop(); // they asked for this restart; the watch resumes on the other side
             Application.Current.Exit();
         }
+    }
+
+    private async Task TellUserAsync(string title, string body)
+    {
+        ShowWindow();
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Root.XamlRoot,
+            Title = title,
+            Content = body,
+            CloseButtonText = "OK",
+        };
+        await dialog.ShowAsync();
     }
 
     // --- odds and ends --------------------------------------------------------

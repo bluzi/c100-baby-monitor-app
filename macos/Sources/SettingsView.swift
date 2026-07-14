@@ -210,7 +210,7 @@ struct SettingsView: View {
         } header: {
             Text("Updates")
         } footer: {
-            Text("Baby Monitor updates itself from its private repository, which needs a fine-grained GitHub token with read-only access to Contents. Updates are downloaded and verified in the background and installed only while monitoring is stopped — the app will never restart itself while it is watching the baby.")
+            Text("Baby Monitor updates itself from its private repository, which needs a fine-grained GitHub token with read-only access to Contents. It checks once, at launch, and never while it is running — an update arriving at 3am is a risk with no upside. What it finds is verified and installed on disk without touching the running monitor, and then it asks once whether to restart into it. It never restarts itself.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -218,9 +218,9 @@ struct SettingsView: View {
 
     private var updateStatusText: String {
         switch state.updateStatus {
-        case .idle: return hasToken ? "Up to date" : "Not set up"
+        case .idle: return hasToken ? "Up to date (\(AppDelegate.version))" : "Not set up"
         case .checking: return "Checking…"
-        case let .readyToInstall(version): return "\(version) ready — installs when monitoring stops"
+        case let .installed(version): return "\(version) installed — runs at the next launch"
         case let .failing(reason): return reason
         }
     }
@@ -228,7 +228,7 @@ struct SettingsView: View {
     private var updateStatusColor: Color {
         switch state.updateStatus {
         case .failing: return .orange
-        case .readyToInstall: return .green
+        case .installed: return .green
         default: return .secondary
         }
     }

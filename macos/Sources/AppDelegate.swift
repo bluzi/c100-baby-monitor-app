@@ -20,7 +20,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var settingsWindow: NSWindow?
 
     private lazy var updater = Updater(currentVersion: Self.version)
-    private var updateTimer: Timer?
+
+    /// True only between "the user said yes to a restart" and the process going away — see
+    /// `applicationShouldTerminate`.
+    private var relaunchingForUpdate = false
 
     static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
@@ -129,19 +132,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     // MARK: - Menu bar (MACOS-1, MACOS-2)
 
+    /// MACOS-1. **While the monitor is doing its job, this is just the app's mark: a waveform, in
+    /// the menu bar's own colour.** No moon, no spinner, no grey — a menu bar item that keeps
+    /// changing its face is one a parent learns to stop reading.
+    ///
+    /// It changes for exactly two things, and both mean *go and look*: an alarm is ringing, or the
+    /// monitor has stopped working. A menu bar that looks the same whether the feed is live or dead
+    /// would be the failure this whole project is built against, so those two are loud — and
+    /// everything else is quiet.
     private func refreshStatusItem(_ ui: UiState) {
         guard let button = statusItem.button else { return }
         let (symbol, description, tint): (String, String, NSColor?) = {
             if ui.activeAlarm != nil {
-                // MACOS-1: a ringing alarm is unmistakable, even on a Mac with its volume down.
+                // ALRM-4: unmistakable, even on a Mac with its volume down.
                 return ("bell.badge.fill", "Alarm ringing", .systemRed)
             }
-            if !ui.running { return ("moon.zzz", "Monitoring stopped", .secondaryLabelColor) }
             switch ui.status {
-            case "live": return ("waveform", "Live", nil)
             case "session-expired", "unsupported-camera", "monitor-failed":
                 return ("exclamationmark.triangle.fill", ui.statusText, .systemOrange)
-            default: return ("arrow.triangle.2.circlepath", ui.statusText, .systemYellow)
+            default:
+                // Live, connecting, reconnecting: the monitor is working, or is working on it.
+                // Nothing here is worth a parent's attention, so nothing here asks for it.
+                return ("waveform", ui.statusText, nil)
             }
         }()
         // Always a template image: that is what makes macOS draw it at the menu bar's own size and
@@ -184,17 +196,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             item.isEnabled = false
             menu.addItem(item)
         }
-        if case let .readyToInstall(version) = state.updateStatus {
-            // UPD-7: it is ready and it is waiting. Not a nag, not a surprise.
-            let item = NSMenuItem(
-                title: ui.running
-                    ? "Update \(version) ready — installs when monitoring stops"
-                    : "Install update \(version)",
-                action: ui.running ? nil : #selector(installUpdate),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.isEnabled = !ui.running
+        if case let .installed(version) = state.updateStatus {
+            // UPD-7: it is on disk and it will run next time. Said once, quietly — the parent
+            // already declined a restart, and an app that keeps asking is an app that gets ignored.
+            let item = NSMenuItem(title: "\(version) installed — runs at the next launch", action: nil, keyEquivalent: "")
+            item.isEnabled = false
             menu.addItem(item)
         }
 
@@ -225,22 +231,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
         menu.addItem(.separator())
 
-        // BG-11 / WATCH-11 / MACOS-3: which of these exist is the SHARED decision (core's
-        // viewerActionKinds), so this menu and the phone's button row cannot disagree.
+        // BG-11m / WATCH-11: there is no Stop on a Mac — quitting is how a Mac stops. Start is here
+        // only for a monitor that failed on its own, and whether it appears is core's decision
+        // (MacShell.macViewerActions), tested there, so it cannot quietly drift from the window's.
         if ui.canResume {
             let resume = NSMenuItem(title: "Start Monitoring", action: #selector(startMonitoring), keyEquivalent: "")
             resume.target = self
             menu.addItem(resume)
         }
-        if ui.canStop {
-            let stop = NSMenuItem(title: "Stop Monitoring…", action: #selector(stopMonitoring), keyEquivalent: "")
-            stop.target = self
-            menu.addItem(stop)
-        }
 
+        // The ellipsis is Apple's, and it means one thing: "this opens something that needs more
+        // from you." Settings opens a window; a check goes and asks GitHub. Neither happens on the
+        // click itself, so both say so.
         let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
+
+        let updates = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdatesNow(_:)), keyEquivalent: "")
+        updates.target = self
+        menu.addItem(updates)
 
         menu.addItem(.separator())
 
@@ -248,7 +257,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         about.target = self
         menu.addItem(about)
 
-        let quit = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        // BG-11m: quitting IS stopping, so this is the control that ends the watch — and it asks
+        // first while the monitor is running (MACOS-3), which `applicationShouldTerminate` handles
+        // for every route out of the app at once: this item, ⌘Q, the Dock, and the More menu.
+        let quit = NSMenuItem(title: "Quit Baby Monitor", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 
@@ -274,19 +286,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     @objc private func startMonitoring() { state.start() }
 
-    /// MACOS-3 / BG-11: a stray click in a menu can no more end monitoring than a stray tap can.
-    @objc private func stopMonitoring() {
+    /// **BG-11m / MACOS-3: quitting is how a Mac stops monitoring, so quitting asks first.**
+    ///
+    /// The phone protects its Stop button with a confirmation because a single stray tap must never
+    /// end a watch. On a Mac that weight has moved onto Quit — and Quit is reachable by ⌘Q, by the
+    /// menu bar, by the feed's own menu and by the Dock. Putting the question here, in
+    /// `applicationShouldTerminate`, guards **every one of those routes at once**; putting it in the
+    /// menu items would guard the ones we remembered.
+    ///
+    /// It asks only while the monitor is actually running. Quitting an app that is not watching
+    /// anything is just quitting an app.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // A relaunch into a new version is not someone quitting: they were asked, and they said yes.
+        // Asking a second question ("are you sure you want to stop monitoring?") on the way out of a
+        // restart they just approved would be the app arguing with itself.
+        guard !relaunchingForUpdate else { return .terminateNow }
+        guard state != nil, state.ui.running, !Preview.active else { return .terminateNow }
+
         let alert = NSAlert()
-        alert.messageText = "Stop monitoring?"
-        alert.informativeText = "Audio, the alarm and the connection all stop. The baby will not be monitored."
-        alert.addButton(withTitle: "Stop Monitoring")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = "Quit Baby Monitor?"
+        alert.informativeText = "Quitting stops monitoring: audio, the alarm and the connection all "
+            + "end. The baby will not be monitored until you open it again."
+        alert.addButton(withTitle: "Quit and Stop Monitoring")
+        alert.addButton(withTitle: "Keep Monitoring")
         alert.alertStyle = .warning
         NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn {
-            state.stop()
-            installStagedUpdateIfIdle()
-        }
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 
     @objc private func dismissOutage() { state.dismissSleepOutage() }
@@ -316,12 +341,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         ])
     }
 
+    /// UPD-9: a check asked for by hand, from the menu bar, the feed's menu or the app menu. It
+    /// behaves exactly like the launch check — verify, install, ask once — and it answers, so a
+    /// parent who wants to know is never left wondering whether anything happened.
     @objc func checkForUpdatesNow(_ sender: Any?) {
-        Task { await checkForUpdate() }
+        Task { [weak self] in await self?.checkForUpdate(askedByUser: true) }
     }
-
-    /// UPD-5: only ever with monitoring stopped — the menu item is disabled otherwise.
-    @objc private func installUpdate() { installStagedUpdateIfIdle() }
 
     @objc private func quit() { NSApp.terminate(nil) }
 
@@ -384,40 +409,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     // MARK: - Updates
 
+    /// **UPD-3: the app checks for an update at launch, and never again while it runs.**
+    ///
+    /// The old updater checked every six hours, which meant it could find an update at 3am — and an
+    /// update nobody asked for, arriving in the middle of the night, is a risk with no upside
+    /// whatsoever. A monitor has nothing to gain from learning about a new version before morning.
+    /// So: once, at launch, when the parent is demonstrably at the Mac, because they just opened it.
+    /// After that the only checks are the ones a human asks for (UPD-9).
     private func startUpdateChecks() {
         // The visual harness must never reach for a Keychain item. Checking for an update reads the
         // updater's GitHub token, and a throwaway build is not the binary that wrote it — so macOS
-        // stops and asks the person at the Mac for their login password. Looking at a window is not
-        // worth a password prompt, let alone one per launch.
+        // stops and asks the person at the Mac for their login password.
         guard !Preview.active else { return }
-
-        Task { await self.checkForUpdate() }
-        // Every 6 hours. This is a monitor, not a package manager — checking harder buys nothing.
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
-            Task { [weak self] in await self?.checkForUpdate() }
-        }
+        Task { [weak self] in await self?.checkForUpdate(askedByUser: false) }
     }
 
-    private func checkForUpdate() async {
+    private func checkForUpdate(askedByUser: Bool) async {
         state.updateStatus = .checking
         do {
-            if let version = try await updater.check() {
-                state.updateStatus = .readyToInstall(version: version)
-                installStagedUpdateIfIdle() // UPD-5: only ever when nothing is being monitored
-            } else {
+            guard let version = try await updater.check() else {
                 state.updateStatus = .idle
+                if askedByUser { tellUser(title: "Baby Monitor is up to date.", body: "You are running \(Self.version).") }
+                return
             }
+            try await installAndOfferRestart(version)
         } catch Updater.UpdaterError.noToken {
             // Not a failure — updates simply have not been set up yet, and settings say so. UPD-4
             // is about an updater that HAS been set up and has quietly stopped working; an updater
             // that cries wolf on a fresh install is one nobody reads by the time it matters.
             state.updateStatus = .idle
+            if askedByUser {
+                tellUser(
+                    title: "Updates are not set up.",
+                    body: "Baby Monitor needs a GitHub token to read its private repository. Add one in Settings."
+                )
+            }
         } catch {
             // UPD-8: a failed check never touches monitoring. UPD-4: but it is not swallowed either.
             let failing = await updater.isFailingPersistently
             Log.warn("update", "check failed: \(error.localizedDescription)")
             state.updateStatus = failing ? .failing(reason: error.localizedDescription) : .idle
+            if askedByUser {
+                tellUser(title: "Could not check for updates.", body: error.localizedDescription)
+            }
         }
+    }
+
+    /// **UPD-5.** The new version goes on disk; the running monitor is not touched and keeps
+    /// watching. Then — and only then — the app asks, once, whether to restart into it.
+    ///
+    /// Saying no is a real answer: nothing happens, nothing is asked again, and the version already
+    /// on disk takes over at the next launch. The app never restarts itself, which is the promise
+    /// this updater exists to keep.
+    private func installAndOfferRestart(_ version: String) async throws {
+        try await updater.install()
+        state.updateStatus = .installed(version: version)
+
+        let alert = NSAlert()
+        alert.messageText = "Baby Monitor \(version) is installed."
+        alert.informativeText = state.ui.running
+            ? "It will run the next time you open Baby Monitor. Restarting now takes a few seconds, "
+                + "during which the baby is not monitored — monitoring resumes by itself afterwards."
+            : "It will run the next time you open Baby Monitor."
+        alert.addButton(withTitle: "Restart Now")
+        alert.addButton(withTitle: "Later")
+        alert.alertStyle = .informational
+        NSApp.activate(ignoringOtherApps: true)
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            Log.info("update", "the user chose not to restart — \(version) will run at the next launch")
+            return
+        }
+        relaunchingForUpdate = true
+        try StagedUpdate.relaunch()
+    }
+
+    private func tellUser(title: String, body: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = body
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     /// UPD-5: apply an update a previous run staged but could not install because the monitor was
@@ -440,20 +513,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         }
     }
 
-    /// **UPD-5.** The whole reason this updater exists. It applies only with monitoring stopped.
-    func installStagedUpdateIfIdle() {
-        guard !state.ui.running else {
-            Log.info("update", "an update is staged but monitoring is running — it waits")
-            return
-        }
-        Task {
-            guard await updater.staged != nil else { return }
-            do {
-                try await updater.install()
-            } catch {
-                Log.error("update", "could not install the staged update: \(error.localizedDescription)")
-                state.updateStatus = .failing(reason: error.localizedDescription)
-            }
-        }
-    }
 }

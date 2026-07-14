@@ -1,0 +1,8 @@
+{
+  "//": "Pins .NET to the 8.x line — the only .NET in this repo is the Windows app and its core, and the Windows App SDK 1.6 build tooling cannot load under the .NET 10 SDK the runners now ship (its PRI task DLL is not where MrtCore.PriGen.targets looks for it). Lives at the repo root, not under windows/, because dotnet resolves global.json from the current working directory — and CI runs `dotnet publish windows/src/...` from the root. latestMinor keeps it on whatever 8.x is installed and never rolls to 9/10. Does not affect the Kotlin/Gradle builds.",
+  "sdk": {
+    "version": "8.0.100",
+    "rollForward": "latestMinor",
+    "allowPrerelease": false
+  }
+}

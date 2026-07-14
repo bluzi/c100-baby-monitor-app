@@ -67,6 +67,7 @@ jobs:
               # vectors are shared with it, and a change to them changes its wire.
               - 'windows/**'
               - 'core/protocol-vectors.json'
+              - 'global.json' # pins the .NET SDK the Windows build needs — see the file's own note
               - '.github/workflows/release.yml'
 
   # The release exists before either app uploads to it, so two concurrent jobs cannot race to

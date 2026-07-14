@@ -275,6 +275,12 @@ From this repo:
   `Authorization` header comes with it** ("Only one auth mechanism allowed"). The updater must
   **strip `Authorization` on a cross-host redirect** — in `URLSession` that means implementing
   `willPerformHTTPRedirection` and returning a request with the header removed.
+- **The macOS SDK is part of what ships, not a property of the build machine.** A Mac app adopts the
+  system's current design system only if it was **compiled against the current SDK**. Build it on an
+  older one and it compiles, runs, and comes out wearing the previous decade's look on a brand-new
+  Mac — with nothing in the log to say so. The release workflow ran on `macos-14` (SDK 14.5) and
+  would have shipped exactly that. It runs on `macos-26` now, and `macos/build.sh` **refuses to
+  build** on an SDK older than 26 rather than quietly produce a different app.
 - **A Mac debug build does not prove a Mac release build.** `-Onone` *warns* where `-O` **errors** —
   notably "reference to captured var 'self' in concurrently-executing code", which is what you get
   by reading an outer closure's `[weak self]` from inside a nested `Task` (capture it again:

@@ -166,12 +166,18 @@ actually checked rather than assumed.
   `BM_KEY_ALIAS`.
 - **macOS:** a zipped `.app` plus its SHA-256, published to the same release. The app updates
   itself (see `spec/features/updates.spec.md`).
-- **Windows:** a zipped, self-contained app folder plus its SHA-256 in **`checksums-windows.txt`** —
-  its own file, deliberately: the macOS and Windows jobs run at the same time, and appending to one
-  shared `checksums.txt` would be a race whose loser ships a build with no checksum, which its own
-  updater would then refuse to install (UPD-3). The app updates itself, and because Windows will not
-  let a running program overwrite itself, the swap is performed **by the new version**: the old one
-  starts it with `--apply-update`, then exits.
+- **Windows:** three assets, for two jobs — a **`-windows-setup.exe`** for the *first install only*,
+  a **`-windows.zip`** which is what the *updater* consumes forever after, and their SHA-256s in
+  **`checksums-windows.txt`**. That checksum file is its own, deliberately: the macOS and Windows jobs
+  run at the same time, and appending to one shared `checksums.txt` would be a race whose loser ships
+  a build with no checksum, which its own updater would then refuse to install (UPD-3).
+  The setup is **per-user** (Inno Setup, `PrivilegesRequired=lowest`, into
+  `%LOCALAPPDATA%\Programs\BabyMonitor`) and that is not a preference — it is what keeps the updater
+  working. The app can rewrite that directory itself, so applying an update needs no elevation; in
+  `Program Files` it would need an administrator, which means a UAC prompt at whatever hour the update
+  lands, standing between a parent and a running monitor.
+  Windows will not let a running program overwrite itself, so the swap is performed **by the new
+  version**: the old one starts it with `--apply-update`, then exits.
 - **The updater never restarts a running monitor.** It downloads, verifies, and waits for
   monitoring to stop. A monitor that relaunches itself at 3am is the failure this project exists to
   prevent — this is why we do not use Sparkle, whose model is "download and relaunch".

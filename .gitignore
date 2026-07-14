@@ -17,6 +17,10 @@ bin/
 obj/
 *.user
 
+# Built on demand, published by CI — never committed
+windows/*-setup.exe
+windows/*.zip
+
 # Local AI/editor tooling configs (argent init artifacts — machine-specific)
 .claude/
 .codex/

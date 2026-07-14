@@ -35,12 +35,32 @@ phone and not on the PC is a bug in one of them.
 ```powershell
 .\windows\build.ps1                                      # debug, into windows/build/x64
 .\windows\build.ps1 -Configuration Release -Version 0.1.42
+.\windows\build.ps1 -Installer                           # + the first-install setup.exe
 .\windows\build.ps1 -Run
 ```
 
 The build is **self-contained and unpackaged**: the output folder holds everything, including the
 Windows App SDK. That is what lets the updater replace a version by swapping files (UPD-5) rather
 than running an installer.
+
+## What a release ships, and why it is two things
+
+- **`babymonitor-vX-windows-setup.exe`** — the *first install*, and nothing else. The Windows answer
+  to the Mac's `.dmg`.
+- **`babymonitor-vX-windows.zip`** — what the *updater* consumes, forever after. Every update but the
+  first arrives this way, so it is the one that has to be right.
+
+The setup is **per-user** (Inno Setup, `PrivilegesRequired=lowest`, into
+`%LOCALAPPDATA%\Programs\BabyMonitor`), and that is load-bearing rather than a preference: the app can
+rewrite that directory itself, so applying an update needs no elevation. Installed into `Program
+Files` it would need an administrator — a UAC prompt at whatever hour the update lands, standing
+between a parent and a running monitor. This project does not put dialogs there.
+
+The setup deliberately has **no "start with Windows" checkbox**: the app offers that itself, once, in
+words (WIN-8), and never turns it on by itself. An installer checkbox nobody read is exactly how a
+monitor ends up in a startup list its owner never chose. Uninstalling leaves
+`%LOCALAPPDATA%\BabyMonitor` alone — the session, the settings and the learned alarm tuning are not
+something an uninstall-to-reinstall-a-fix should cost a parent.
 
 The core and its tests need nothing but the .NET SDK, and they run anywhere:
 

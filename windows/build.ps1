@@ -16,6 +16,10 @@ param(
     [ValidateSet('x64', 'arm64')]
     [string]$Platform = 'x64',
 
+    # The first-install setup .exe (needs Inno Setup: `choco install innosetup`). The app itself never
+    # runs it again — it updates itself from the .zip (UPD-3/5).
+    [switch]$Installer,
+
     [switch]$Run
 )
 
@@ -41,6 +45,18 @@ dotnet publish $app `
 if ($LASTEXITCODE -ne 0) { throw 'the app did not build' }
 
 Write-Host "==> $out" -ForegroundColor Green
+
+if ($Installer) {
+    $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+    if (-not (Test-Path $iscc)) { throw "Inno Setup is not installed: choco install innosetup" }
+
+    Write-Host '==> The first-install setup' -ForegroundColor Cyan
+    & $iscc "/DAppVersion=$Version" "/Fbabymonitor-v$Version-windows-setup" `
+        "/O$PSScriptRoot" (Join-Path $PSScriptRoot 'installer/BabyMonitor.iss')
+    if ($LASTEXITCODE -ne 0) { throw 'the installer did not build' }
+
+    Write-Host "==> $(Join-Path $PSScriptRoot "babymonitor-v$Version-windows-setup.exe")" -ForegroundColor Green
+}
 
 if ($Run) {
     & (Join-Path $out 'BabyMonitor.exe')

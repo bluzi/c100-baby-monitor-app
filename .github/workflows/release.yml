@@ -303,16 +303,46 @@ jobs:
         env:
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}
 
-      # UPD-3: the .zip is what the UPDATER consumes, and its SHA-256 ships beside it. A download that
-      # does not match is discarded rather than run — the one thing standing between a truncated
-      # download and a PC that will not monitor tonight.
+      # The first install, and nothing else — the Windows answer to the Mac's .dmg. A per-user setup:
+      # it lands in %LOCALAPPDATA%\Programs, which the app can rewrite itself, so the swap that
+      # applies an update (UPD-5w) never needs an administrator. Installed into Program Files it would,
+      # and that means a UAC prompt at whatever hour the update lands, standing between a parent and a
+      # running monitor.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+          # ISCC's flags take no space after them: `/Fname`, `/Odir`. A space silently produces a
+          # setup with the wrong name, which the upload step would then fail to find.
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DAppVersion=$env:VERSION_NAME" `
+            "/Fbabymonitor-v$env:VERSION_NAME-windows-setup" `
+            "/O$($PWD.Path)" `
+            windows\installer\BabyMonitor.iss
+        env:
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+
+      # Two assets, for two different jobs:
+      #
+      #  - the .exe is for the FIRST install only. The updater never touches it.
+      #  - the .zip is what the UPDATER consumes. Every update after the first arrives that way, so it
+      #    is the one that has to be right. UPD-3: its SHA-256 ships beside it, and a download that
+      #    does not match is discarded rather than run — the one thing standing between a truncated
+      #    download and a PC that will not monitor tonight.
       - name: Package and checksum
         shell: pwsh
         run: |
           $zip = "babymonitor-v$env:VERSION_NAME-windows.zip"
+          $setup = "babymonitor-v$env:VERSION_NAME-windows-setup.exe"
           Compress-Archive -Path windows/build/x64/* -DestinationPath $zip -Force
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          "$hash  $zip" | Out-File -FilePath checksums-windows.txt -Encoding ascii
+
+          # The updater reads this file looking for the line that names ITS asset (-windows.zip), so
+          # the setup's line beside it is harmless — and worth having, for anyone who wants to check
+          # what they downloaded.
+          Get-FileHash $zip, $setup -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Out-File -FilePath checksums-windows.txt -Encoding ascii
           Get-Content checksums-windows.txt
         env:
           VERSION_NAME: ${{ needs.plan.outputs.version_name }}
@@ -326,6 +356,7 @@ jobs:
         run: |
           gh release upload "v$VERSION_NAME" \
             "babymonitor-v$VERSION_NAME-windows.zip" \
+            "babymonitor-v$VERSION_NAME-windows-setup.exe" \
             checksums-windows.txt --clobber
         env:
           GH_TOKEN: ${{ github.token }}

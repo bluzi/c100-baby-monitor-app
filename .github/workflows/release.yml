@@ -121,6 +121,9 @@ jobs:
     needs: [plan, create-release]
     if: needs.plan.outputs.macos == 'true'
     runs-on: macos-14 # Apple silicon: the app is arm64-only
+    # A macOS runner bills at 10x on a private repo. A build takes minutes; anything approaching
+    # this cap means something is hung, and a hung job must not quietly cost a fortune.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -166,13 +169,21 @@ jobs:
           BM_VERSION_CODE: ${{ needs.plan.outputs.version_code }}
           OPUS_PREFIX: /opt/homebrew/opt/opus
 
-      # Notarisation. Only affects the FIRST install: a build downloaded through a browser is
-      # quarantined, and Gatekeeper refuses to open an unnotarised app until you right-click → Open.
-      # Updates are downloaded by the app itself, never quarantined, and never inspected — so the
-      # self-updating path works with or without this. Skipped when the credentials are absent, so a
-      # release is never blocked on it.
+      # Notarisation. Deliberately BOUNDED and NON-BLOCKING, for two reasons:
+      #
+      #  - It only affects the FIRST manual install. A build downloaded through a browser is
+      #    quarantined, and Gatekeeper refuses to open an unnotarised app until you right-click →
+      #    Open. The app's own updates are downloaded by the app, never quarantined, and never
+      #    inspected — so the self-updating path, the one that matters at 3am, does not need this.
+      #  - Apple's queue is Apple's queue. It is usually a minute; it has sat for half an hour. A
+      #    macOS runner bills at 10x on a private repo, so waiting it out would cost more per
+      #    release than the notarisation is worth, and a release must never be held hostage to it.
+      #
+      # So: give it 15 minutes, and if Apple has not answered, ship anyway. The only consequence is
+      # a right-click on a fresh install.
       - name: Notarize and staple
         if: ${{ secrets.APPLE_API_KEY_P8 != '' }}
+        continue-on-error: true
         run: |
           printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/key.p8"
           ditto -c -k --sequesterRsrc --keepParent macos/build/BabyMonitor.app "$RUNNER_TEMP/notarize.zip"
@@ -180,7 +191,7 @@ jobs:
             --key "$RUNNER_TEMP/key.p8" \
             --key-id "$APPLE_API_KEY_ID" \
             --issuer "$APPLE_API_ISSUER_ID" \
-            --wait
+            --wait --timeout 15m
           xcrun stapler staple macos/build/BabyMonitor.app
           spctl -a -vv -t exec macos/build/BabyMonitor.app
         env:

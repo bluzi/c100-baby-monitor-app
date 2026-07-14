@@ -24,11 +24,21 @@ its sibling: they are two answers to one hazard, not one platform getting less.
   not retry forever in silence: it says so (in the app and wherever it reports state — the
   notification or the menu bar), the feed watchdog treats the feed as down, and opening the app
   leads back to sign-in (AUTH-8).
-- **BG-11** While monitoring runs, the live feed offers a stop control that ends monitoring
-  (audio, alarm, connection) exactly like BG-3's; while monitoring is stopped, it offers start
-  instead — never both stop and nothing, never a dead end. A single stray tap can never stop
+- **BG-11** `[android]` While monitoring runs, the live feed offers a stop control that ends
+  monitoring (audio, alarm, connection) exactly like BG-3's; while monitoring is stopped, it offers
+  start instead — never both stop and nothing, never a dead end. A single stray tap can never stop
   monitoring: stopping asks to be confirmed `[device]`. The stopped feed says monitoring is
   stopped and starting again is one tap away.
+- **BG-11m** `[macos]` **A Mac has no stop control, because on a Mac the app *is* the monitor.** It
+  starts watching when it opens and watches until it is quit. There is therefore no such thing as
+  Baby Monitor running and not monitoring — which is the quietest failure this app could have, an
+  app sitting on screen looking alive over a watch that ended hours ago. Quitting is how a Mac stops
+  (MACOS-9), and **quitting asks to be confirmed while monitoring is running** `[device]`: BG-11's
+  protection against a single stray click, moved onto the control that now carries its weight.
+  A monitor that failed on its own (WATCH-11) still offers Start, because *that* must be
+  recoverable without quitting the app.
+  The phone keeps its stop control: a phone app that must be force-quit to stop watching is not the
+  same bargain, and the notification (BG-3) is where a parent expects to find it.
 
 ## Where the state is reported, and where it is stopped from
 
@@ -40,8 +50,8 @@ its sibling: they are two answers to one hazard, not one platform getting less.
 - **BG-2m** `[macos]` `[device]` While monitoring, the menu bar item shows the current feed state
   (live / reconnecting / error) at a glance, and its menu names the camera being monitored.
   Opening the menu never interrupts monitoring. (See MACOS-1.)
-- **BG-3m** `[macos]` `[device]` The menu bar menu offers Stop, which ends monitoring (audio,
-  alarm, connection) without opening any window. (See MACOS-3.)
+- **BG-3m** `[macos]` `[device]` The menu bar menu offers Quit — which is how a Mac stops monitoring
+  (BG-11m) — without opening any window, and asks to be confirmed while the monitor is running.
 
 ## Glancing at the baby without ceremony
 

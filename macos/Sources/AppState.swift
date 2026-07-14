@@ -325,7 +325,11 @@ final class AppState: ObservableObject {
         BabyMonitor.shared.start()
     }
 
-    func stop() { BabyMonitor.shared.stop() }
+    // BG-11m: there is deliberately no `stop()` here. A Mac stops monitoring by quitting, and
+    // nothing in this shell may end a watch by any other route — an app that is running and not
+    // watching is the state this design exists to make impossible. (Core still stops the engine on
+    // sign-out and on switching camera, which are not "the monitor is off", they are "there is
+    // nothing to monitor yet".)
 
     func acknowledge() { BabyMonitor.shared.acknowledge() }
 
@@ -380,6 +384,21 @@ final class AppState: ObservableObject {
         pointerInside = false
         recomputeMiniAlpha()
         scheduleChromeHide()
+    }
+
+    /// **The bug this exists to kill.** A tracking area reports the pointer entering and leaving,
+    /// and nothing else — so when the *window* moves out from under a stationary pointer, no exit
+    /// is ever delivered. Switch to the mini shape by clicking the button and that is exactly what
+    /// happens: the tile flies to the corner, the pointer is left behind in the middle of the
+    /// screen, and the app still believes it is being hovered. The tile then sits at full opacity
+    /// with its chrome showing until the user hovers it and leaves again, which "fixes" it.
+    ///
+    /// So after anything that moves or resizes the window, the truth is looked up rather than
+    /// remembered: is the pointer, right now, inside the frame?
+    func pointerMayHaveLeft(windowFrame: NSRect, visible: Bool) {
+        let inside = visible && windowFrame.contains(NSEvent.mouseLocation)
+        guard inside != pointerInside else { return }
+        if inside { pointerMoved() } else { pointerExited() }
     }
 
     /// While the pointer rests *on* the controls they stay, whatever the timer thinks. Nothing may
@@ -475,8 +494,9 @@ final class AppState: ObservableObject {
 enum UpdateStatus: Equatable {
     case idle
     case checking
-    /// UPD-7: downloaded and verified. It waits — it does not restart anything (UPD-5).
-    case readyToInstall(version: String)
-    /// UPD-4: repeatedly could not check. The app says so rather than going quiet.
+    /// UPD-5/7: downloaded, verified, and **already on disk** — the running monitor was never
+    /// touched. It takes over at the next launch. The app does not restart itself to get there.
+    case installed(version: String)
+    /// UPD-4: the check failed. The app says so rather than going quiet.
     case failing(reason: String)
 }

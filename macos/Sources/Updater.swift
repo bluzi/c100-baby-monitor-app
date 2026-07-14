@@ -203,10 +203,12 @@ actor Updater {
 
     // MARK: - Applying
 
-    /// UPD-5: only ever called with monitoring stopped. Delegates to the synchronous installer.
+    /// UPD-5: put the new version on disk **without touching the running app**. It keeps watching,
+    /// on the code it already has; the new bundle simply becomes what launches next time. Whether to
+    /// restart into it now is the user's call, and theirs alone (`StagedUpdate.relaunch`).
     func install() throws {
         guard let staged else { return }
-        try StagedUpdate.install(staged)
+        try StagedUpdate.installWithoutRelaunching(staged)
         self.staged = nil
     }
 
@@ -294,20 +296,38 @@ enum StagedUpdate {
         return best
     }
 
-    /// Swaps the bundle and relaunches. Only ever called when nothing is being monitored — at
-    /// launch before the monitor starts, or once the user has stopped it (UPD-5).
-    static func install(_ update: (version: String, bundle: URL)) throws {
+    /// **UPD-5: swap the bundle on disk and leave the running app entirely alone.**
+    ///
+    /// This is the whole restraint of this updater in one function. The process that is watching the
+    /// baby right now goes on watching: it has its code loaded already, and replacing the bundle
+    /// under it changes nothing about the run in progress. What changes is what launches *next*.
+    ///
+    /// Nothing here restarts anything. Restarting is a separate function, called only when a person
+    /// has said yes to being asked.
+    static func installWithoutRelaunching(_ update: (version: String, bundle: URL)) throws {
         let current = Bundle.main.bundleURL
         // Atomic: either the new bundle is in place or the old one still is. A half-written app
         // bundle would be a Mac that cannot monitor tonight.
         _ = try FileManager.default.replaceItemAt(current, withItemAt: update.bundle)
-        Log.warn("update", "installed \(update.version) — relaunching")
+        Log.warn("update", "installed \(update.version) on disk — the running monitor is untouched")
+    }
 
+    /// The user said yes. Start the new copy and stand down.
+    static func relaunch() throws {
+        let current = Bundle.main.bundleURL
+        Log.warn("update", "relaunching into the installed version, at the user's request")
         let relaunch = Process()
         relaunch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         relaunch.arguments = ["-n", current.path]
         try relaunch.run()
         NSApplication.shared.terminate(nil)
+    }
+
+    /// A bundle staged by an earlier run that never got installed (the app was killed mid-update, or
+    /// the swap failed). Installed at launch, before the monitor starts.
+    static func install(_ update: (version: String, bundle: URL)) throws {
+        try installWithoutRelaunching(update)
+        try relaunch()
     }
 
     private static func signedByUs(_ app: URL) -> Bool {

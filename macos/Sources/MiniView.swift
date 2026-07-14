@@ -71,13 +71,19 @@ struct MiniChrome: View {
         .allowsHitTesting(hovering)
     }
 
-    /// The state of the feed — always, in a pill that hugs its own words rather than a bar across
-    /// the picture. Everything else here comes and goes with the pointer; this does not.
+    /// The state of the feed and the mute control — **always**, in a pill that hugs its own words
+    /// rather than a bar across the picture. Everything else here comes and goes with the pointer;
+    /// these two do not.
+    ///
+    /// LIVE-2 wants "muted" said in words *and* in the control. A tile this size cannot spare the
+    /// words, so the control does the whole job: it is on screen at all times, and while muted it is
+    /// a filled red well, not merely a different glyph. It is also then one click from sound —
+    /// which, on the window a parent actually leaves open, is the point.
     private var statusStrip: some View {
         HStack(spacing: 6) {
             HStack(spacing: 6) {
                 StatusDot(status: state.ui.status, running: state.ui.running, alarming: alarming)
-                Text(state.ui.muted ? "\(state.ui.statusText) · muted" : state.ui.statusText)
+                Text(state.ui.statusText)
                     .font(.caption.weight(.medium))
                     .lineLimit(1)
             }
@@ -103,13 +109,12 @@ struct MiniChrome: View {
                 .buttonStyle(.plain)
             }
 
-            if hovering {
-                MiniButton(
-                    symbol: state.ui.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                    label: state.ui.muted ? "Muted — click for sound" : "Mute the speaker",
-                    latched: state.ui.muted
-                ) { state.toggleMute() }
-            }
+            // Always on the tile — see the note above. Not a hover control (MACOS-5, LIVE-2).
+            MiniButton(
+                symbol: state.ui.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                label: state.ui.muted ? "Muted — the alarm still works. Click for sound" : "Mute the speaker",
+                latched: state.ui.muted
+            ) { state.toggleMute() }
         }
     }
 }

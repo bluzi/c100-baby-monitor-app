@@ -9,6 +9,9 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   next launch. While muted, the live feed says so at a glance: the status line reads muted, and
   the mute control shows an engaged state — a changed icon glyph is never the only clue, so
   "muted" can never be misread as "press to mute".
+  (The Mac's mini shape is too small to spend a word of its status line on this, so there the
+  **always-visible, latched mute control** is what says it — MACOS-5. The rule it must satisfy is
+  the same one: never a changed glyph alone.)
 - **LIVE-3** `[device]` Mute silences the phone's playback only — level monitoring and the noise alarm keep
   working exactly as when unmuted.
 - **LIVE-4** The connection state is always visible on the live feed: connecting, live,

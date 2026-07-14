@@ -13,7 +13,6 @@ import SwiftUI
 /// calm baby, and neither must an empty window.
 struct ViewerChrome: View {
     @EnvironmentObject private var state: AppState
-    @State private var confirmingStop = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -27,12 +26,6 @@ struct ViewerChrome: View {
         // The top row clears the title bar: with a full-size content view the traffic lights float
         // over the video, and anything of ours underneath them would be unclickable.
         .padding(.init(top: 38, leading: 16, bottom: 16, trailing: 16))
-        .confirmationDialog("Stop monitoring?", isPresented: $confirmingStop) {
-            Button("Stop monitoring", role: .destructive) { state.stop() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Audio, the alarm and the connection all stop. The baby will not be monitored.")
-        }
     }
 
     // MARK: - Top row: what the feed is doing (LIVE-4, LIVE-6). Never fades.
@@ -138,16 +131,17 @@ struct ViewerChrome: View {
 
     // MARK: - Bottom row: the controls (BG-11, LIVE-2, LIVE-10). These follow the pointer.
 
+    /// BG-11m: **there is no Stop here, and there is not meant to be.** On a Mac the app is the
+    /// monitor: it watches from the moment it opens until it is quit, so an app that is running and
+    /// not watching cannot exist — and neither can the screen that would have shown it. Start
+    /// survives for the one case that needs it: a monitor that failed on its own (WATCH-11).
+    /// Which controls appear is core's decision, and it is tested there (`MacShell.macViewerActions`).
     private var controls: some View {
         HStack(spacing: 4) {
             if state.ui.canResume {
                 ControlButton(symbol: "play.fill", label: "Start monitoring") { state.start() }
+                separator
             }
-            if state.ui.canStop {
-                ControlButton(symbol: "stop.fill", label: "Stop monitoring…") { confirmingStop = true }
-            }
-
-            separator
 
             ControlButton(
                 symbol: state.ui.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
@@ -175,11 +169,23 @@ struct ViewerChrome: View {
     }
 
     private var moreMenu: some View {
-        ControlMenu(symbol: "ellipsis", label: "More") {
-            Button("Switch Camera…") { state.switchCamera() }
-            Button("Sign Out") { state.signOut() }
-            Divider()
-            Text("Baby Monitor \(AppDelegate.version)") // LIVE-15 / UPD-6
+        ControlMenuButton(symbol: "ellipsis", label: "More") {
+            [
+                .action(title: "Switch Camera…") { state.switchCamera() },
+                .action(title: "Sign Out") { state.signOut() },
+                .separator,
+                // UPD-9: a check can always be asked for, rather than waiting for the next launch.
+                .action(title: "Check for Updates…") {
+                    NSApp.sendAction(#selector(AppDelegate.checkForUpdatesNow(_:)), to: nil, from: nil)
+                },
+                .info("Baby Monitor \(AppDelegate.version)"), // LIVE-15 / UPD-6
+                .separator,
+                // BG-11m: quitting is how a Mac stops monitoring, so it is offered where stopping
+                // used to be — and it asks first (MACOS-3).
+                .action(title: "Quit Baby Monitor", destructive: true) {
+                    NSApp.terminate(nil)
+                },
+            ]
         }
     }
 }
@@ -203,17 +209,18 @@ struct NightVisionControl: View {
     }
 
     var body: some View {
-        ControlMenu(symbol: symbol, label: "Night vision") {
-            Picker("Night vision", selection: Binding(get: { mode ?? "AUTO" }, set: set)) {
-                Text("Off").tag("OFF")
-                Text("Auto").tag("AUTO")
-                Text("On").tag("ON")
-            }
-            .pickerStyle(.inline)
+        ControlMenuButton(symbol: symbol, label: "Night vision") {
+            var items: [ControlMenuItem] = [
+                .action(title: "Off", checked: mode == "OFF") { set("OFF") },
+                .action(title: "Auto", checked: mode == "AUTO") { set("AUTO") },
+                .action(title: "On", checked: mode == "ON") { set("ON") },
+            ]
             if let error {
-                Divider()
-                Text(error)
+                // LIVE-10: a failed read or write is said in words, and the shown mode is left alone.
+                items.append(.separator)
+                items.append(.info(error))
             }
+            return items
         }
         .onAppear {
             BabyMonitor.shared.nightVision { value, message in

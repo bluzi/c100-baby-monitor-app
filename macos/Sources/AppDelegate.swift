@@ -24,6 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private lazy var updater = Updater(currentVersion: Self.version)
     private var updateTimer: Timer?
 
+    /// Cached, because the menu is rebuilt on every state tick (~20 Hz while live) and reading the
+    /// Keychain that often is both absurd and, when the read is not pre-authorised, a machine gun
+    /// of password prompts. It only changes when the user sets or removes the token.
+    private var hasUpdateToken = UpdaterToken.load() != nil
+
     static var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
@@ -185,6 +190,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settings.target = self
         menu.addItem(settings)
 
+        let token = NSMenuItem(
+            title: hasUpdateToken ? "Change update token…" : "Set up automatic updates…",
+            action: #selector(setUpdateToken),
+            keyEquivalent: ""
+        )
+        token.target = self
+        menu.addItem(token)
+
         menu.addItem(.separator())
 
         let about = NSMenuItem(title: "Baby Monitor \(Self.version)", action: nil, keyEquivalent: "")
@@ -225,6 +238,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// UPD-5: only reachable while monitoring is stopped — the menu item is disabled otherwise.
     @objc private func installUpdate() { installStagedUpdateIfIdle() }
+
+    /// The repository is private, so the updater needs a credential to read it — exactly as
+    /// Obtainium does on the phone. A fine-grained token with read-only Contents access, kept in
+    /// the Keychain and never in the binary or the repo.
+    @objc private func setUpdateToken() {
+        let alert = NSAlert()
+        alert.messageText = "Automatic updates"
+        alert.informativeText = """
+        Baby Monitor updates itself from the private repository, and needs a GitHub token to read it.
+
+        Create a fine-grained personal access token with read-only access to Contents on
+        bluzi/c100-baby-monitor-app, and paste it below. It is stored in your Keychain.
+
+        Updates are downloaded and verified in the background, and only ever installed while \
+        monitoring is stopped — the app will never restart itself while it is watching the baby.
+        """
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "github_pat_…"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        if hasUpdateToken { alert.addButton(withTitle: "Remove") }
+
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            let token = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !token.isEmpty else { return }
+            UpdaterToken.save(token)
+            hasUpdateToken = true
+            Log.info("update", "update token stored — checking now")
+            Task { await checkForUpdate() }
+        case .alertThirdButtonReturn:
+            UpdaterToken.clear()
+            hasUpdateToken = false
+            state.updateStatus = .idle
+            Log.warn("update", "update token removed — the app will no longer update itself")
+        default:
+            break
+        }
+        rebuildMenu(state.ui)
+    }
 
     @objc private func quit() { NSApp.terminate(nil) }
 
@@ -378,15 +433,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             } else {
                 state.updateStatus = .idle
             }
+        } catch Updater.UpdaterError.noToken {
+            // Not a failure — updates simply have not been set up yet, and the menu says so. UPD-4
+            // is about an updater that HAS been set up and has quietly stopped working; an updater
+            // that cries wolf on a fresh install is one nobody reads by the time it matters.
+            state.updateStatus = .idle
         } catch {
             // UPD-8: a failed check never touches monitoring. UPD-4: but it is not swallowed either.
             let failing = await updater.isFailingPersistently
             Log.warn("update", "check failed: \(error.localizedDescription)")
-            if failing {
-                state.updateStatus = .failing(reason: error.localizedDescription)
-            } else {
-                state.updateStatus = .idle
-            }
+            state.updateStatus = failing ? .failing(reason: error.localizedDescription) : .idle
         }
     }
 

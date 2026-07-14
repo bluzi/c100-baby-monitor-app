@@ -1,6 +1,14 @@
-# Every push to main → run checks, build a signed release APK, publish it as a GitHub Release.
-# Obtainium on the phones watches these releases; exactly ONE .apk asset per release.
-# versionCode = commit count on main (monotonic); versionName/tag = 0.1.<versionCode>.
+# Every push to main is a release (UPD-1), and the apps are released independently:
+#
+#   a change under android/  -> releases the phone app
+#   a change under macos/    -> releases the Mac app
+#   a change under core/     -> releases BOTH, because it changed both
+#
+# Both apps land on ONE release per commit, tagged v0.1.<commit-count>, so a version means the
+# same commit everywhere. A release may legitimately carry only one app's assets; both updaters
+# know to look back for the newest release that actually contains a build of theirs.
+#
+# Never push broken code to main: both devices install these themselves.
 name: Release
 
 on:
@@ -11,12 +19,67 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.filter.outputs.android }}
+      macos: ${{ steps.filter.outputs.macos }}
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Compute version from commit count
+        id: version
+        # Monotonic only while main is never rewritten: a history-shrinking force-push would lower
+        # the versionCode and the phones would silently refuse the "update" as a downgrade.
+        run: |
+          COUNT=$(git rev-list --count HEAD)
+          echo "version_code=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "version_name=0.1.$COUNT" >> "$GITHUB_OUTPUT"
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - 'core/**'
+              - 'gradle/**'
+              - 'gradlew'
+              - '*.gradle.kts'
+              - 'gradle.properties'
+              - '.github/workflows/release.yml'
+            android:
+              - *shared
+              - 'android/**'
+            macos:
+              - *shared
+              - 'macos/**'
+
+  # The release exists before either app uploads to it, so two concurrent jobs cannot race to
+  # create the same tag.
+  create-release:
+    needs: plan
+    if: needs.plan.outputs.android == 'true' || needs.plan.outputs.macos == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release
+        run: |
+          gh release create "v$VERSION_NAME" --title "v$VERSION_NAME" --generate-notes \
+            || echo "release already exists"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+
+  android:
+    needs: [plan, create-release]
+    if: needs.plan.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-java@v4
         with:
@@ -25,33 +88,117 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Compute version from commit count
-        # Monotonic only while main is never rewritten: a history-shrinking force-push would
-        # lower the versionCode and phones would silently refuse the "update" as a downgrade.
-        run: |
-          COUNT=$(git rev-list --count HEAD)
-          echo "VERSION_CODE=$COUNT" >> "$GITHUB_ENV"
-          echo "VERSION_NAME=0.1.$COUNT" >> "$GITHUB_ENV"
-
       - name: Decode signing keystore
         run: printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
-      - name: Check and build signed APK
+      # `check` here runs the core's tests on the JVM. The Kotlin/Native half of the suite needs a
+      # Mac, so it runs in the macos job — between them, every push proves the monitor on both.
+      - name: Check and build the signed APK
         run: >
-          ./gradlew check assembleRelease
+          ./gradlew :core:testDebugUnitTest :android:lintDebug :android:assembleRelease
           -PreleaseVersionName="$VERSION_NAME"
           -PreleaseVersionCode="$VERSION_CODE"
         env:
           BM_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
           BM_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           BM_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+          VERSION_CODE: ${{ needs.plan.outputs.version_code }}
 
-      - name: Create GitHub Release with APK
+      # UPD-2: exactly ONE .apk asset per release, or Obtainium cannot resolve which to install and
+      # silent background updates stop working.
+      - name: Upload the APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk "babymonitor-v$VERSION_NAME.apk"
-          gh release create "v$VERSION_NAME" "babymonitor-v$VERSION_NAME.apk" \
-            --title "v$VERSION_NAME" --generate-notes
+          cp android/build/outputs/apk/release/android-release.apk "babymonitor-v$VERSION_NAME.apk"
+          gh release upload "v$VERSION_NAME" "babymonitor-v$VERSION_NAME.apk" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+
+  macos:
+    needs: [plan, create-release]
+    if: needs.plan.outputs.macos == 'true'
+    runs-on: macos-14 # Apple silicon: the app is arm64-only
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The camera speaks Opus and no Apple framework decodes it. Homebrew's static libopus.a is
+      # linked into the binary, so the shipped app carries no dylib of ours.
+      - name: Install libopus
+        run: brew install opus
+
+      # The other half of `check`: the SAME spec suite, run on Kotlin/Native. A change that breaks
+      # the monitor on macOS alone cannot reach a release.
+      - name: Run the spec suite on Kotlin/Native
+        run: ./gradlew :core:macosArm64Test
+
+      # The Developer ID certificate. Signing is not cosmetic here: it is what lets the app read its
+      # own stored session after an update without stopping to ask for a password (AUTH-6m) — and a
+      # monitor that stops at a password box after an overnight update is a monitor that failed.
+      - name: Import the signing certificate
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          security create-keychain -p ci "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p ci "$KEYCHAIN"
+          printf '%s' "$MACOS_CERT_BASE64" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+        env:
+          MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+
+      - name: Build the app
+        run: ./macos/build.sh release
+        env:
+          BM_VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+          BM_VERSION_CODE: ${{ needs.plan.outputs.version_code }}
+          OPUS_PREFIX: /opt/homebrew/opt/opus
+
+      # Notarisation. Without it, the FIRST install (downloaded through a browser, so quarantined)
+      # is blocked by Gatekeeper. Updates are downloaded by the app itself and never quarantined, so
+      # this is about the first install only — but a baby monitor that greets you with "cannot be
+      # opened" is a bad start.
+      - name: Notarize and staple
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent macos/build/BabyMonitor.app "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple macos/build/BabyMonitor.app
+          spctl -a -vv -t exec macos/build/BabyMonitor.app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+
+      # UPD-3: the checksum ships with the build. The updater discards a download that does not
+      # match it rather than running it — the one thing between a truncated download and a Mac that
+      # will not monitor tonight.
+      - name: Package and checksum
+        run: |
+          ZIP="babymonitor-v$VERSION_NAME-macos.zip"
+          ditto -c -k --sequesterRsrc --keepParent macos/build/BabyMonitor.app "$ZIP"
+          shasum -a 256 "$ZIP" > checksums.txt
+          cat checksums.txt
+        env:
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}
+
+      - name: Upload the Mac app
+        run: |
+          gh release upload "v$VERSION_NAME" \
+            "babymonitor-v$VERSION_NAME-macos.zip" checksums.txt --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ needs.plan.outputs.version_name }}

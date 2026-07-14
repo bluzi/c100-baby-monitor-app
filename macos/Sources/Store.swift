@@ -25,16 +25,47 @@ final class KeychainSecretBox: NSObject, SecretBox {
     private let service = "com.bluzi.babymonitor"
     private let account = "mi-session"
 
-    /// Returns nil if the Keychain refuses. **It must never throw**: an ObjC exception raised here
-    /// unwinds through Kotlin and terminates the process — it did exactly that once, and a keychain
-    /// that declined to store a token took the whole monitor down. AUTH-6 says drop the session; a
-    /// nil says it in the one way that cannot be misunderstood across a language bridge.
-    func seal(plain: String) -> String? {
+    /// Which Keychain, decided by what the binary is actually entitled to — so one build works
+    /// whether or not it was signed with a Developer ID.
+    ///
+    /// The **data-protection** Keychain keys on app identity, not on the bytes of the binary, so an
+    /// update is still the same app and there is never a password prompt. It requires a
+    /// `keychain-access-groups` entitlement, which only a Developer ID can carry — a self-signed
+    /// certificate that claims it gets the process SIGKILLed at exec.
+    ///
+    /// The **login** Keychain is the fallback. It guards the item against the exact binary that
+    /// wrote it, so each update costs one password prompt (AUTH-6m).
+    private static let accessGroup: String? = {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let groups = SecTaskCopyValueForEntitlement(
+                  task, "keychain-access-groups" as CFString, nil
+              ) as? [String],
+              let group = groups.first
+        else {
+            return nil
+        }
+        return group
+    }()
+
+    private var base: [String: Any] {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
+        if let group = Self.accessGroup {
+            query[kSecUseDataProtectionKeychain as String] = true
+            query[kSecAttrAccessGroup as String] = group
+        }
+        return query
+    }
+
+    /// Returns nil if the Keychain refuses. **It must never throw**: an ObjC exception raised here
+    /// unwinds through Kotlin and terminates the process — it did exactly that once, and a keychain
+    /// that declined to store a token took the whole monitor down. AUTH-6 says drop the session; a
+    /// nil says it in the one way that cannot be misunderstood across a language bridge.
+    func seal(plain: String) -> String? {
+        var query = base
         SecItemDelete(query as CFDictionary)
 
         query[kSecValueData as String] = Data(plain.utf8)
@@ -50,13 +81,9 @@ final class KeychainSecretBox: NSObject, SecretBox {
 
     func open(sealed: String) -> String? {
         guard sealed == "keychain" else { return nil }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        var query = base
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         guard status == errSecSuccess,
@@ -74,12 +101,7 @@ final class KeychainSecretBox: NSObject, SecretBox {
     }
 
     func clear() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(base as CFDictionary)
     }
 }
 

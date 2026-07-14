@@ -6,6 +6,7 @@ import com.bluzi.babymonitor.xiaomi.Device
 import com.bluzi.babymonitor.xiaomi.Session
 import com.bluzi.babymonitor.xiaomi.base64ToBytes
 import com.bluzi.babymonitor.xiaomi.toBase64
+import kotlin.concurrent.Volatile
 import kotlin.math.roundToInt
 
 // Persistence: session (encrypted — AUTH-5/6), selected camera (CAM-2/3), settings
@@ -204,6 +205,24 @@ data class Settings(
 }
 
 class AppStore(private val kv: KeyValueStore, private val box: SecretBox) {
+    /**
+     * The decrypted session, held after the first read.
+     *
+     * Without this, every caller that wants to know whether we are signed in — the router, the
+     * engine, the camera controls — pays a full decrypt. On Android that is a wasted Keystore
+     * round-trip. On macOS it is worse: the Keychain guards an item against the specific binary
+     * that wrote it, so after an update each of those reads raises its OWN password prompt. Four
+     * reads, four prompts, and the app blocked behind them.
+     *
+     * Read once, hold it, and keep it in step on every write. Nothing outside this class touches
+     * the sealed form.
+     */
+    @Volatile
+    private var cachedSession: Session? = null
+
+    @Volatile
+    private var sessionRead = false
+
     private companion object {
         const val KEY_SESSION = "session_v1"
         const val KEY_DEVICE = "device_v1"
@@ -229,13 +248,22 @@ class AppStore(private val kv: KeyValueStore, private val box: SecretBox) {
         if (sealed == null) {
             Log.w("data", "the secret store refused the session — not persisting it")
             kv.remove(KEY_SESSION)
+            cachedSession = null
+            sessionRead = true
             return
         }
         kv.put(KEY_SESSION, sealed)
+        cachedSession = s
+        sessionRead = true
     }
 
-    fun loadSession(): Session? =
-        kv.get(KEY_SESSION)?.let { box.open(it) }?.let { Codecs.sessionFromJson(it) }
+    fun loadSession(): Session? {
+        if (!sessionRead) {
+            cachedSession = kv.get(KEY_SESSION)?.let { box.open(it) }?.let { Codecs.sessionFromJson(it) }
+            sessionRead = true
+        }
+        return cachedSession
+    }
 
     fun saveDevice(d: Device) = kv.put(KEY_DEVICE, Codecs.deviceToJson(d))
 
@@ -296,6 +324,8 @@ class AppStore(private val kv: KeyValueStore, private val box: SecretBox) {
     fun signOut() {
         kv.remove(KEY_SESSION)
         kv.remove(KEY_DEVICE)
+        cachedSession = null
+        sessionRead = true
     }
 
     /** CAM-4: switching camera forgets the choice, not the account — the picker comes back. */

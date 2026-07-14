@@ -78,8 +78,8 @@ Gradle is the task runner for the shared core and the Android app; the macOS app
 | Build debug APK | `./gradlew :android:assembleDebug` |
 | Build + install + launch on **emulator** | `./gradlew runEmulator` |
 | Build + install + launch on **connected phone** | `./gradlew runPhone` |
-| Build the macOS app | `./gradlew :core:linkReleaseFrameworkMacosArm64 && xcodebuild -project macos/BabyMonitor.xcodeproj -scheme BabyMonitor build` |
-| Run the macOS app | `macos/run.sh` |
+| Build the macOS app | `./macos/build.sh [debug\|release]` |
+| Run the macOS app | `./macos/run.sh` |
 
 `./gradlew check` must be green before anything is considered done. It runs the core's tests on
 **both** the JVM and Kotlin/Native — a change that breaks the monitor on macOS alone cannot go
@@ -89,7 +89,27 @@ green, which is the point.
 once. Start an emulator first with `emulator -avd <name>` (or through Argent tools).
 
 Building for macOS needs `brew install opus` (the camera speaks Opus and no Apple framework
-decodes it; Homebrew's static `libopus.a` is linked into the binary).
+decodes it; Homebrew's static `libopus.a` is linked into the binary). There is no Xcode project on
+purpose — the app is a menu bar item, a few windows and a picture, and everything hard is in the
+shared core. `swiftc` plus a bundle layout is the whole build, which also means CI does not have to
+parse a `.pbxproj`.
+
+### macOS signing — not cosmetic
+
+`macos/build.sh` signs with the **Developer ID** certificate and embeds
+`macos/Resources/BabyMonitor.provisionprofile`, which grants `keychain-access-groups`. That
+combination is the only one that lets the app use the **data-protection Keychain**.
+
+This matters far more than it sounds. The *login* Keychain guards an item against **the exact
+binary that wrote it** — and every release is a different binary. So without the entitlement, macOS
+asks for the login password before the app can read a session token it wrote itself, and that
+prompt **blocks startup**: after an overnight auto-update you would find a monitor that is not
+running and a password box nobody was awake to answer. A team-based signature does not help; the
+login Keychain binds to the binary no matter who signed it (measured, twice). The data-protection
+Keychain identifies the app by its *identity*, so an update is still the same app.
+
+Claiming the entitlement **without** the profile makes the kernel SIGKILL the process at exec.
+Certificate, profile and entitlement are a set; drop any one and it breaks, loudly or quietly.
 
 ## Releasing
 

@@ -76,6 +76,28 @@ object BabyMonitor {
     @Volatile
     private var sleepOutage: String? = null
 
+    /**
+     * What [state] needs to route (APP-1), cached.
+     *
+     * Reading it from the store instead would mean touching the secret store on every UI update —
+     * and the UI updates on every level-meter tick, about twenty times a second. On macOS that is
+     * the Keychain, so the app hammered it at 20 Hz and, whenever a read was not already
+     * authorised, raised an endless queue of password prompts.
+     *
+     * These change only when the user signs in, signs out, or picks a camera. That is when they
+     * are refreshed, and never in the hot path.
+     */
+    @Volatile
+    private var hasSession = false
+
+    @Volatile
+    private var hasDevice = false
+
+    private fun refreshRouting() {
+        hasSession = store.loadSession() != null
+        hasDevice = store.loadDevice() != null
+    }
+
     // --- lifecycle -----------------------------------------------------------
 
     /**
@@ -94,6 +116,7 @@ object BabyMonitor {
         store = AppStore(keyValueStore, secretBox)
         ringer = AppleRinger(engineScope)
         MonitorHub.applySettings(store.loadSettings())
+        refreshRouting()
 
         // One listener over everything the UI can show, so the shell never subscribes to a Flow.
         scope.launch {
@@ -128,7 +151,7 @@ object BabyMonitor {
         val settings = MonitorHub.settings.value
         val status = MonitorHub.status.value
         val running = MonitorHub.running.value
-        val screen = route(store.loadSession() != null, store.loadDevice() != null)
+        val screen = route(hasSession, hasDevice) // cached — see refreshRouting()
         return UiState(
             screen = when (screen) {
                 Screen.Login -> "login"
@@ -198,6 +221,7 @@ object BabyMonitor {
             is LoginResult.Ok -> {
                 store.saveSession(result.session)
                 pendingLogin = null
+                refreshRouting()
                 done(SignInResult("ok"))
                 emit()
             }
@@ -217,6 +241,7 @@ object BabyMonitor {
         store.setMonitoring(false)
         pendingLogin = null
         MonitorHub.sessionExpired.value = false
+        refreshRouting()
         emit()
     }
 
@@ -247,6 +272,7 @@ object BabyMonitor {
 
     fun selectCamera(camera: CameraInfo) {
         store.saveDevice(Device(camera.did, camera.name, camera.model, camera.mac, camera.ip))
+        refreshRouting()
         emit()
     }
 
@@ -258,6 +284,7 @@ object BabyMonitor {
     fun switchCamera() {
         stop()
         store.clearDevice()
+        refreshRouting()
         emit()
     }
 

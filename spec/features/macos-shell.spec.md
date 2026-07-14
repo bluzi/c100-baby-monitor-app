@@ -51,6 +51,13 @@ only about the shell around it.
 
 ## What a Mac cannot do, said out loud
 
+- **AUTH-6m** `[macos]` `[device]` The Mi account token is stored in the Keychain (AUTH-6), and the
+  app reads it back **without ever asking the user for anything** — including after an update, when
+  the binary has changed. A monitor that stopped at a password box after an overnight update, with
+  nobody awake to answer it, would be a monitor that failed exactly when it mattered.
+  If the Keychain refuses or the item is gone, the session is dropped and the app asks for a
+  sign-in. It never crashes, and it never falls back to storing the token unencrypted.
+
 - **MACOS-11** `[device]` A Mac cannot monitor through a closed lid, and no inhibitor changes that
   (BG-12). The app therefore:
   1. says so plainly where a parent would rely on it — before an overnight watch, not after;

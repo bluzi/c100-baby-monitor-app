@@ -56,9 +56,71 @@ if otool -L "$APP/Contents/MacOS/BabyMonitor" | grep -qi "BabyMonitorCore\|libop
   exit 1
 fi
 
-# Ad-hoc signature. Without an Apple Developer ID the first launch needs one right-click → Open;
-# after that the self-updater swaps the bundle in place and macOS is content, because we download
-# it ourselves and it is never quarantined.
-codesign --force --deep --sign - "$APP" 2>/dev/null || true
+# Signing. This is NOT cosmetic, and it is not mainly about Gatekeeper.
+#
+# macOS guards a Keychain item against the exact binary that wrote it. Every build is a different
+# binary, so the app is asked for the login password before it can read a session token it wrote
+# itself — and that prompt blocks startup. Three tiers, best first:
+#
+#  1. Developer ID + the provisioning profile. This is the only combination that removes the prompt
+#     entirely: the profile grants keychain-access-groups, which lets the app use the
+#     data-protection Keychain — the one that identifies an app by its IDENTITY rather than by the
+#     bytes of its binary. An update is then still the same app, and it reads its own token in
+#     silence. Nothing less works: a team-based signature is not enough, because the login
+#     Keychain's access list binds to the binary no matter who signed it (measured, twice).
+#  2. Developer ID alone, or a self-signed certificate: ONE password prompt after each update.
+#     Survivable only because an update never applies while monitoring is running (UPD-5), so the
+#     parent is at the machine when it appears. That is AUTH-6m in the spec.
+#  3. Ad-hoc: a prompt after every single build. Development only.
+#
+# The entitlement is attached ONLY alongside the profile. Claim it without one and the kernel
+# SIGKILLs the process at exec — Developer ID or not.
+DEV_ID="$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep -m1 "Developer ID Application" | sed -E 's/.*"(.*)"/\1/' || true)"
+# The team id is the parenthesised part of the identity — "Developer ID Application: Name (TEAMID)".
+# Taken from the certificate rather than hard-coded, so nothing drifts if the team ever changes.
+TEAM_ID="${BM_TEAM_ID:-$(printf '%s' "$DEV_ID" | sed -nE 's/.*\(([A-Z0-9]{10})\)$/\1/p')}"
+SELF_SIGNED="${BM_MACOS_IDENTITY:-Baby Monitor Self-Signed}"
+
+PROFILE="$ROOT/macos/Resources/BabyMonitor.provisionprofile"
+
+if [ -n "$DEV_ID" ] && [ -f "$PROFILE" ]; then
+  # The provisioning profile is what lets the entitlement exist at all. Without it the kernel
+  # SIGKILLs the process at exec for claiming keychain-access-groups — Developer ID or not.
+  cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+
+  ENTITLEMENTS="$OUT/BabyMonitor.entitlements"
+  cat > "$ENTITLEMENTS" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.application-identifier</key>
+    <string>$TEAM_ID.com.bluzi.babymonitor</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>$TEAM_ID</string>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$TEAM_ID.com.bluzi.babymonitor</string>
+    </array>
+</dict>
+</plist>
+EOF
+  codesign --force --deep --timestamp --options runtime \
+    --entitlements "$ENTITLEMENTS" --sign "$DEV_ID" "$APP"
+  echo "==> Signed with '$DEV_ID' + entitlement (data-protection Keychain — no password prompts)"
+elif [ -n "$DEV_ID" ]; then
+  codesign --force --deep --timestamp --options runtime --sign "$DEV_ID" "$APP"
+  echo "==> Signed with '$DEV_ID' (no provisioning profile — one Keychain prompt per update)"
+elif security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SELF_SIGNED"; then
+  codesign --force --deep --sign "$SELF_SIGNED" "$APP"
+  echo "==> Signed with '$SELF_SIGNED'"
+  echo "   (macOS will ask for your login password once after each update — see AUTH-6m)"
+else
+  codesign --force --deep --sign - "$APP" 2>/dev/null || true
+  echo "!! No signing identity — signed ad-hoc." >&2
+  echo "!! macOS will ask for your login password after EVERY build." >&2
+  echo "!! Run ./macos/make-signing-cert.sh once to reduce that to once per update." >&2
+fi
 
 echo "==> $APP"

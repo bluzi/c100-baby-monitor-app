@@ -89,8 +89,17 @@ actor Updater {
 
     // MARK: - GitHub
 
+    /// The newest release that actually contains a **macOS** build.
+    ///
+    /// Not `/releases/latest`. Releases are path-filtered: a change under `android/` publishes only
+    /// an APK, so the newest release may legitimately have no Mac build in it. That does not mean
+    /// the updater is broken and it must not be reported as one (UPD-4 exists to catch real
+    /// failures, and an updater that cries wolf is one nobody reads). It means the Mac is already
+    /// current, and we should keep looking back for the last release that was ours.
     private func latestRelease(token: String) async throws -> Release {
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases/latest")!)
+        var request = URLRequest(
+            url: URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=30")!
+        )
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
@@ -99,7 +108,16 @@ actor Updater {
         guard let http = response as? HTTPURLResponse else { throw UpdaterError.http(0) }
         guard http.statusCode == 200 else { throw UpdaterError.http(http.statusCode) }
 
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        let releases = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
+        // Newest first, as GitHub returns them; drafts and prereleases are not ours.
+        guard let json = releases.first(where: { release in
+            let isDraft = release["draft"] as? Bool ?? false
+            let assets = release["assets"] as? [[String: Any]] ?? []
+            return !isDraft && assets.contains { ($0["name"] as? String)?.hasSuffix("-macos.zip") == true }
+        }) else {
+            throw UpdaterError.noAsset
+        }
+
         let tag = json["tag_name"] as? String ?? ""
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
         let assets = json["assets"] as? [[String: Any]] ?? []

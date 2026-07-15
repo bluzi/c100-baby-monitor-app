@@ -84,6 +84,14 @@ answer as one — `[desktop]` — because a desktop is a desktop; two phones ans
   state — and while the phone is unlocked the live feed keeps the screen awake (LIVE-14) so a glance
   never means hunting for it. A locked phone must be unlocked to see the picture; the app never
   suggests otherwise.
+- **BG-18** `[mobile]` `[device]` A phone *can* answer "see the baby while doing something else" the
+  way a desktop's mini window does (BG-17): when the parent switches away from a running feed, the
+  live video continues in the system's **picture-in-picture** window, floating over their other apps,
+  and returning to the app brings it back inline. The floating window is the picture alone — it
+  carries no controls, because a PiP window is a few centimetres of glass. This holds **where the OS
+  supports it**; a device that does not simply keeps monitoring in the background as always, with the
+  audio, the alarm and the watchdog untouched (BG-1/4) — a floating picture is a convenience, and its
+  absence is never a gap in the watch.
 
 ## The OS suspending the monitor overnight
 

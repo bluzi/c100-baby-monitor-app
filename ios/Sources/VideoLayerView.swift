@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import BabyMonitorCore
 import CoreMedia
 import SwiftUI
@@ -18,6 +19,7 @@ import VideoToolbox
 final class VideoLayerView: UIView {
     private let displayLayer = AVSampleBufferDisplayLayer()
     private var formatDescription: CMVideoFormatDescription?
+    private var pipController: AVPictureInPictureController?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -28,6 +30,24 @@ final class VideoLayerView: UIView {
         isUserInteractionEnabled = false
         displayLayer.videoGravity = .resizeAspect // show the whole crib — never crop a baby out
         layer.addSublayer(displayLayer)
+        setUpPictureInPicture()
+    }
+
+    /// BG-18: a system picture-in-picture window over the parent's other work, when the OS supports
+    /// it. It rides on the same sample-buffer display layer the feed already draws to, and the same
+    /// `.playback` audio session that keeps the monitor alive in the background — so it floats a
+    /// picture and changes **nothing** about the audio, the alarm or the watchdog. With
+    /// `canStartPictureInPictureAutomaticallyFromInline`, leaving the app while the feed plays hands the
+    /// picture to a floating window; a device that does not support PiP simply never gets one.
+    private func setUpPictureInPicture() {
+        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        let source = AVPictureInPictureController.ContentSource(
+            sampleBufferDisplayLayer: displayLayer,
+            playbackDelegate: self
+        )
+        let controller = AVPictureInPictureController(contentSource: source)
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        pipController = controller
     }
 
     @available(*, unavailable)
@@ -170,6 +190,45 @@ final class VideoLayerView: UIView {
             output.append(contentsOf: bytes[start..<end])
         }
         return output.isEmpty ? nil : output
+    }
+}
+
+/// BG-18: a live feed's answers to PiP's playback questions. There is no timeline to scrub, nothing
+/// to pause and nothing to skip — a baby monitor plays, always, and PiP must not put a pause button or
+/// a scrubber on it.
+extension VideoLayerView: AVPictureInPictureSampleBufferPlaybackDelegate {
+    func pictureInPictureController(_ controller: AVPictureInPictureController, setPlaying playing: Bool) {}
+
+    func pictureInPictureControllerTimeRangeForPlayback(_ controller: AVPictureInPictureController) -> CMTimeRange {
+        // An unbounded range reads as "live": PiP hides the scrubber and the play/pause affordances
+        // that would only mislead on a feed with no timeline.
+        CMTimeRange(start: .zero, duration: .positiveInfinity)
+    }
+
+    func pictureInPictureControllerIsPlaybackPaused(_ controller: AVPictureInPictureController) -> Bool {
+        false // the feed is never paused; pausing is not a thing a baby monitor can do
+    }
+
+    func pictureInPictureController(
+        _ controller: AVPictureInPictureController,
+        didTransitionToRenderSize newRenderSize: CMVideoDimensions
+    ) {}
+
+    func pictureInPictureController(
+        _ controller: AVPictureInPictureController,
+        skipByInterval skipInterval: CMTime,
+        completion completionHandler: @escaping () -> Void
+    ) {
+        completionHandler() // nothing to skip on a live feed
+    }
+
+    func pictureInPictureControllerShouldProhibitBackgroundAudioPlayback(
+        _ controller: AVPictureInPictureController
+    ) -> Bool {
+        // The monitor's audio is the whole point — PiP must never silence it. Our audio does not come
+        // from these video sample buffers; it comes from the feed's own engine and must keep playing in
+        // the background exactly as it does without PiP (BG-3/9i). So: never prohibit it.
+        false
     }
 }
 

@@ -76,6 +76,12 @@ platform can do less than another.
     sign-in screen rotates freely again.
 12. **(Android) Lock screen (BG-7):** while monitoring, lock the phone and tap the monitoring
     notification (or the launcher icon) — the live feed shows without unlocking.
+12b. **(Both phones) Picture-in-picture (BG-18):** with the live feed showing, switch to another app
+    (the home gesture / recents on Android; the home gesture on iOS) — the video keeps playing in a
+    small floating window over that app, with no controls on it. Tap the window to return: the feed is
+    back inline, uninterrupted, and the audio and the crying alarm never stopped throughout. On a
+    device whose OS has no PiP, the app simply keeps monitoring in the background as before — no float,
+    no gap in the watch.
 13. **(Android) Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,
     then trigger the noise alarm — it is still audible, and the volume is put back where the user
     had it after acknowledging. Repeat, but force-stop the app while it rings: on next launch the

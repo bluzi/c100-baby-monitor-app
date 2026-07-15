@@ -27,8 +27,9 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:showWhenLocked="true"
+            android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

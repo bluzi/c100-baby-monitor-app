@@ -49,8 +49,8 @@ hazard and `BG-9i` the iOS one, paired by number because the two phones mirror e
 ## Platform differences are behaviour, not omissions
 
 Some things one platform can do and another cannot. A Mac cannot keep monitoring through a closed
-lid; a PC may not even own an H.265 decoder; a phone cannot show a picture-in-picture window over
-your other work.
+lid; a PC may not even own an H.265 decoder; a phone's OS may nap the app to save battery unless it
+is kept awake (and an older phone may not float a picture-in-picture window at all).
 
 **A criterion is never silently dropped for a platform.** It is shared, or it is platform-tagged
 with an equivalent that addresses the same *hazard*, or it is explicitly marked unsupported **with

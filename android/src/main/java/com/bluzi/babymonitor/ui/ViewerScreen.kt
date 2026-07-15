@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
+import com.bluzi.babymonitor.MainActivity
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.bluzi.babymonitor.data.AppStore
@@ -135,6 +136,17 @@ fun ViewerScreen(
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
+
+    // BG-18: keep the baby visible in a picture-in-picture window when the parent switches away from a
+    // running feed. `pipReady` gates it on the feed actually running, so switching away from a
+    // connecting/empty viewer does not float a black tile; the activity does the OS check and never
+    // floats where PiP is unsupported. In PiP the chrome is dropped — the window is too small for it.
+    val pipActivity = remember(context) { context.findActivity() as? MainActivity }
+    DisposableEffect(pipActivity, running) {
+        pipActivity?.pipReady = running
+        onDispose { pipActivity?.pipReady = false }
+    }
+    val inPip = pipActivity?.inPictureInPicture?.value ?: false
 
     // LIVE-11: the controls are toggled by tapping the VIDEO, and by nothing else.
     // They never hide on their own — watching the room should not cost you a tap to get them back.
@@ -370,8 +382,9 @@ fun ViewerScreen(
 
     ViewerContent(
         cameraName, status, settings.muted, level, thresholdDb, settings.alarmEnabled,
-        actions, banner, notice,
-        controlsVisible, videoSurface,
+        // BG-18: in a PiP window there is only room for the picture — no chrome, no banner.
+        actions, if (inPip) null else banner, notice,
+        controlsVisible && !inPip, videoSurface,
         menu = {
             OverlayMenu(
                 onCameras = { showCameras = true },

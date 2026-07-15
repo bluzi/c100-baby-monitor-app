@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using BabyMonitor.App.Services;
 using BabyMonitor.Core.Monitor;
 using BabyMonitor.Core.Shell;
+using BabyMonitor.Core.Ui;
 using BabyMonitor.Core.Xiaomi;
 using Microsoft.UI;
 using Microsoft.UI.Input;
@@ -1253,6 +1254,13 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (CameraSelection.AutoSelectsSingle(cameras.Count))
+        {
+            // CAM-6: one camera, no choice to make — open it straight away, never a list of one.
+            ChooseCamera(cameras[0]);
+            return;
+        }
+
         CamerasList.ItemsSource = cameras;
         CamerasList.DisplayMemberPath = nameof(CameraInfo.Title);
     }
@@ -1264,6 +1272,12 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        ChooseCamera(camera);
+    }
+
+    /// <summary>CAM-2/CAM-6: choosing a camera — by tap or auto-picked when it is the only one — opens its feed.</summary>
+    private void ChooseCamera(CameraInfo camera)
+    {
         _state.SelectCamera(camera);
         _state.Start(); // CAM-2: choosing a camera opens its live feed
         UpdateUi();

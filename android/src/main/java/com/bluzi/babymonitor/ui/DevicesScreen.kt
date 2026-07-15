@@ -72,7 +72,14 @@ fun CameraList(
                 cloud.onSessionRefreshed = { store.saveSession(it) } // AUTH-7
                 cloud.deviceList()
             }
-            LoadState.Ready(devices.filter { isCamera(it.model) }) // CAM-1
+            val cameras = devices.filter { isCamera(it.model) } // CAM-1
+            if (CameraSelection.autoSelectsSingle(cameras.size)) {
+                // CAM-6: one camera, no choice to make — open it straight away, never a list of one.
+                onSelect(cameras.first())
+                LoadState.Loading // stay on the spinner; selecting routes us to the viewer
+            } else {
+                LoadState.Ready(cameras)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

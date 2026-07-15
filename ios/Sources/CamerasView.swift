@@ -88,8 +88,16 @@ struct CamerasView: View {
             return
         }
         BabyMonitor.shared.loadCameras { list, message in
+            let found = list ?? []
+            // CAM-6: one camera, no choice to make — open it straight away, never a list of one.
+            if message == nil, CameraSelection.shared.autoSelectsSingle(cameraCount: Int32(found.count)),
+               let only = found.first {
+                BabyMonitor.shared.selectCamera(camera: only)
+                state.start()
+                return // stay on the spinner; routing takes us to the viewer
+            }
             busy = false
-            cameras = list ?? []
+            cameras = found
             error = message
         }
     }

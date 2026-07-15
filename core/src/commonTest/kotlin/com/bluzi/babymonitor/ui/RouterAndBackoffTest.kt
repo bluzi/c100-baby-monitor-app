@@ -3,6 +3,7 @@ package com.bluzi.babymonitor.ui
 import com.bluzi.babymonitor.monitor.RECONNECT_BACKOFF_MS
 import com.bluzi.babymonitor.monitor.reconnectDelayMs
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.Test
 
@@ -21,6 +22,14 @@ class RouterAndBackoffTest {
     @Test
     fun `APP-1+APP-2+CAM-3 session plus stored camera goes straight to the live feed — asking nothing again`() {
         assertEquals(Screen.Viewer, route(hasSession = true, hasDevice = true))
+    }
+
+    @Test
+    fun `CAM-6 exactly one camera is auto-selected — zero or many still show the picker`() {
+        assertTrue(CameraSelection.autoSelectsSingle(1))
+        assertFalse(CameraSelection.autoSelectsSingle(0)) // no cameras: CAM-5 says so, never auto
+        assertFalse(CameraSelection.autoSelectsSingle(2)) // a real choice: the picker
+        assertFalse(CameraSelection.autoSelectsSingle(5))
     }
 
     @Test

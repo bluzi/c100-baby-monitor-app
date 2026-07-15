@@ -12,3 +12,9 @@ out.
   new choice replaces the stored one and takes effect immediately.
 - **CAM-5** `[device]` A failure to load the device list shows a readable error with retry; an account with
   no cameras says so instead of showing an empty screen.
+- **CAM-6** When the account has exactly one camera, it is selected automatically and its live feed
+  opens — the picker is never shown for a single camera. The picker appears only when there is a
+  genuine choice (more than one camera); an account with no cameras still says so rather than showing
+  a one-item list or an empty screen (CAM-5). This holds anywhere the picker would otherwise appear:
+  the first sign-in, and after clearing the selection to switch (CAM-4). A parent with one camera
+  never taps through a list of one.

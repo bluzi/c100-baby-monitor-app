@@ -1,38 +1,58 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.library)
 }
 
-// libopus: the camera speaks Opus and no Apple framework decodes it. Homebrew's static libopus.a
-// is linked into the binary, so the shipped app carries no dylib dependency.
+// libopus: the camera speaks Opus and no Apple framework decodes it, so a static libopus.a is linked
+// into each native binary and the shipped app carries no dylib dependency.
+//
+// Every Apple platform is its own platform with its own libopus: macOS gets Homebrew's (arm64
+// macOS); iOS device and iOS simulator are cross-built by core/opus/build-ios-opus.sh into
+// core/build/opus-ios/{device,sim}. Each prefix is overridable, exactly like OPUS_PREFIX, so CI or a
+// different install location can be pointed at without editing this file.
 val opusPrefix: String = System.getenv("OPUS_PREFIX")
     ?: providers.gradleProperty("opusPrefix").orNull
     ?: "/opt/homebrew/opt/opus"
+val opusIosSimPrefix: String = System.getenv("OPUS_IOS_SIM_PREFIX")
+    ?: providers.gradleProperty("opusIosSimPrefix").orNull
+    ?: project.file("build/opus-ios/sim").absolutePath
+val opusIosDevicePrefix: String = System.getenv("OPUS_IOS_DEVICE_PREFIX")
+    ?: providers.gradleProperty("opusIosDevicePrefix").orNull
+    ?: project.file("build/opus-ios/device").absolutePath
 
 kotlin {
     androidTarget {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
 
-    macosArm64 {
-        compilations.getByName("main") {
-            cinterops.create("copus") {
-                defFile(project.file("src/nativeInterop/cinterop/copus.def"))
-                includeDirs("$opusPrefix/include")
-                extraOpts("-libraryPath", "$opusPrefix/lib")
-            }
+    // Every Apple target links the same static libopus and exports the same static framework — what
+    // the Swift shell (Xcode-less: swiftc + a bundle) links against. Only the opus build differs, so
+    // the three targets share one configuration and pass their own prefix.
+    val copusDef = project.file("src/nativeInterop/cinterop/copus.def")
+    fun KotlinNativeTarget.babyMonitorCore(opusDir: String) {
+        compilations.getByName("main").cinterops.create("copus") {
+            defFile(copusDef)
+            includeDirs("$opusDir/include")
+            extraOpts("-libraryPath", "$opusDir/lib")
         }
-        // What Xcode links against. Static, so the shipped .app carries no dylib of ours.
+        // Static, so the shipped app carries no dylib of ours — the binary carries the monitor,
+        // libopus and all.
         binaries.framework {
             baseName = "BabyMonitorCore"
             isStatic = true
         }
     }
-    // Future shells plug in here and get the whole monitor for free:
-    //   jvm()        -> Windows/Linux desktop (reuses jvmMain's sockets + HTTP)
-    //   iosArm64()   -> iOS (reuses appleMain in full)
+
+    macosArm64 { babyMonitorCore(opusPrefix) }
+    // iOS reuses appleMain in full — the whole monitor, for free. Device and simulator are separate
+    // platforms with separate opus builds; both are declared so the framework builds for a real
+    // phone as well as the simulator we verify on.
+    iosArm64 { babyMonitorCore(opusIosDevicePrefix) }
+    iosSimulatorArm64 { babyMonitorCore(opusIosSimPrefix) }
+    // A jvm() target would plug in here too -> Windows/Linux desktop (reuses jvmMain's sockets + HTTP)
 
     applyDefaultHierarchyTemplate()
 

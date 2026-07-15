@@ -10,6 +10,7 @@
 #   android/src/main/res/drawable/ic_launcher_{background,foreground,monochrome}.xml
 #   android/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 #   windows/src/BabyMonitor.App/Assets/{BabyMonitor.ico,BabyMonitor.png,tray-*.ico}
+#   ios/Assets.xcassets/AppIcon.appiconset/{icon-1024.png,Contents.json}
 #
 #   ./brand/build.sh [--preview]
 #
@@ -33,6 +34,7 @@ echo "==> Drawing the mark"
 swift "$ROOT/brand/icon.swift" \
   --macos "$ICONSET" \
   --android "$ROOT/android/src/main/res" \
+  --ios "$ROOT/ios/Assets.xcassets" \
   ${PREVIEW_ARGS[@]+"${PREVIEW_ARGS[@]}"}
 
 echo "==> Packing the Mac's .icns"
@@ -69,3 +71,4 @@ badge '#E53935' "$ASSETS/tray-alarm.ico"
 echo "==> $ROOT/macos/Resources/AppIcon.icns"
 echo "==> $ROOT/android/src/main/res/{drawable,mipmap-anydpi-v26}"
 echo "==> $ASSETS/{BabyMonitor.ico,BabyMonitor.png,tray-*.ico}"
+echo "==> $ROOT/ios/Assets.xcassets/AppIcon.appiconset"

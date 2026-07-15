@@ -12,12 +12,19 @@ needed. So the rules below are about restraint as much as delivery.
 
 - **UPD-1** A release is published per platform, from the same commit and under the same version.
   A change that only touches one app's shell releases only that app; a change to the monitor releases
-  every app it changed, because it changed them.
+  every app it changed, because it changed them. (Android and the desktops publish to the GitHub
+  release; iOS ships through the App Store — UPD-2i.)
 - **UPD-2** `[android]` `[device]` The phone updates itself from the published release (Obtainium
   watches the repository). Exactly one `.apk` asset per Android release — Obtainium must be able to
   resolve a single APK or silent background updates stop working. A release that carries the desktops'
   assets too changes nothing (they are not APKs), and a release carrying **no** APK — a desktop-only
   change — must leave the phone on its current version rather than stalling it.
+- **UPD-2i** `[ios]` `[device]` The iPhone updates itself through the **App Store** — the only
+  sanctioned channel on iOS — so the app never checks for, downloads, installs, or restarts into an
+  update on its own. That is not a gap but UPD-5's restraint kept by construction: a monitor that
+  never relaunches itself at 3am is exactly what this project wants, and on iOS it comes for free.
+  The running version stays visible in the app (LIVE-15), so "did the update land?" is still
+  answerable at a glance.
 - **UPD-3** `[desktop]` `[device]` A desktop app updates itself, and it does so **only at
   launch**: it checks for a newer release when it starts, downloads it in the background, and
   verifies it before it is ever run. A download that does not match the checksum published with the

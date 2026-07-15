@@ -14,9 +14,9 @@ having; a simpler design that is easier to trust usually is.
 
 A spec-driven monorepo: **one monitor, several shells.** Log in to Mi Cloud, pick a camera, get its
 live video + audio — with the audio (and a configurable crying alarm) kept alive in the background.
-Today it ships on **Android** (Kotlin + Compose), **macOS** (Swift + AppKit) and **Windows** (C# +
-WinUI 3). iOS is expected to follow, and the architecture exists so that it is a shell and nothing
-more.
+Today it ships on **Android** (Kotlin + Compose), **iOS** (Swift + SwiftUI), **macOS** (Swift +
+AppKit) and **Windows** (C# + WinUI 3), and the architecture exists so that these are shells and
+nothing more.
 
 **Windows is the exception that proves the rule.** It cannot consume the Kotlin Multiplatform core,
 so the monitor is *written twice*: `core/` in Kotlin, `windows/src/BabyMonitor.Core/` in C#. Two
@@ -83,30 +83,38 @@ cannot, the weaker platform does not go quiet about it. Every guarantee the app 
 platform but cannot make on another must have an explicit criterion on the weaker platform saying
 **what the user is told instead**. Map hazard to hazard, not feature to feature: "warn when not
 exempt from battery optimisation" (BG-9) is Android-shaped, but its hazard — *the OS quietly
-suspends the monitor overnight* — exists on a desktop too, so the desktops have BG-12 for the same
-hazard. A missing capability a user could mistake for a working one is a bug, not a gap.
+suspends the monitor overnight* — exists on a desktop and on an iPhone too, so the desktops have
+BG-12 and iOS BG-9i for the same hazard. The tags say who: **`[mobile]`** is both phones (Android +
+iOS), **`[desktop]`** is macOS and Windows, and `[android]` / `[ios]` / `[macos]` / `[windows]` are
+one platform only, each with a hazard-mapped sibling. A missing capability a user could mistake for a
+working one is a bug, not a gap.
 
 ## Commands
 
-Gradle is the task runner for the shared core and the Android app; the macOS app builds with Xcode.
+Gradle is the task runner for the shared core and the Android app; the macOS and iOS apps build with
+`swiftc` (Xcode's toolchain, no Xcode project — see each shell's `build.sh`).
 
 | Task | Command |
 | --- | --- |
-| Everything (lint + tests, **both platforms**) | `./gradlew check` |
+| Everything (lint + tests, **every platform**) | `./gradlew check` |
 | Core tests on the JVM | `./gradlew :core:testDebugUnitTest` |
 | Core tests on Kotlin/Native (macOS) | `./gradlew :core:macosArm64Test` |
+| Core tests on Kotlin/Native (iOS simulator) | `./gradlew :core:iosSimulatorArm64Test` |
 | Build debug APK | `./gradlew :android:assembleDebug` |
 | Build + install + launch on **emulator** | `./gradlew runEmulator` |
 | Build + install + launch on **connected phone** | `./gradlew runPhone` |
 | Build the macOS app | `./macos/build.sh [debug\|release]` |
 | Run the macOS app | `./macos/run.sh` |
+| Build the iOS app (Simulator) | `./ios/build.sh [debug\|release]` |
+| Build + install + launch on a **simulator** | `./ios/run.sh [debug\|release] ["iPhone 17 Pro"]` |
 | Look at a macOS screen without a camera | `BM_UI_PREVIEW=viewer ./macos/build/BabyMonitor.app/Contents/MacOS/BabyMonitor` |
 | **The Windows monitor's spec suite** (runs anywhere) | `dotnet test windows/tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj` |
 | Build + run the Windows app (on Windows) | `.\windows\build.ps1 -Run` |
+| Look at an iOS screen without a camera | `SIMCTL_CHILD_BM_UI_PREVIEW=viewer xcrun simctl launch <udid> com.bluzi.babymonitor` |
 
-`./gradlew check` must be green before anything is considered done. It runs the core's tests on
-**both** the JVM and Kotlin/Native — a change that breaks the monitor on macOS alone cannot go
-green, which is the point.
+`./gradlew check` must be green before anything is considered done. It runs the core's tests on the
+JVM **and** on every native target — macOS *and* the iOS simulator — so a change that breaks the
+monitor on one platform alone cannot go green, which is the point.
 
 **The Windows suite is the other half of that sentence**, and it needs no Windows: `windows/`'s core
 is plain `net8.0` with no Windows API in it, so `dotnet test` runs it on a Mac, on Linux, anywhere.
@@ -117,10 +125,14 @@ monitor on the PC alone must not be able to go green either.
 once. Start an emulator first with `emulator -avd <name>` (or through Argent tools).
 
 Building for macOS needs `brew install opus` (the camera speaks Opus and no Apple framework
-decodes it; Homebrew's static `libopus.a` is linked into the binary). There is no Xcode project on
-purpose — the app is a menu bar item, a few windows and a picture, and everything hard is in the
-shared core. `swiftc` plus a bundle layout is the whole build, which also means CI does not have to
-parse a `.pbxproj`.
+decodes it; Homebrew's static `libopus.a` is linked into the binary). **iOS needs its own opus** —
+Homebrew's is macOS-arm64 only, and the simulator and the device are their own platforms the linker
+will not mix — so `./core/opus/build-ios-opus.sh` cross-compiles static `libopus.a` for both once
+(cached under `core/build/opus-ios`; `ios/build.sh` runs it automatically if missing). There is no
+Xcode project for either, on purpose — everything hard is in the shared core, and `swiftc` plus a
+bundle layout is the whole build, which also means CI does not have to parse a `.pbxproj`. The iOS
+app is verified on the **Simulator**; a real-device / App Store build (signing, provisioning, App
+Store Connect) is a separate pipeline, and iOS updates are the App Store's job by design (UPD-2i).
 
 ### macOS signing — not cosmetic
 
@@ -237,16 +249,34 @@ windows/              THE PC. Its own core, because Windows cannot consume the K
     MiniView.swift      The mini shape: the floating tile's chrome
     Design.swift        Glass, controls, level bar, pointer tracking
     Preview.swift       Visual harness (BM_UI_PREVIEW=…) — dead code in a real run
+
+ios/                  The iOS shell: SwiftUI, UIKit, VideoToolbox, Keychain, background audio,
+                      Live Activity. Talks to core through the same `BabyMonitor` facade macOS uses.
+  Sources/
+    App.swift           @main App, the UIApplicationDelegate, and orientation lock (LIVE-9)
+    AppState.swift      The thin observer over the facade + the iOS lifecycle (audio, network, LA)
+    Audio.swift         AVAudioSession + the inaudible keep-alive that survives reconnects (BG-9i)
+    Store.swift         KeyValueStore (UserDefaults) + SecretBox (Keychain)
+    RootView.swift      Routing (APP-1); LoginView / CamerasView / ViewerView / SettingsView
+    ViewerView.swift    Full-bleed video, glass chrome, tap-to-toggle, night vision, stop (BG-11)
+    VideoLayerView.swift  AVSampleBufferDisplayLayer + VideoToolbox HEVC (LIVE-7)
+    Design.swift        Liquid Glass surfaces, controls, level bar, banners
+    Notifications.swift Local alarm notifications (ALRM-4/IOS-5); Haptics.swift is the vibrate
+    LiveActivity.swift  Drives the monitoring Live Activity (BG-2i/3i)
+    Preview.swift       Visual harness (BM_UI_PREVIEW=…) — dead code in a real run
+  Shared/             MonitorActivity.swift: the ActivityAttributes + Stop intent, compiled into
+                      both the app and the widget (the one type both sides must agree on)
+  Widget/             The WidgetKit extension: lock-screen card + Dynamic Island (the .appex)
 ```
 
-**The icon is shared, and generated (UI-3).** One mark, on the Mac, the phone and the PC, and on
-whatever ships next: `brand/icon.swift` holds the colours and the geometry, and `./brand/build.sh`
-renders `macos/Resources/AppIcon.icns`, Android's adaptive-icon vectors and Windows's `.ico` files
-from them in one run — the PC's icons are packed from the *same pixels* the Mac's are. The outputs
-are committed, so a normal build never regenerates them — but they are outputs. Editing
-`ic_launcher_foreground.xml` by hand, or exporting a new `.icns` from a design tool, is how three
-platforms quietly stop being the same app. `./brand/build.sh --preview` draws what each platform's
-mask will actually show, side by side. (Windows also needs `brew install imagemagick`.)
+**The icon is shared, and generated (UI-3).** One mark, on the Mac, on both phones and on the PC, and
+on whatever ships next: `brand/icon.swift` holds the colours and the geometry, and `./brand/build.sh`
+renders `macos/Resources/AppIcon.icns`, Android's adaptive-icon vectors, iOS's `ios/Assets.xcassets`
+app icon and Windows's `.ico` files from them in one run — the PC's icons are packed from the *same
+pixels* the Mac's are. The outputs are committed, so a normal build never regenerates them — but they
+are outputs. Editing `ic_launcher_foreground.xml` by hand, or exporting a new `.icns` from a design
+tool, is how these platforms quietly stop being the same app. `./brand/build.sh --preview` draws what
+each platform's mask will actually show, side by side. (Windows also needs `brew install imagemagick`.)
 
 ## Architecture conventions
 

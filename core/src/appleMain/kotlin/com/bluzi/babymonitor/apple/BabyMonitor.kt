@@ -313,6 +313,14 @@ object BabyMonitor {
         emit()
     }
 
+    /**
+     * BG-10i: was monitoring running when the process last ended? An iPhone cannot relaunch or notify
+     * after a reboot or a force-quit, so on relaunch the shell asks this to report the outage honestly
+     * rather than come back as though the watch had never stopped. (The engine sets the flag on start
+     * and clears it on a deliberate stop/sign-out — MonitorEngine.)
+     */
+    fun wasMonitoring(): Boolean = store.wasMonitoring()
+
     fun acknowledge() {
         MonitorHub.acknowledge()
         emit()

@@ -3,17 +3,21 @@
 Manual verification for `[device]` criteria — run against a real, reachable C100 camera before
 calling a release done. Each step names the criteria it verifies.
 
-Steps 1–25 are the **Android** checklist, run on a real phone. The **desktop** checklist follows and
-is run **twice — once on a Mac, once on a PC**. It covers only what differs from the phone: the
-monitor itself behaves the same everywhere, proven by the same spec suite on all three platforms, so
-what needs a human is the shell — and the places where a desktop can do less than a phone.
+Steps 1–25 are the **phone** checklist. Most are `[mobile]` and run on **both** phones — Android and
+iOS. A handful are `[android]`-only, marked **(Android)** in the step title: the notification's Stop
+(3), the alarm-stream volume (13), the lock-screen view (12), the battery-optimisation exemption
+(14), and the reboot notification (16). Their iOS counterparts — which answer the same hazards
+differently — are in the **iOS addendum** after step 25. The **desktop** checklist is last, run
+**twice — once on a Mac, once on a PC**. The monitor itself behaves the same everywhere, proven by the
+same spec suite on every platform, so what needs a human is each shell — and the places where one
+platform can do less than another.
 
 1. **Live playback (LIVE-1):** open the app (signed in, camera selected). Video renders and
    room audio is audible within a few seconds.
 2. **Background + lock (BG-1, BG-4):** with audio playing, press home, then lock the phone, then
    let the screen sleep for 5+ minutes. Audio never stops. Make a sharp noise at the camera with
    the alarm enabled and the feed muted — the phone alarms.
-3. **Notification (BG-2, BG-3):** while monitoring, check the persistent notification names the
+3. **(Android) Notification (BG-2, BG-3):** while monitoring, check the persistent notification names the
    camera; tap it → live feed opens; use its Stop action → audio and connection stop and the
    notification clears.
 3b. **In-app stop (BG-11):** while live, tap the live feed's stop control — a confirmation
@@ -68,9 +72,9 @@ what needs a human is the shell — and the places where a desktop can do less t
     still there. Tap the **video** — they hide (system bars with them); tap it again — they come
     back. Tap the status row or a button — they never hide under your finger. Sign out — the
     sign-in screen rotates freely again.
-12. **Lock screen (BG-7):** while monitoring, lock the phone and tap the monitoring
+12. **(Android) Lock screen (BG-7):** while monitoring, lock the phone and tap the monitoring
     notification (or the launcher icon) — the live feed shows without unlocking.
-13. **Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,
+13. **(Android) Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,
     then trigger the noise alarm — it is still audible, and the volume is put back where the user
     had it after acknowledging. Repeat, but force-stop the app while it rings: on next launch the
     volume is still put back. Repeat once more and, while it rings, change the alarm volume
@@ -78,7 +82,7 @@ what needs a human is the shell — and the places where a desktop can do less t
 13b. **Camera moved (WATCH-8, LIVE-5):** while monitoring, reboot the router so the camera comes
     back on a different IP. The app keeps retrying, picks up the new address, and returns to live
     on its own — it never sits on "Connecting…" indefinitely.
-14. **Battery exemption (BG-9):** with the app not exempt from battery optimisation, the live feed
+14. **(Android) Battery exemption (BG-9):** with the app not exempt from battery optimisation, the live feed
     shows the warning and its button opens the system exemption prompt; once granted, the warning
     is gone.
 14b. **No-Wi-Fi warning (LIVE-13):** while on the live feed, turn Wi-Fi off (leave mobile data
@@ -91,7 +95,7 @@ what needs a human is the shell — and the places where a desktop can do less t
     and the watchdog (so the watchdog is armed — WATCH-9), then leave the phone unplugged,
     stationary and screen-off for 2+ hours overnight. In the morning audio is still live (or has
     reconnected by itself), and the watchdog never fired spuriously.
-16. **Restart (BG-10):** while monitoring, reboot the phone. After boot a notification says
+16. **(Android) Restart (BG-10):** while monitoring, reboot the phone. After boot a notification says
     monitoring stopped; tapping it opens the app and monitoring resumes. The "monitoring
     stopped" notification is gone once monitoring runs again — also when the app was opened
     from the launcher instead of the notification.
@@ -142,6 +146,62 @@ what needs a human is the shell — and the places where a desktop can do less t
     Acknowledge a crying alarm from the notification with the app closed — the question waits on
     the viewer the next time the app opens. Kill and reopen the app — learned tuning survives;
     Reset in settings clears it and the trigger mark returns to the slider's own point.
+
+
+---
+
+# iOS addendum
+
+Run on a real iPhone with a reachable camera, **after** the shared phone steps above (1–25, skipping
+the ones marked *(Android)*). The shared behaviour — crying detection, reconnect, watchdog, alarm
+timing — is not re-verified here; it is the same code and the same tests. What follows is the iOS
+shell, and the honesty about what an iPhone cannot do.
+
+I1. **The app looks like an iOS app (IOS-1, UI-1, UI-3, LIVE-9):** find it on the Home Screen, in the
+    App Library, and in the app switcher — it shows the app's own mark, never a placeholder, and it is
+    **the same mark the Mac and the phone show** (UI-3). Every screen renders dark. The live feed is
+    landscape however the phone is held; sign-in, the camera picker and settings are portrait.
+
+I2. **Paste and autofocus (IOS-2, AUTH-11):** on sign-in, paste a Mi password from a password manager
+    into the password field — it pastes (no Edit menu needed). The screen opens with the keyboard up
+    on the first field; sign in so Xiaomi asks for a code — the code field is focused the same way.
+
+I3. **The Live Activity and Dynamic Island (IOS-3, BG-2i, WATCH-4):** start monitoring, then lock the
+    phone. A **Live Activity** shows the camera and reads **live**; on an iPhone with a Dynamic Island,
+    the island shows it too. Kill Wi-Fi — both read **reconnecting/error** within seconds. Trigger an
+    alarm — the island and the lock-screen card become **unmistakable** (colour + bell). Open Control
+    Center — Now Playing names the camera.
+
+I4. **Stop from the Live Activity (IOS-3, BG-3i):** from the lock screen's Live Activity, use **Stop** —
+    audio and connection stop **without opening the app**, and the Live Activity clears. Reopen the app
+    — it offers Start (the in-app control, BG-11), not a dead end.
+
+I5. **Background survival + interruptions (BG-1, BG-6, BG-9i, IOS-4):** with audio playing, press home,
+    lock, and let the screen sleep 5+ minutes — audio never stops; make a sharp noise with the alarm
+    on and the feed muted — it alarms. Toggle Wi-Fi off/on while locked — audio resumes on its own
+    within a minute. Take a phone call — the feed pauses, and resumes by itself when the call ends.
+    Then start playing music in another app that seizes audio for good — the app reports **monitoring
+    stopped** rather than sitting silent (WATCH-11).
+
+I6. **Alarm audibility and notifications (IOS-5, ALRM-4, ALRM-10i):** on first run, **deny**
+    notification permission, then trigger an alarm — it **still sounds and vibrates**, and the app says
+    the notification will not appear. Grant permission and trigger again — a notification with an
+    Acknowledge action appears. Flip the phone to **silent** (ring switch) and trigger — it **still
+    rings** (the media session ignores the silent switch). Turn the phone's volume all the way down —
+    the app says the alarm may be quiet; it does **not** claim to have made it loud (iOS forbids raising
+    the volume).
+
+I7. **The lock screen is honest (BG-7i, IOS-6):** while monitoring, lock the phone. You see the Live
+    Activity — **not** the live video — and the app has never claimed you would. Unlock — the feed is
+    there. A locked iPhone must be unlocked to see the baby, and the app says so where a parent looks.
+
+I8. **Reboot and force-quit are honest (BG-10i, IOS-6):** while monitoring, swipe the app out of the
+    switcher (force-quit). Reopen it — it says monitoring was **down** and resumes; it never came back
+    as though the watch had continued. Repeat by restarting the phone — same result: no silent resume.
+
+I9. **No self-update (UPD-2i, IOS-6, LIVE-15):** there is no update control anywhere in the app and it
+    never restarts itself — updates are the App Store's. The running version is visible under About, so
+    "did the update land?" is answerable at a glance.
 
 
 ---

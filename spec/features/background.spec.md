@@ -15,21 +15,25 @@ answer as one — `[desktop]` — because a desktop is a desktop.
   closes its window, locks the screen, or the screen turns off.
 - **BG-4** `[device]` The noise alarm keeps working in the background and while muted (see
   ALRM-4/LIVE-3).
-- **BG-5** `[device]` Monitoring runs until the user stops it (BG-3, or the live feed's stop
-  control — BG-11) or signs out — navigating away, locking the device, closing the window, or the
-  app's UI being killed never stops it. Reopening the UI while monitoring shows the ongoing feed
-  without restarting the stream; reopening after Stop starts monitoring again.
+- **BG-5** `[device]` Monitoring runs until the user stops it (the live feed's stop control — BG-11,
+  or the ongoing status surface — BG-3/BG-3i) or signs out. Leaving the app, locking the device,
+  closing the window, or the screen turning off never stops it. Reopening the UI while monitoring
+  shows the ongoing feed without restarting the stream; reopening after Stop starts monitoring again.
+  (Each shell states what ends its *process*: on Android the foreground service outlives a killed
+  Activity; on the desktops and on iOS the monitor is the process, so a desktop stops by quitting or
+  exiting — BG-14 — and an iPhone by being force-quit, which it reports on next open — BG-10i.)
 - **BG-6** `[device]` Auto-reconnect (LIVE-5) also runs in the background: a Wi-Fi blip at night
   recovers by itself without touching the device.
 - **BG-8** If the stored session expires while monitoring and cannot be refreshed, the app does
   not retry forever in silence: it says so (in the app and wherever it reports state — the
   notification or the menu bar), the feed watchdog treats the feed as down, and opening the app
   leads back to sign-in (AUTH-8).
-- **BG-11** `[android]` While monitoring runs, the live feed offers a stop control that ends
-  monitoring (audio, alarm, connection) exactly like BG-3's; while monitoring is stopped, it offers
-  start instead — never both stop and nothing, never a dead end. A single stray tap can never stop
-  monitoring: stopping asks to be confirmed `[device]`. The stopped feed says monitoring is
-  stopped and starting again is one tap away.
+- **BG-11** `[mobile]` While monitoring runs, the live feed offers a stop control that ends
+  monitoring (audio, alarm, connection); while monitoring is stopped, it offers start instead —
+  never both stop and nothing, never a dead end. A single stray tap can never stop monitoring:
+  stopping asks to be confirmed `[device]`. The stopped feed says monitoring is stopped and starting
+  again is one tap away. (Stopping from *outside* the app is each phone's own surface — the
+  notification on Android, BG-3; the Live Activity on iOS, BG-3i.)
 - **BG-14** `[desktop]` **A desktop has no stop control, because there the app *is* the monitor.** It
   starts watching when it opens and watches until it is quit (Quit on a Mac, Exit on a PC). There is
   therefore no such thing as Baby Monitor running and not monitoring — which is the quietest failure
@@ -39,8 +43,9 @@ answer as one — `[desktop]` — because a desktop is a desktop.
   control that now carries its weight.
   A monitor that failed on its own (WATCH-11) still offers Start, because *that* must be recoverable
   without quitting the app.
-  The phone keeps its stop control: a phone app that must be force-quit to stop watching is not the
-  same bargain, and the notification (BG-3) is where a parent expects to find it.
+  A phone keeps its stop control: a phone app that must be force-quit to stop watching is not the
+  same bargain, and the phone's ongoing status surface (BG-3 / BG-3i) is where a parent expects to
+  find it.
 
 ## Where the state is reported, and where it is stopped from
 
@@ -56,6 +61,15 @@ answer as one — `[desktop]` — because a desktop is a desktop.
 - **BG-16** `[desktop]` `[device]` The status menu offers Quit — which is how a desktop stops
   monitoring (BG-14) — without opening any window, and asks to be confirmed while the monitor is
   running.
+- **BG-2i** `[ios]` `[device]` iOS has no persistent foreground-service notification, so the ongoing
+  status lives in a **Live Activity**: while monitoring, the lock screen and the Dynamic Island show
+  which camera is being watched and the current feed state (live / reconnecting / error), kept
+  current as it changes; tapping it opens the live feed. It appears when monitoring starts and is
+  ended when monitoring stops — a Live Activity outliving the watch it describes would be its own
+  quiet lie.
+- **BG-3i** `[ios]` `[device]` The Live Activity offers a Stop control that ends monitoring (audio,
+  alarm, connection) without opening the app — the iPhone's answer to BG-3. The in-app stop control
+  (BG-11) is there too.
 
 ## Glancing at the baby without ceremony
 
@@ -69,6 +83,12 @@ answer as one — `[desktop]` — because a desktop is a desktop.
   (DESK-8) floats over other work, over full-screen and maximised windows, and on a Mac across
   spaces, so checking the baby never means finding and raising a window. A locked machine must be
   unlocked first; the app never suggests otherwise.
+- **BG-7i** `[ios]` `[device]` The same intent, and iOS cannot answer it the same way either: an app
+  cannot draw its live video over the iOS lock screen, and this app does not pretend to. What the
+  lock screen *can* carry is the Live Activity (BG-2i) — proof the monitor is alive and its current
+  state — and while the phone is unlocked the live feed keeps the screen awake (LIVE-14) so a glance
+  never means hunting for it. A locked phone must be unlocked to see the picture; the app never
+  suggests otherwise.
 
 ## The OS suspending the monitor overnight
 
@@ -82,6 +102,14 @@ answer as one — `[desktop]` — because a desktop is a desktop.
   Start → Sleep — and nothing an app can do will change that. What the app does about *that* is
   DESK-21: it says so before a parent relies on it overnight, and on wake it reports that monitoring
   was down and for how long. It never resumes quietly, as though the night had been covered.
+- **BG-9i** `[ios]` `[device]` Because iOS suspends an idle background app, the monitor is kept alive
+  by **continuous background audio**: the app plays audio in the background (the reason a muted feed
+  still feeds a silent speaker rather than pausing — LIVE-3), and holds an inaudible keep-alive sound
+  for as long as monitoring runs, so that a dead feed or the gap between reconnect attempts can never
+  let the OS idle-suspend the monitor. That is what keeps background reconnect (BG-6) and the watchdog
+  (WATCH-2) working with the app unfocused. If the audio session is lost and cannot be regained —
+  another app takes exclusive audio, an interruption never ends — the app does not pretend to monitor:
+  it says monitoring stopped (WATCH-11) rather than sit silent as though the room were calm.
 - **BG-10** `[android]` `[device]` If the phone restarts while monitoring (an overnight OS
   update), the app says so with a notification that resumes monitoring when tapped — a restart
   never leaves the parent believing the monitor is still running.
@@ -89,3 +117,9 @@ answer as one — `[desktop]` — because a desktop is a desktop.
   the app says so the next time it starts and resumes monitoring in one click. To make that rare, it
   offers to start at login (DESK-19). A restart never leaves the parent believing the monitor is
   still running.
+- **BG-10i** `[ios]` `[device]` If the iPhone restarts, or the app is force-quit, while monitoring,
+  iOS cannot relaunch it or post a notice on its own — nothing an app can do changes that. So the app
+  is honest at the one moment it can be: the next time it is opened it says monitoring was down, and
+  resumes. A restart never leaves the parent believing the monitor kept running. (This is why a
+  force-quit is not the same as backgrounding — BG-5 — and why the honest thing on iOS is to report
+  the gap, not hide it.)

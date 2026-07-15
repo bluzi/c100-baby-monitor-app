@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Baby Monitor</string>
+    <key>CFBundleDisplayName</key>
+    <string>Baby Monitor</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.bluzi.babymonitor</string>
+    <key>CFBundleExecutable</key>
+    <string>BabyMonitor</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION_NAME__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION_CODE__</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <!-- iOS 26 minimum: unconditional Liquid Glass, no availability gates. -->
+    <key>MinimumOSVersion</key>
+    <string>26.0</string>
+    <key>UIDeviceFamily</key>
+    <array>
+        <integer>1</integer>
+    </array>
+    <!-- IOS-1 / UI-3: the app's own icon, the same mark every platform shows. -->
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconName</key>
+            <string>AppIcon</string>
+        </dict>
+    </dict>
+    <!-- BG-1 / BG-9i: the monitor is kept alive in the background by continuous audio. This key is
+         the whole reason iOS lets it keep running with the app unfocused, the screen off, the phone
+         locked. Without it the OS suspends the app the moment it backgrounds, and the monitor dies. -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+    </array>
+    <!-- BG-2i / IOS-3: the monitoring status is a Live Activity on the lock screen + Dynamic Island. -->
+    <key>NSSupportsLiveActivities</key>
+    <true/>
+    <!-- UI-1: dark, for a dark room, always. -->
+    <key>UIUserInterfaceStyle</key>
+    <string>Dark</string>
+    <!-- LIVE-9 (mobile): the live feed is landscape only; it is locked at runtime per screen. The app
+         as a whole allows portrait (sign-in, camera picker, settings) and both landscapes. -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleLightContent</string>
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string></string>
+    </dict>
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <false/>
+    </dict>
+</dict>
+</plist>

@@ -16,8 +16,9 @@ is supposed to be listening.
   notification). Within one armed stretch, one outage fires at most one alarm: after
   acknowledgment it stays quiet until the feed has recovered and fails again. A new armed
   window is a new obligation and wins over this rule (WATCH-9).
-- **WATCH-4** `[device]` The monitoring notification always reflects the real feed state (live /
-  reconnecting / error) as it changes (see BG-2).
+- **WATCH-4** `[device]` The ongoing status surface always reflects the real feed state (live /
+  reconnecting / error) as it changes — the notification on Android (BG-2), the Live Activity on iOS
+  (BG-2i), the status icon on a desktop (BG-15).
 - **WATCH-5** Watchdog settings persist across restarts.
 - **WATCH-6** An alarm that cannot sound because another alarm is already sounding is not lost:
   it rings once the sounding alarm is acknowledged, as long as its condition still holds. A noise

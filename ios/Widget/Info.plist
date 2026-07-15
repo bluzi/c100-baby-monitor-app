@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>BabyMonitorWidget</string>
+    <key>CFBundleDisplayName</key>
+    <string>Baby Monitor</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.bluzi.babymonitor.widget</string>
+    <key>CFBundleExecutable</key>
+    <string>BabyMonitorWidget</string>
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION_NAME__</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION_CODE__</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>MinimumOSVersion</key>
+    <string>26.0</string>
+    <!-- A WidgetKit extension: the @main WidgetBundle is the entry point, so there is no principal
+         class — just the extension point identifier. -->
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.widgetkit-extension</string>
+    </dict>
+</dict>
+</plist>

@@ -15,7 +15,7 @@ import Foundation
 //
 // Adding a platform means adding a renderer at the bottom. It does not mean redrawing the icon.
 //
-//   swift brand/icon.swift --macos <iconset-dir> --android <android-res-dir> [--preview <png>]
+//   swift brand/icon.swift --macos <iconset-dir> --android <res-dir> --ios <xcassets-dir> [--preview <png>]
 
 // MARK: - The mark itself
 
@@ -213,6 +213,62 @@ func writeMacIconset(to directory: String) throws {
         try data.write(to: URL(fileURLWithPath: directory).appendingPathComponent("\(variant.name).png"))
     }
     print("macOS: \(variants.count) images → \(directory)")
+}
+
+// MARK: - iOS (IOS-1)
+
+/// iOS masks the icon itself — a continuous rounded square — and wants the art **full-bleed and
+/// opaque**: no baked corners, no padding, no shadow, no transparency (the Mac's floating squircle is
+/// the opposite convention). So the night reaches every edge, and the waveform is sized against the
+/// whole square, which lands it in the same proportion the Mac's squircle shows — the same mark (UI-3).
+func drawIosIcon(size: CGFloat) -> NSBitmapImageRep {
+    let pixels = Int(size)
+    let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
+        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+        colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+    )!
+    rep.size = NSSize(width: size, height: size)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    let context = NSGraphicsContext.current!.cgContext
+    let body = CGRect(x: 0, y: 0, width: size, height: size)
+    drawField(in: context, sky: body, mark: body, unit: size / 1024.0, clipTo: nil)
+    NSGraphicsContext.restoreGraphicsState()
+    return rep
+}
+
+/// Writes an asset catalog with the single 1024×1024 icon Xcode 14+ takes, which `actool` compiles
+/// into the app's `Assets.car` (see ios/build.sh).
+func writeIosAppIcon(to xcassets: String) throws {
+    let catalog = URL(fileURLWithPath: xcassets)
+    let appicon = catalog.appendingPathComponent("AppIcon.appiconset")
+    try FileManager.default.createDirectory(at: appicon, withIntermediateDirectories: true)
+
+    let catalogInfo = "{\n  \"info\" : { \"author\" : \"xcode\", \"version\" : 1 }\n}\n"
+    try catalogInfo.write(to: catalog.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+
+    guard let data = drawIosIcon(size: 1024).representation(using: .png, properties: [:]) else {
+        throw Failure("could not encode the iOS icon")
+    }
+    try data.write(to: appicon.appendingPathComponent("icon-1024.png"))
+
+    let contents = """
+    {
+      "images" : [
+        {
+          "filename" : "icon-1024.png",
+          "idiom" : "universal",
+          "platform" : "ios",
+          "size" : "1024x1024"
+        }
+      ],
+      "info" : { "author" : "xcode", "version" : 1 }
+    }
+
+    """
+    try contents.write(to: appicon.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+    print("iOS: 1024 app icon → \(xcassets)")
 }
 
 // MARK: - Android
@@ -428,12 +484,16 @@ do {
         try writeAndroid(to: android)
         did = true
     }
+    if let ios = argument("--ios") {
+        try writeIosAppIcon(to: ios)
+        did = true
+    }
     if let preview = argument("--preview") {
         try writePreview(to: preview)
         did = true
     }
     if !did {
-        print("usage: swift brand/icon.swift --macos <iconset-dir> --android <res-dir> [--preview <png>]")
+        print("usage: swift brand/icon.swift --macos <iconset-dir> --android <res-dir> --ios <xcassets-dir> [--preview <png>]")
         exit(2)
     }
 } catch {

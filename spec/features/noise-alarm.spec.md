@@ -60,18 +60,18 @@ learning may only ever nudge, within hard bounds, and never in secret.
 
 ## Sounding the alarm
 
-- **ALRM-4** `[device]` A triggered alarm sounds a **repeating** alarm tone on the phone —
-  audible even when the live feed is muted — and posts a notification. It keeps sounding until
-  acknowledged from inside the app or from the notification; it never times out on its own. If
-  the phone cannot produce the tone at all, that failure is never silent: monitoring keeps
-  running and the notification still appears.
+- **ALRM-4** `[device]` A triggered alarm sounds a **repeating** alarm tone on the device —
+  audible even when the live feed is muted — and shows it where the app reports state (a notification
+  on a phone, the menu bar on a Mac). It keeps sounding until acknowledged from inside the app or
+  from that surface; it never times out on its own. If the device cannot produce the tone at all,
+  that failure is never silent: monitoring keeps running and the alarm is still shown.
 - **ALRM-11** Each alarm — the crying alarm and the feed-drop alarm (WATCH-2) — has its own
   **sound** (from a set of choices ranging from calm to urgent), its own **volume** and, on a device
-  that can vibrate, its own **vibrate** option, set alongside that alarm's other settings. The two
-  alarms may be given the same sound. Every alarm sound can be **previewed** from settings — at that
-  alarm's volume, vibrating if that alarm's vibrate option is on (a preview stops on its own and
-  never counts as a real alarm). A desktop has no vibration motor, so it does not offer the setting
-  at all rather than offering one that does nothing (DESK-23).
+  that can vibrate, its own **vibrate** option (`[mobile]` — both phones vibrate), set alongside that
+  alarm's other settings. The two alarms may be given the same sound. Every alarm sound can be
+  **previewed** from settings — at that alarm's volume, vibrating if that alarm's vibrate option is on
+  (a preview stops on its own and never counts as a real alarm). A desktop has no vibration motor, so
+  it does not offer the setting at all rather than offering one that does nothing (DESK-23).
 - **ALRM-14** An alarm starts at a gentler volume and rises to its configured volume within a few
   seconds — enough to wake without startling, and never so gentle that it fails to wake.
 - **ALRM-5** While an alarm is sounding, no new alarm can trigger. After acknowledgment the alarm
@@ -85,7 +85,13 @@ learning may only ever nudge, within hard bounds, and never in secret.
   triggers. A window whose start equals its end means always. Schedule changes take effect
   immediately.
 - **ALRM-10** `[android]` `[device]` An alarm nobody can hear is not an alarm: if the phone's alarm
-  volume is turned down, it is raised for the duration of the alarm and put back to what the user had
-  once the alarm is acknowledged — including after the app is killed while ringing. If the user
-  themselves changed the alarm volume in the meantime, theirs wins and nothing is put back. (A
+  stream volume is turned down, it is raised for the duration of the alarm and put back to what the
+  user had once the alarm is acknowledged — including after the app is killed while ringing. If the
+  user themselves changed the alarm volume in the meantime, theirs wins and nothing is put back. (A
   desktop has no alarm volume of its own to raise; what it does instead is DESK-23.)
+- **ALRM-10i** `[ios]` `[device]` The same hazard, answered with what iOS *can* do rather than what
+  it cannot. The alarm plays on the media session that **ignores the silent switch**, so a phone set
+  to silent still rings, and it vibrates (ALRM-11) if that alarm's vibrate is on. What iOS forbids
+  any app is **raising the system volume** — so if the parent turned the volume down, the app cannot
+  turn it up; it says the alarm may be quiet rather than pretend otherwise. (Android can raise its
+  alarm stream, iOS cannot, and the difference is not hidden.)

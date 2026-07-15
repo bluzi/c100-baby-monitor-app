@@ -12,7 +12,7 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   (A desktop's mini shape is too small to spend a word of its status line on this, so there the
   **always-visible, latched mute control** is what says it — DESK-8. The rule it must satisfy is
   the same one: never a changed glyph alone.)
-- **LIVE-3** `[device]` Mute silences the phone's playback only — level monitoring and the noise alarm keep
+- **LIVE-3** `[device]` Mute silences playback only — level monitoring and the noise alarm keep
   working exactly as when unmuted.
 - **LIVE-4** The connection state is always visible on the live feed: connecting, live,
   reconnecting (with countdown), or a readable error. **Live** means audio is arriving — a
@@ -45,10 +45,11 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   (startup burst, network hiccup, slow decoding), the app skips forward: video drops the backlog
   and resumes at the next clean entry point, audio drops its backlog — a brief glitch, not a
   growing lag. Audio and video never stall each other.
-- **LIVE-9** `[android]` `[device]` The live feed is landscape only: opening it turns the display to
+- **LIVE-9** `[mobile]` `[device]` The live feed is landscape only: opening it turns the display to
   landscape no matter how the phone is held, and leaving it lets the phone rotate freely again.
-  The video fills the screen and the controls are icon buttons overlaying it in two rows —
-  status and level indicator along the top, buttons along the bottom. Less-used actions —
+  The video is the full-screen stage — how each phone fits the camera's shape to the screen is its
+  own rendering detail — and the controls are icon buttons overlaying it in two rows: status and
+  level indicator along the top, buttons along the bottom. Less-used actions —
   switching camera, signing out, About — sit behind a menu at the top right instead of being
   always-visible buttons. An unacknowledged alarm's acknowledge control is always visible.
 - **LIVE-16** `[desktop]` `[device]` A desktop has no orientation to lock, so the same intent lands
@@ -56,7 +57,7 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   behind a menu, the same always-visible acknowledge (DESK-7). Which controls appear, and when, is
   the shared decision (BG-11, BG-14, WATCH-11) — the phone's button row and the desktop's cannot
   disagree.
-- **LIVE-11** `[android]` `[device]` The controls are shown or hidden **only** by tapping the **video**: each
+- **LIVE-11** `[mobile]` `[device]` The controls are shown or hidden **only** by tapping the **video**: each
   tap toggles them. They never hide on their own — a parent watching the room is never made to
   tap to get them back. Tapping the controls themselves uses the control and never hides them:
   nothing can make them vanish under the user's own finger.
@@ -70,10 +71,10 @@ state. Monitoring starts when the live feed opens and keeps running until explic
 - **LIVE-13** `[device]` The camera is reachable only on its own network. While the device has no
   connection to that network, the live feed warns in plain words that the camera cannot be
   reached without it, and offers the shortest route to fixing it: tapping or clicking the warning
-  opens the system's own network settings (on Android, the Wi-Fi panel). The warning disappears once
-  the network is back. (A desktop may sit on the camera's network over Ethernet, so it warns about
-  having *no* network rather than about not being on Wi-Fi: the hazard is a camera that cannot be
-  reached, not a particular radio being off.)
+  opens the system's own network settings (on Android, the Wi-Fi panel; on iOS, Settings). The
+  warning disappears once the network is back. (A desktop may sit on the camera's network over
+  Ethernet, so it warns about having *no* network rather than about not being on Wi-Fi: the hazard is
+  a camera that cannot be reached, not a particular radio being off.)
 - **LIVE-14** `[device]` While the live feed is on screen and the feed is live, the display stays
   awake — watching the baby never ends in a sleeping screen. When the feed is not live (or the
   live feed is left), the display may sleep normally again. On a desktop this is the display only;

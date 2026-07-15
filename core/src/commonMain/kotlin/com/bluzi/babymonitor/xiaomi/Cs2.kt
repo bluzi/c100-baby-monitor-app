@@ -161,7 +161,21 @@ class Cs2Conn(private val sockets: SocketFactory) {
                 }
                 try {
                     while (true) {
-                        val dg = udp.receive()
+                        val dg = try {
+                            udp.receive()
+                        } catch (e: CancellationException) {
+                            throw e // the handshake timeout, or a real stop — never swallowed
+                        } catch (e: Exception) {
+                            // PROTO-25: a transient read failure mid-handshake is not a dead
+                            // connection. On Windows the camera's ICMP port-unreachable surfaces as a
+                            // connection-reset on the very next receive; abort on it and the monitor
+                            // never leaves the reconnect loop. Keep waiting within the timeout — the
+                            // retransmitter is still firing — with a short pause so a genuinely dead
+                            // socket cannot spin.
+                            Log.d("cs2", "ignoring a transient udp read failure during handshake: ${e.message}")
+                            delay(50)
+                            continue
+                        }
                         if (dg.host != host || dg.data.size < 4) continue
                         if (accept(dg.data)) {
                             remotePort = dg.port

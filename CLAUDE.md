@@ -437,6 +437,15 @@ From this repo:
 
 Windows:
 
+- **A Windows UDP socket resets itself when a peer is briefly unreachable, and it looks exactly like
+  a camera that never answers.** Windows raises a peer's ICMP "port unreachable" as `WSAECONNRESET`
+  on the socket's *next* receive — so the CS2 LAN-search datagram, sent to a camera that has not yet
+  opened its handshake responder, poisons the very next read and the handshake aborts. The reconnect
+  loop then does the same thing forever: the PC never connects while the Mac and the phone do, because
+  POSIX sockets never surface this. The fix is the canonical `SIO_UDP_CONNRESET` disable on the
+  Windows UDP socket (`SystemUdpSocket`, guarded to Windows — the ioctl is rejected elsewhere, and
+  this core's tests run on a Mac), plus the portable belt-and-braces of PROTO-25: the handshake
+  tolerates a transient read failure instead of treating it as a dead connection.
 - **Media Foundation will not decode a byte without a frame size.** MediaCodec and VideoToolbox work
   the size out from the parameter sets; a Windows media type must carry it up front. So the C# core
   parses the SPS (`HevcSps.Dimensions`) — Exp-Golomb, emulation-prevention bytes and the conformance

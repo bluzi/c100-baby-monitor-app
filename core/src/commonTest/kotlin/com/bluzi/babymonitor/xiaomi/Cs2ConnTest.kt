@@ -20,12 +20,19 @@ private class FakeUdp : UdpSocket {
     val sent = mutableListOf<Triple<ByteArray, String, Int>>()
     var closed = false
 
+    /** One transient read failure to raise before the next datagram, for PROTO-25. */
+    var throwOnceOnReceive: Throwable? = null
+
     override suspend fun bind() {}
     override suspend fun send(data: ByteArray, host: String, port: Int) {
         sent.add(Triple(data, host, port))
     }
 
-    override suspend fun receive(): Datagram = incoming.receive()
+    override suspend fun receive(): Datagram {
+        throwOnceOnReceive?.let { throwOnceOnReceive = null; throw it }
+        return incoming.receive()
+    }
+
     override fun close() {
         closed = true
     }
@@ -83,6 +90,24 @@ class Cs2ConnTest {
         // TCP data phase on the announced port; handshake socket released.
         assertEquals(CAMERA to 55555, sockets.fakeTcp.connectedTo)
         assertTrue(sockets.fakeUdp.closed)
+        assertTrue(conn.isTcp)
+        conn.close()
+    }
+
+    @Test
+    fun `PROTO-25 handshake survives a transient udp read failure and connects`() = runRealTimeTest {
+        val sockets = FakeSockets()
+        // Windows raises the camera's ICMP port-unreachable as a connection-reset on the next read;
+        // it must not abort the handshake — the retransmit is still firing.
+        sockets.fakeUdp.throwOnceOnReceive =
+            com.bluzi.babymonitor.net.XiaomiSocketClosed("udp: connection reset by peer")
+        sockets.fakeUdp.incoming.trySend(Datagram(punchPacket(), CAMERA, 55555))
+        sockets.fakeUdp.incoming.trySend(Datagram(readyTcp(), CAMERA, 55555))
+
+        val conn = Cs2Conn(sockets)
+        conn.dial(CAMERA, "tcp")
+
+        assertEquals(CAMERA to 55555, sockets.fakeTcp.connectedTo)
         assertTrue(conn.isTcp)
         conn.close()
     }

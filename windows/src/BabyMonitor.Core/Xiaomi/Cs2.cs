@@ -192,7 +192,23 @@ public sealed class Cs2Conn : IDisposable
             {
                 while (true)
                 {
-                    var dg = await udp.ReceiveAsync(attempt.Token).ConfigureAwait(false);
+                    Datagram dg;
+                    try
+                    {
+                        dg = await udp.ReceiveAsync(attempt.Token).ConfigureAwait(false);
+                    }
+                    catch (SocketClosedException e)
+                    {
+                        // PROTO-25: a transient read failure mid-handshake is not a dead connection.
+                        // On Windows the camera's ICMP port-unreachable surfaces as a connection-reset
+                        // on the very next receive; abort on it and the monitor never leaves the
+                        // reconnect loop. Keep waiting within the timeout — the retransmitter is still
+                        // firing — with a short pause so a genuinely dead socket cannot spin.
+                        Log.D("cs2", $"ignoring a transient udp read failure during handshake: {e.Message}");
+                        await Task.Delay(50, attempt.Token).ConfigureAwait(false);
+                        continue;
+                    }
+
                     if (dg.Host != host || dg.Data.Length < 4)
                     {
                         continue;

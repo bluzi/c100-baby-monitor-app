@@ -14,6 +14,9 @@ internal sealed class FakeUdp : IUdpSocket
 
     public bool Closed { get; private set; }
 
+    /// <summary>One transient read failure to raise before the next datagram, for PROTO-25.</summary>
+    public SocketClosedException? ThrowOnceOnReceive { get; set; }
+
     public Task BindAsync() => Task.CompletedTask;
 
     public Task SendAsync(byte[] data, string host, int port, CancellationToken ct = default)
@@ -26,8 +29,17 @@ internal sealed class FakeUdp : IUdpSocket
         return Task.CompletedTask;
     }
 
-    public async Task<Datagram> ReceiveAsync(CancellationToken ct = default) =>
-        await Incoming.Reader.ReadAsync(ct).ConfigureAwait(false);
+    public async Task<Datagram> ReceiveAsync(CancellationToken ct = default)
+    {
+        var toThrow = ThrowOnceOnReceive;
+        if (toThrow != null)
+        {
+            ThrowOnceOnReceive = null;
+            throw toThrow;
+        }
+
+        return await Incoming.Reader.ReadAsync(ct).ConfigureAwait(false);
+    }
 
     public void Close() => Closed = true;
 
@@ -158,6 +170,25 @@ public class Cs2ConnTest
         // TCP data phase on the announced port; the handshake socket is released.
         Assert.Equal((Camera, 55555), sockets.Tcp_.ConnectedTo);
         Assert.True(sockets.Udp_.Closed);
+        Assert.True(conn.IsTcp);
+        conn.Close();
+    }
+
+    [Fact(DisplayName = "PROTO-25 the handshake survives a transient udp read failure and connects")]
+    public async Task HandshakeSurvivesTransientReadFailure()
+    {
+        var sockets = new FakeSockets();
+
+        // Windows raises the camera's ICMP port-unreachable as a connection-reset on the next read;
+        // it must not abort the handshake — the retransmit is still firing.
+        sockets.Udp_.ThrowOnceOnReceive = new SocketClosedException("udp: connection reset by peer");
+        sockets.Udp_.Incoming.Writer.TryWrite(new Datagram(PunchPacket(), Camera, 55555));
+        sockets.Udp_.Incoming.Writer.TryWrite(new Datagram(ReadyTcp(), Camera, 55555));
+
+        using var conn = new Cs2Conn(sockets);
+        await conn.DialAsync(Camera, "tcp");
+
+        Assert.Equal((Camera, 55555), sockets.Tcp_.ConnectedTo);
         Assert.True(conn.IsTcp);
         conn.Close();
     }

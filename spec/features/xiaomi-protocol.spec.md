@@ -76,6 +76,13 @@ generated from the proven implementation live in `app/src/test/resources/protoco
 - **PROTO-19** `[device]` On TCP the client sends ping `[0xF1 0xE0 0x00 0x00]` every ~1 s on an
   independent timer, and never replies to the camera's PING with a PONG (doing so makes the
   camera tear the session down).
+- **PROTO-25** The UDP handshake survives a transient read failure. A datagram read that fails
+  mid-handshake — rather than returning a packet — is not treated as a dead connection: the client
+  keeps waiting for the camera's answer within the handshake's own timeout, because the retransmit
+  is still firing. This matters most on Windows, where a datagram sent to a camera that is not yet
+  listening comes back as an ICMP "port unreachable" that the OS raises as a connection-reset on the
+  *next* receive; aborting the handshake on it would strand the monitor in a reconnect loop it could
+  never leave — while macOS and Android, whose sockets never raise it, connect fine.
 
 ## MISS session (over CS2)
 

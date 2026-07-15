@@ -71,12 +71,32 @@ public sealed class SystemSocketFactory : ISocketFactory
 
 internal sealed class SystemUdpSocket : IUdpSocket
 {
+    // SIO_UDP_CONNRESET (0x9800000C). PROTO-25: Windows raises a peer's ICMP "port unreachable" as
+    // WSAECONNRESET on the NEXT receive — so a LAN-search datagram to a camera that is not yet
+    // listening would poison the very next read of the handshake and strand the monitor in a
+    // reconnect loop it can never leave. Disabling it is the canonical fix; macOS/Linux never raise
+    // it (and reject the ioctl), so it is applied on Windows only.
+    private const int SioUdpConnreset = -1744830452;
+
     private readonly Socket _socket = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
     private readonly byte[] _buffer = new byte[65536];
     private bool _closed;
 
     public Task BindAsync()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                _socket.IOControl(SioUdpConnreset, new byte[] { 0, 0, 0, 0 }, null);
+            }
+            catch (Exception)
+            {
+                // Best-effort: an odd stack that rejects the ioctl is no reason to fail binding — the
+                // handshake's own read-failure tolerance (PROTO-25) still carries the day.
+            }
+        }
+
         _socket.Bind(new IPEndPoint(IPAddress.Any, 0));
         return Task.CompletedTask;
     }

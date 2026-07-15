@@ -197,10 +197,9 @@ struct ViewerView: View {
             Button { state.switchCamera() } label: { Label("Switch Camera…", systemImage: "arrow.triangle.2.circlepath") }
             Button(role: .destructive) { state.signOut() } label: { Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right") }
             Divider()
-            // LIVE-15 / UPD-2i: the running version, and a plain statement that the App Store updates it.
-            Section("Baby Monitor \(Self.appVersion)") {
-                Text("Updates come from the App Store.")
-            }
+            // LIVE-15: the running version stays visible, so "did the update land?" is answerable. That
+            // updates come from the App Store needs no saying on an iPhone — it is where every app updates.
+            Text("Baby Monitor \(Self.appVersion)")
         }
     }
 

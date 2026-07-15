@@ -2,10 +2,10 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// BG-2i / IOS-3: the monitoring Live Activity — the lock-screen card and the Dynamic Island. Like
-/// the Mac's menu bar icon (MACOS-1) it is quiet while all is well and unmistakable when something is
+/// BG-2 / IOS-3: the monitoring Live Activity — the lock-screen card and the Dynamic Island. Like
+/// the Mac's menu bar icon (DESK-1) it is quiet while all is well and unmistakable when something is
 /// wrong: a ringing alarm turns it red, a monitor that is not live turns it amber, so a glance across
-/// a dark room tells the truth. It draws state and offers Stop (BG-3i) — nothing else; the monitor
+/// a dark room tells the truth. It draws state and offers Stop (BG-3) — nothing else; the monitor
 /// itself is the app's.
 @main
 struct BabyMonitorWidgetBundle: WidgetBundle {

@@ -56,7 +56,7 @@ enum Preview {
     static var camerasError: String? { env["BM_UI_CAMERAS_ERROR"] }
 
     /// Start a real Live Activity from the posed state, so the Dynamic Island + lock-screen card can be
-    /// looked at without a Mi account (BG-2i/IOS-3).
+    /// looked at without a Mi account (BG-2/IOS-3).
     static var liveActivity: Bool { env["BM_UI_LIVEACTIVITY"] != nil }
 
     /// An in-memory core: settings and sounds work, nothing is persisted, no camera is contacted.

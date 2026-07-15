@@ -2,7 +2,7 @@ import ActivityKit
 import AppIntents
 import Foundation
 
-/// BG-2i / IOS-3: the shape of the monitoring status the Live Activity carries onto the lock screen
+/// BG-2 / IOS-3: the shape of the monitoring status the Live Activity carries onto the lock screen
 /// and the Dynamic Island. Shared between the app (which starts and updates it) and the widget
 /// extension (which draws it) — the one type both sides must agree on.
 struct MonitorActivityAttributes: ActivityAttributes {
@@ -23,9 +23,9 @@ struct MonitorActivityAttributes: ActivityAttributes {
 /// know, so the widget never has to link the monitor.
 let stopMonitoringDarwinName = "com.bluzi.babymonitor.stopFromLiveActivity"
 
-/// BG-3i: the Live Activity's Stop control. Like Android's notification Stop (BG-3) it is a direct
-/// action — the *confirmed* stop is the in-app one (BG-11); a deliberate tap on a specific lock-screen
-/// button is not the stray tap that guards against.
+/// BG-3: the Live Activity's Stop control — the iOS half of BG-3, whose Android half is the
+/// notification's Stop. It is a direct action — the *confirmed* stop is the in-app one (BG-11); a
+/// deliberate tap on a specific lock-screen button is not the stray tap that guards against.
 ///
 /// A `LiveActivityIntent` runs in the **app's** process, which is alive because the monitor is playing
 /// audio (BG-9i). Rather than link the whole monitor into the widget, it posts a Darwin notification

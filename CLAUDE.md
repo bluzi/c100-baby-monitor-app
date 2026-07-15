@@ -57,23 +57,42 @@ Specs are the **source of truth**. They live in `spec/` and describe **behavior 
 implementation structure, and specs describe *what*, never *how*. There is deliberately no "core
 spec": the core has no user-visible behavior of its own. Its behavior *is* the feature specs.
 
+**Tag preference — always reach for the least specific tag that is still true:**
+
+1. **Untagged** — holds on every platform. **Most criteria are this.**
+2. **`[mobile]`** (both phones) or **`[desktop]`** (both desktops) — a behavior one *kind* of machine
+   shares that the other does differently or not at all. *Some* criteria are this. Name the diverging
+   nouns inline (notification / Live Activity; menu bar / tray).
+3. **`[android]` / `[ios]` / `[macos]` / `[windows]`** — one platform only. **Avoid unless the
+   *behavior* genuinely can't be shared** — a real capability gap, never an implementation detail. If
+   two of these say the same thing, they were one `[mobile]` or `[desktop]` criterion all along.
+
+(`[device]` is orthogonal: it marks "verifiable only on real hardware" and combines with any of the
+above.) The rest of this section is the reasoning behind that order.
+
 - **Untagged criteria are universal**, and their tests live in `core`'s common test source set — so
-  they run on the JVM *and* on Kotlin/Native — **and again** in the Windows port's suite
-  (`windows/tests/`). "The apps behave the same" is executed three times, not asserted in prose. This
-  is the whole reason the spec is shared.
-- **`[desktop]` means macOS *and* Windows**, and it is the common case for anything a phone cannot
-  do. A Mac and a PC are the same machine to a parent: a screen you work at, that sleeps, with a
-  status area in the corner. They get one shell (`desktop-shell.spec.md`), written once. Where the
-  nouns differ — menu bar / tray, Quit / Exit, ⌘ / Ctrl — the criterion names both.
-- **`[android]` / `[macos]` / `[windows]`** tag a criterion that holds on **one** platform only, and
-  they have to be earned: a real difference in *behavior*, not in implementation. Its test lives in
-  that platform's source set (or the device checklist). **If a `[macos]` and a `[windows]` criterion
-  say the same thing in different words, they were one `[desktop]` criterion all along** — that is
-  how two shell specs collapsed into one.
-- **An ID never names a platform** — no `MACOS-4`, no `WIN-4`, no `BG-11m`/`BG-11w` twins. The tag
-  says the platform; the ID names a behavior, and a behavior that spreads to a second platform must
-  not have to be renamed to say so. IDs are stable, so a rename is a cost paid across every test and
-  comment that cites one.
+  they run on the JVM *and* on Kotlin/Native (macOS and the iOS simulator) — **and again** in the
+  Windows port's suite (`windows/tests/`). "The apps behave the same" is executed four times, not
+  asserted in prose. This is the whole reason the spec is shared.
+- **`[mobile]` means Android *and* iOS; `[desktop]` means macOS *and* Windows** — the common case for
+  anything one kind of machine can do and the other cannot. Two phones are one phone to a parent; a
+  Mac and a PC are one desktop — a screen you work at, that sleeps, with a status area in the corner.
+  Each kind gets one shell, written once (`desktop-shell.spec.md`; iOS's deltas in `ios-shell.spec.md`).
+  Where the nouns differ — menu bar / tray, Quit / Exit, ⌘ / Ctrl — the criterion names both.
+- **`[android]` / `[ios]` / `[macos]` / `[windows]`** tag a criterion that holds on **one** platform
+  only, and they have to be earned: a real difference in *behavior*, not in implementation. Its test
+  lives in that platform's source set (or the device checklist). **If a `[macos]` and a `[windows]`
+  criterion say the same thing in different words, they were one `[desktop]` criterion all along** —
+  likewise an `[android]` and an `[ios]` that agree are `[mobile]`. That is how twin criteria collapse.
+- **An ID's prefix names a feature, never a platform** — no `MACOS-4`, no `WIN-4` (the feature
+  prefix plus a tag carries it), and a **shared** behavior is never split into platform twins
+  (`BG-11m`/`BG-11w`) — that is one `[mobile]`/`[desktop]` criterion. The **one** sanctioned platform
+  marker in an ID is the **`i` suffix, for iOS**, and only on a capability-gap sibling: when the two
+  phones answer one hazard with *different* behavior, the iOS twin takes the Android criterion's
+  number + `i` (`BG-9` Android, `BG-9i` iOS), so the mirrored pair reads as a pair at a glance. It
+  marks a genuine gap between the phones, never a shared behavior; desktop siblings, being a separate
+  shell, keep their own fresh numbers instead. IDs are stable, so a rename is a cost paid across every
+  test and comment that cites one.
 - A platform-only *surface* gets its own feature spec rather than turning a shared spec into "on
   Android X, on macOS Y" soup. **Smell test:** if most of a feature spec's criteria are tagged, it is
   not one feature — it is two, and it should split.
@@ -262,7 +281,7 @@ ios/                  The iOS shell: SwiftUI, UIKit, VideoToolbox, Keychain, bac
     VideoLayerView.swift  AVSampleBufferDisplayLayer + VideoToolbox HEVC (LIVE-7)
     Design.swift        Liquid Glass surfaces, controls, level bar, banners
     Notifications.swift Local alarm notifications (ALRM-4/IOS-5); Haptics.swift is the vibrate
-    LiveActivity.swift  Drives the monitoring Live Activity (BG-2i/3i)
+    LiveActivity.swift  Drives the monitoring Live Activity (BG-2/3)
     Preview.swift       Visual harness (BM_UI_PREVIEW=…) — dead code in a real run
   Shared/             MonitorActivity.swift: the ActivityAttributes + Stop intent, compiled into
                       both the app and the widget (the one type both sides must agree on)

@@ -4,10 +4,12 @@ Manual verification for `[device]` criteria — run against a real, reachable C1
 calling a release done. Each step names the criteria it verifies.
 
 Steps 1–25 are the **phone** checklist. Most are `[mobile]` and run on **both** phones — Android and
-iOS. A handful are `[android]`-only, marked **(Android)** in the step title: the notification's Stop
-(3), the alarm-stream volume (13), the lock-screen view (12), the battery-optimisation exemption
-(14), and the reboot notification (16). Their iOS counterparts — which answer the same hazards
-differently — are in the **iOS addendum** after step 25. The **desktop** checklist is last, run
+iOS. A handful are marked **(Android)** in the step title because they exercise an Android-specific
+surface: the persistent notification (3) — the Android face of the shared status surface (BG-2/BG-3),
+where iOS wears a Live Activity — plus the lock-screen view (12), the alarm-stream volume (13), the
+battery-optimisation exemption (14), and the reboot notification (16), which are genuinely
+Android-only behaviours. Their iOS counterparts — which answer the same hazards differently — are in
+the **iOS addendum** after step 25. The **desktop** checklist is last, run
 **twice — once on a Mac, once on a PC**. The monitor itself behaves the same everywhere, proven by the
 same spec suite on every platform, so what needs a human is each shell — and the places where one
 platform can do less than another.
@@ -166,13 +168,13 @@ I2. **Paste and autofocus (IOS-2, AUTH-11):** on sign-in, paste a Mi password fr
     into the password field — it pastes (no Edit menu needed). The screen opens with the keyboard up
     on the first field; sign in so Xiaomi asks for a code — the code field is focused the same way.
 
-I3. **The Live Activity and Dynamic Island (IOS-3, BG-2i, WATCH-4):** start monitoring, then lock the
+I3. **The Live Activity and Dynamic Island (IOS-3, BG-2, WATCH-4):** start monitoring, then lock the
     phone. A **Live Activity** shows the camera and reads **live**; on an iPhone with a Dynamic Island,
     the island shows it too. Kill Wi-Fi — both read **reconnecting/error** within seconds. Trigger an
     alarm — the island and the lock-screen card become **unmistakable** (colour + bell). Open Control
     Center — Now Playing names the camera.
 
-I4. **Stop from the Live Activity (IOS-3, BG-3i):** from the lock screen's Live Activity, use **Stop** —
+I4. **Stop from the Live Activity (IOS-3, BG-3):** from the lock screen's Live Activity, use **Stop** —
     audio and connection stop **without opening the app**, and the Live Activity clears. Reopen the app
     — it offers Start (the in-app control, BG-11), not a dead end.
 

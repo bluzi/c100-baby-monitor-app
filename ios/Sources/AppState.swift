@@ -55,7 +55,7 @@ final class AppState: ObservableObject {
             Task { @MainActor [weak self] in self?.apply(state) }
         }
         observeNetwork()
-        observeStopFromLiveActivity() // BG-3i
+        observeStopFromLiveActivity() // BG-3
         // IOS-5: the parent may grant or revoke notifications in Settings; re-check on every return so
         // the disclosure below is never stale.
         NotificationCenter.default.addObserver(
@@ -144,7 +144,7 @@ final class AppState: ObservableObject {
         UIApplication.shared.open(url)
     }
 
-    // MARK: - The Live Activity (BG-2i / BG-3i / IOS-3)
+    // MARK: - The Live Activity (BG-2 / BG-3 / IOS-3)
 
     private var activityRefresh: Timer?
 
@@ -195,7 +195,7 @@ final class AppState: ObservableObject {
         activityRefresh = nil
     }
 
-    /// BG-3i: the Live Activity's Stop fires a Darwin notification (the widget stays decoupled from the
+    /// BG-3: the Live Activity's Stop fires a Darwin notification (the widget stays decoupled from the
     /// monitor); the running app — alive because it is playing audio — receives it here and stops.
     private func observeStopFromLiveActivity() {
         let observer = Unmanaged.passUnretained(self).toOpaque()

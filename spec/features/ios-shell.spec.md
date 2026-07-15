@@ -22,8 +22,8 @@ only about the shell around it, and the places where iOS's rules differ from the
 ## The status lives in a Live Activity
 
 - **IOS-3** `[device]` While the monitor is doing its job its status is a **Live Activity** on the
-  lock screen and in the **Dynamic Island** (BG-2i): the watched camera and the feed state (live /
-  reconnecting / error), kept current, with a **Stop** control (BG-3i). Like a desktop's status icon
+  lock screen and in the **Dynamic Island** (BG-2): the watched camera and the feed state (live /
+  reconnecting / error), kept current, with a **Stop** control (BG-3). Like a desktop's status icon
   (DESK-1) it is quiet while all is well and loud when something is wrong — **a ringing alarm and a
   monitor that has stopped working are unmistakable** on the island and the lock screen, so a glance
   tells the truth even from across a dark room. Tapping it opens the live feed. Because the app is

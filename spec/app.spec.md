@@ -18,9 +18,11 @@ Feature specs: [login](features/login.spec.md) ·
 
 ## How to read a criterion
 
-Criteria have stable IDs (`ALRM-3`). Every one maps to at least one test that names the ID. **An ID
-never names a platform** — the tag does that, and only the tag. An ID is a name for a behaviour, and
-a behaviour that moves from one platform to two must not have to be renamed to say so.
+Criteria have stable IDs (`ALRM-3`). Every one maps to at least one test that names the ID. **An
+ID's prefix names a behaviour, not a platform** — the tag says the platform, and a behaviour that
+moves from one platform to two is never renamed to say so. The one platform marker an ID may carry is
+the **`i` suffix, for iOS**, and only on a capability-gap sibling: `BG-9` is the Android answer to a
+hazard and `BG-9i` the iOS one, paired by number because the two phones mirror each other.
 
 - **Untagged criteria are universal.** They hold on every platform, and their tests run on every
   platform: the shared core's suite executes on the JVM (Android) *and* on Kotlin/Native (macOS and

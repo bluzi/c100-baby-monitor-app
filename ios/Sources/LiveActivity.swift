@@ -1,7 +1,7 @@
 import ActivityKit
 import Foundation
 
-/// BG-2i / IOS-3: drives the monitoring Live Activity from the app side — started when monitoring
+/// BG-2 / IOS-3: drives the monitoring Live Activity from the app side — started when monitoring
 /// starts, updated as the feed state changes, ended when monitoring stops. A Live Activity outliving
 /// the watch it describes would be its own quiet lie, so `end()` is not optional.
 ///

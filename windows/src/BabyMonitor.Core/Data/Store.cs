@@ -273,7 +273,7 @@ public sealed class AppStore
     /// AUTH-6: tokens are only ever stored encrypted. If the secret store refuses, drop the session
     /// rather than crash or, worse, fall back to plaintext — the user simply signs in again.
     /// </summary>
-    public void SaveSession(Session s)
+    public bool SaveSession(Session s)
     {
         string? sealed_;
         try
@@ -292,12 +292,15 @@ public sealed class AppStore
             _kv.Remove(KeySession);
             _cachedSession = null;
             _sessionRead = true;
-            return;
+            // AUTH-13: report the failure so a shell can say so, never a silent "signed in" that is
+            // then quietly dropped back to the login screen.
+            return false;
         }
 
         _kv.Put(KeySession, sealed_);
         _cachedSession = s;
         _sessionRead = true;
+        return true;
     }
 
     public Session? LoadSession()

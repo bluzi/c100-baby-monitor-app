@@ -238,7 +238,7 @@ class AppStore(private val kv: KeyValueStore, private val box: SecretBox) {
      * an OS update or a lock-screen change), drop the session rather than crash or, worse, fall
      * back to plaintext — the user simply signs in again.
      */
-    fun saveSession(s: Session) {
+    fun saveSession(s: Session): Boolean {
         val sealed = try {
             box.seal(Codecs.sessionToJson(s))
         } catch (e: Exception) {
@@ -250,11 +250,14 @@ class AppStore(private val kv: KeyValueStore, private val box: SecretBox) {
             kv.remove(KEY_SESSION)
             cachedSession = null
             sessionRead = true
-            return
+            // AUTH-13: report the failure so a shell can say so, never a silent "signed in" that is
+            // then quietly dropped back to the login screen.
+            return false
         }
         kv.put(KEY_SESSION, sealed)
         cachedSession = s
         sessionRead = true
+        return true
     }
 
     fun loadSession(): Session? {

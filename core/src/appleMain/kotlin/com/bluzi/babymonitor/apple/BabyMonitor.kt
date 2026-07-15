@@ -230,10 +230,17 @@ object BabyMonitor {
         pendingLogin = result
         when (result) {
             is LoginResult.Ok -> {
-                store.saveSession(result.session)
                 pendingLogin = null
+                // AUTH-13: authentication succeeded, but a session we cannot store is not a sign-in.
+                // If the secret store refuses to seal it, say so and stay on the sign-in screen —
+                // never report "ok" and then let routing drop silently back to login.
+                val persisted = store.saveSession(result.session)
                 refreshRouting()
-                done(SignInResult("ok"))
+                if (persisted) {
+                    done(SignInResult("ok"))
+                } else {
+                    done(SignInResult("error", message = "Couldn't save your session securely on this device. Please try again."))
+                }
                 emit()
             }
             is LoginResult.Captcha -> done(

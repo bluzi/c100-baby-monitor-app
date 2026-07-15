@@ -33,5 +33,11 @@ session persists and refreshes itself.
   a session expired discards it, so it is only ever declared when the server actually said no.
 - **AUTH-9** A failed sign-in (wrong credentials, network error, unexpected response) shows a
   readable error and lets the user retry with the fields still editable.
+- **AUTH-13** When sign-in authenticates the user but the session cannot be stored — the encrypted
+  store of AUTH-6 refuses to seal it — the app reports that sign-in did not complete and leaves the
+  user on the sign-in screen to retry, fields still editable (as AUTH-9). It never reports success
+  and then silently returns to sign-in as though the attempt never happened. Authenticating a user
+  and quietly logging them back out, with nothing said, is precisely the silent failure this app
+  exists to prevent.
 - **AUTH-10** The user can sign out from inside the app; signing out forgets the session, the
   selected camera, and returns to sign-in.

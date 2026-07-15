@@ -618,11 +618,18 @@ public sealed class AppState : INotifyPropertyChanged
         switch (result)
         {
             case LoginResult.Ok ok:
-                _store.SaveSession(ok.Session);
                 _pendingLogin = null;
+                // AUTH-13: authentication succeeded, but a session we cannot store is not a sign-in.
+                // If the secret store refuses to seal it, say so and stay on the sign-in screen —
+                // never report "ok" and then let routing drop silently back to login.
+                var persisted = _store.SaveSession(ok.Session);
                 RefreshRouting();
                 Emit();
-                return new SignInStep("ok");
+                return persisted
+                    ? new SignInStep("ok")
+                    : new SignInStep(
+                        "error",
+                        Message: "Couldn't save your session securely on this device. Please try again.");
 
             case LoginResult.Captcha captcha:
                 return new SignInStep("captcha", CaptchaImage: captcha.Image);

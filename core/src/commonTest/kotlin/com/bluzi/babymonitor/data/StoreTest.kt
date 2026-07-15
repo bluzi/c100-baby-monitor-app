@@ -95,6 +95,16 @@ class StoreTest {
     }
 
     @Test
+    fun `AUTH-13 saveSession reports whether the session actually reached the store`() {
+        // The honesty signal every shell relies on: a true means signed in and persisted, a false
+        // means authenticated but not stored — and a shell that ignores it reports a phantom sign-in
+        // and drops the user back to login with nothing said.
+        assertTrue(AppStore(MemoryKv(), MarkingSecretBox()).saveSession(sampleSession()))
+        assertFalse(AppStore(MemoryKv(), RefusingSecretBox()).saveSession(sampleSession()))
+        assertFalse(AppStore(MemoryKv(), ThrowingSecretBox()).saveSession(sampleSession()))
+    }
+
+    @Test
     fun `AUTH-10 signing out forgets session and camera but keeps settings and learned tuning`() {
         store.saveSession(sampleSession())
         store.saveDevice(sampleDevice())

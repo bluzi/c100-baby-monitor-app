@@ -43,9 +43,16 @@ fun App() {
                 Screen.Login -> LoginScreen(
                     notice = loginNotice,
                     onLoggedIn = { s ->
-                        store.saveSession(s)
-                        session = s
-                        loginNotice = null
+                        // AUTH-13: authentication succeeded, but a session we cannot store is not a
+                        // sign-in. If the Keystore refuses to seal it, say so and stay on the sign-in
+                        // screen — never proceed as if signed in and then lose it on the next launch.
+                        if (store.saveSession(s)) {
+                            session = s
+                            loginNotice = null
+                        } else {
+                            loginNotice =
+                                "Couldn't save your session securely on this device. Please try again."
+                        }
                     },
                 )
 

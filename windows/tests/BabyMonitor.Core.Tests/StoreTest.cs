@@ -103,6 +103,17 @@ public class StoreTest
         Assert.False(kv.Map.ContainsKey("session_v1")); // and must not fall back to plaintext
     }
 
+    [Fact(DisplayName = "AUTH-13 SaveSession reports whether the session actually reached the store")]
+    public void SaveSessionReportsWhetherItPersisted()
+    {
+        // The honesty signal every shell relies on: true means signed in and persisted, false means
+        // authenticated but not stored — and a shell that ignores it reports a phantom sign-in and
+        // drops the user back to login with nothing said.
+        Assert.True(new AppStore(new MemoryKv(), new MarkingSecretBox()).SaveSession(SampleSession()));
+        Assert.False(new AppStore(new MemoryKv(), new RefusingSecretBox()).SaveSession(SampleSession()));
+        Assert.False(new AppStore(new MemoryKv(), new ThrowingSecretBox()).SaveSession(SampleSession()));
+    }
+
     [Fact(DisplayName = "AUTH-10 signing out forgets session and camera but keeps settings and learned tuning")]
     public void SignOutForgetsTheRightThings()
     {

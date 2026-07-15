@@ -104,11 +104,19 @@ if otool -L "$APP/BabyMonitor" | grep -qi "BabyMonitorCore\|libopus"; then
   exit 1
 fi
 
-# Ad-hoc sign for the simulator (a real device / the App Store needs a provisioning profile and a
-# real identity — the separate pipeline noted at the top). Plain, no entitlements: the iOS 26
-# simulator's AMFI rejects a `get-task-allow` entitlement in an ad-hoc signature ("Security policy
-# issue", launch denied), and nothing the app needs on the simulator — background audio, Keychain,
-# Live Activities, notifications — requires an entitlement here.
+# Ad-hoc sign for the simulator, no entitlements — and that is forced, not chosen. The iOS 26
+# Simulator's AMFI SIGKILLs an ad-hoc-signed app at exec the instant it carries ANY restricted
+# entitlement: the launch is denied ("denied by service delegate (SBMainWorkspace)"), with no crash
+# report because the kernel kills it before main(). This is true of `get-task-allow`,
+# `keychain-access-groups` and `application-identifier` alike, and signing with a real Apple
+# Development identity does not change it without a provisioning profile to back the entitlement —
+# which is the separate device pipeline noted at the top, not something the Simulator build has.
+#
+# The one thing this costs is the Keychain: with no keychain-access-groups the app has no keychain
+# access group, so SecItemAdd returns errSecMissingEntitlement (-34018) and the session cannot be
+# persisted on the Simulator at all (AUTH-13 makes the app say so instead of looping on login; a
+# real provisioned device stores it fine). Everything else the app needs here — background audio,
+# Live Activities, notifications — genuinely needs no entitlement.
 codesign --force --sign - "$APP"
 
 echo "==> $APP"

@@ -402,6 +402,20 @@ From this repo:
   `Task { @MainActor [weak self] in … }`). The app ran perfectly here and the release workflow could
   not compile it at all. **`./macos/build.sh release` before pushing anything that touches
   `macos/`** — it is the only local build that proves the thing CI ships.
+- **The iOS Simulator cannot use the Keychain, and no amount of signing fixes it.** The iOS 26
+  Simulator's AMFI SIGKILLs an ad-hoc-signed app at exec the instant it carries *any* restricted
+  entitlement — `keychain-access-groups` included — so the launch is denied ("denied by service
+  delegate (SBMainWorkspace)", and no crash report, because the kernel kills it before `main()`).
+  Signing with a real Apple Development identity does not change it without a provisioning profile
+  (the separate device pipeline). So the Simulator build carries no keychain entitlement, and with no
+  keychain-access-group `SecItemAdd` returns `errSecMissingEntitlement` (-34018): the session cannot
+  be persisted on the Simulator. From the UI this looked like login silently bouncing back to the
+  email/password screen — on a real device AUTH-13 now makes the app say so instead. It never showed
+  in `BM_UI_PREVIEW` runs, where `seal()` early-returns before touching the Keychain. To make a real
+  sign-in → cameras → viewer flow testable on the Simulator anyway, `KeychainSecretBox` has a
+  **dev-only UserDefaults fallback** behind `#if targetEnvironment(simulator)` (in
+  `ios/Sources/Store.swift`) — it stands in for the Keychain there and is compiled out of every device
+  build, so it can never ship. Real, provisioned devices keep the session in the Keychain.
 - **`Dispatchers.IO` is not public API on Kotlin/Native.** The monitor's socket reads block, so
   `appleMain` runs them on a dedicated thread pool; putting them on `Dispatchers.Default` would let
   a couple of stalled reads starve the watchdog tick that is supposed to notice the stall.

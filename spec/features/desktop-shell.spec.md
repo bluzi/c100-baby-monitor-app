@@ -79,7 +79,10 @@ are looking at, or close one to be rid of the other.
   left it — and the first time, before it has ever been moved, in the **bottom-right corner** of the
   screen's work area, clear of the taskbar or menu bar. That is the same corner on both desktops, and
   it is where every other floating video tile on the platform puts itself; a tile born in the middle
-  of the screen, on top of the work, is a bug. It floats over other applications — over full-screen and maximised windows, and on a Mac
+  of the screen, on top of the work, is a bug. **Which corner is a setting** — bottom-right by
+  default, any of the four — and choosing one moves the tile there at once; the parent can still drag
+  it anywhere afterwards (DESK-9), and a corrupt stored corner falls back to bottom-right rather than
+  off-screen. It floats over other applications — over full-screen and maximised windows, and on a Mac
   across spaces — so the baby is visible while working (BG-17). It shows the video, the feed state,
   and two controls that are **always there, not only on hover**:
   - **mute**, because a tile is too small to spend words on "muted", so the mute control itself

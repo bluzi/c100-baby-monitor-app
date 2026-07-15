@@ -86,6 +86,7 @@ public sealed partial class SettingsWindow : Window
             // WATCH-10: the dependency, made visible.
             WatchdogInactive.IsOpen = s.WatchdogEnabled && !s.AlarmEnabled;
 
+            SelectCorner(_state.MiniCorner);
             FadeToggle.IsOn = _state.MiniFadeEnabled;
             OpacitySlider.IsEnabled = _state.MiniFadeEnabled;
             OpacitySlider.Value = _state.MiniIdleOpacity;
@@ -186,6 +187,33 @@ public sealed partial class SettingsWindow : Window
 
         _state.MiniFadeEnabled = FadeToggle.IsOn;
         OpacitySlider.IsEnabled = FadeToggle.IsOn;
+    }
+
+    private void SelectCorner(string corner)
+    {
+        foreach (var item in CornerCombo.Items)
+        {
+            if (item is ComboBoxItem box && box.Tag as string == corner)
+            {
+                CornerCombo.SelectedItem = box;
+                return;
+            }
+        }
+
+        CornerCombo.SelectedIndex = 0; // an unknown stored value: bottom-right, like the core's fallback
+    }
+
+    private void OnMiniCornerChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        if (CornerCombo.SelectedItem is ComboBoxItem box && box.Tag is string corner)
+        {
+            _state.MiniCorner = corner; // DESK-8: the window snaps the tile to it
+        }
     }
 
     private void OnOpacityChanged(object sender, RangeBaseValueChangedEventArgs e)

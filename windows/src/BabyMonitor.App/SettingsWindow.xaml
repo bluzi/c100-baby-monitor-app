@@ -109,6 +109,13 @@
                 <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
                         BorderBrush="#1AFFFFFF">
                     <StackPanel Spacing="14">
+                        <ComboBox x:Name="CornerCombo" Header="Corner" HorizontalAlignment="Stretch"
+                                  SelectionChanged="OnMiniCornerChanged">
+                            <ComboBoxItem Content="Bottom right" Tag="bottom-right" />
+                            <ComboBoxItem Content="Bottom left" Tag="bottom-left" />
+                            <ComboBoxItem Content="Top right" Tag="top-right" />
+                            <ComboBoxItem Content="Top left" Tag="top-left" />
+                        </ComboBox>
                         <ToggleSwitch x:Name="FadeToggle" Header="Fade it when the pointer is away"
                                       OnContent="On" OffContent="Off" Toggled="OnFadeToggled" />
                         <Slider x:Name="OpacitySlider" Header="How solid it stays when faded"

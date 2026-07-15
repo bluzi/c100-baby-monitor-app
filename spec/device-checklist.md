@@ -274,7 +274,10 @@ D4. **The mini shape floats (DESK-8, BG-17):** put the window in its mini shape.
     **bottom-right corner**, clear of the taskbar / menu bar, never in the middle of the screen. It
     sits on top of other apps, including a maximised one — and on a Mac, over a full-screened app and
     across spaces. Move and resize it (it keeps the video's shape), quit and relaunch — it comes back
-    where it was, in the shape it was in. Close it — monitoring carries on.
+    where it was, in the shape it was in. Close it — monitoring carries on. In **Settings → Mini
+    window → Corner**, pick each of the four corners in turn: the tile snaps to that corner of the
+    screen at once, clear of the edges. Then drag it elsewhere — it stays where you drop it (the
+    corner is a starting point, not a leash).
 
 D4a. **One window, two shapes (DESK-9, DESK-10, DESK-15):** with the feed live, switch full → mini
      and back, from the window's own control, from the status menu, and from the keyboard. Each

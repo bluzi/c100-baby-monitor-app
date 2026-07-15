@@ -392,16 +392,46 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
                 height: height
             )
         case .mini:
-            // Bottom right, out of the way of a menu bar and of most work — and where every other
-            // floating video tile on this platform puts itself.
+            // The chosen corner (DESK-8) — bottom-right by default — out of the way of a menu bar and
+            // of most work, and where every other floating video tile on this platform puts itself.
             let width: CGFloat = 384
             let height = (width / aspect).rounded()
-            return NSRect(
-                x: visible.maxX - width - 24,
-                y: visible.minY + 24,
-                width: width,
-                height: height
-            )
+            return miniFrame(corner: Prefs.miniCorner, size: NSSize(width: width, height: height), in: visible)
+        }
+    }
+
+    /// DESK-8: the tile parked against the chosen corner of the screen, a margin clear of its edges.
+    private func miniFrame(corner: String, size: NSSize, in visible: NSRect) -> NSRect {
+        let margin: CGFloat = 24
+        let x = MacShell.shared.miniCornerHugsRight(corner: corner)
+            ? visible.maxX - size.width - margin
+            : visible.minX + margin
+        // macOS screen coordinates put the origin at the bottom-left, so "bottom" is the low y.
+        let y = MacShell.shared.miniCornerHugsBottom(corner: corner)
+            ? visible.minY + margin
+            : visible.maxY - size.height - margin
+        return NSRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
+    /// DESK-8: the parent picked a corner in Settings — move the tile there now (and remember it, so
+    /// it lands there next time the mini is shown too), without disturbing the full shape.
+    private func snapMini(toCorner corner: String) {
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let showingMini = currentShape == .mini && window.isVisible && !window.styleMask.contains(.fullScreen)
+        let size: NSSize
+        if showingMini {
+            size = window.frame.size // keep the size the parent gave it
+        } else if let saved = Prefs.frame(.mini) {
+            size = saved.size
+        } else {
+            let width: CGFloat = 384
+            size = NSSize(width: width, height: (width / aspect).rounded())
+        }
+        let target = miniFrame(corner: corner, size: size, in: visible)
+        Prefs.setFrame(target, for: .mini)
+        if showingMini {
+            window.setFrame(target, display: true, animate: !state.reduceMotion)
         }
     }
 
@@ -434,6 +464,15 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.applyAlpha(animated: true) }
+            .store(in: &cancellables)
+
+        // DESK-8: a corner chosen in Settings snaps the tile there. `dropFirst` so launch honours the
+        // position the parent last dragged it to (DESK-9), and only an explicit change moves it.
+        state.$miniCorner
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] corner in self?.snapMini(toCorner: corner) }
             .store(in: &cancellables)
 
         state.$ui

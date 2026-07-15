@@ -197,4 +197,27 @@ public class DesktopShellTest
     {
         Assert.Equal(DesktopShell.ShapeFull, DesktopShell.WindowShape("viewer", "gibberish"));
     }
+
+    [Fact(DisplayName = "DESK-8 each corner hugs the right edges")]
+    public void EachCornerHugsTheRightEdges()
+    {
+        Assert.True(DesktopShell.MiniCornerHugsRight(DesktopShell.MiniCornerBottomRight));
+        Assert.True(DesktopShell.MiniCornerHugsBottom(DesktopShell.MiniCornerBottomRight));
+
+        Assert.False(DesktopShell.MiniCornerHugsRight(DesktopShell.MiniCornerBottomLeft));
+        Assert.True(DesktopShell.MiniCornerHugsBottom(DesktopShell.MiniCornerBottomLeft));
+
+        Assert.True(DesktopShell.MiniCornerHugsRight(DesktopShell.MiniCornerTopRight));
+        Assert.False(DesktopShell.MiniCornerHugsBottom(DesktopShell.MiniCornerTopRight));
+
+        Assert.False(DesktopShell.MiniCornerHugsRight(DesktopShell.MiniCornerTopLeft));
+        Assert.False(DesktopShell.MiniCornerHugsBottom(DesktopShell.MiniCornerTopLeft));
+    }
+
+    [Fact(DisplayName = "DESK-8 an unknown stored corner falls back to bottom-right — never off-screen")]
+    public void AnUnknownCornerFallsBackToBottomRight()
+    {
+        Assert.True(DesktopShell.MiniCornerHugsRight("gibberish"));
+        Assert.True(DesktopShell.MiniCornerHugsBottom(string.Empty));
+    }
 }

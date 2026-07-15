@@ -202,6 +202,17 @@ public sealed class AppState : INotifyPropertyChanged
         }
     }
 
+    /// <summary>DESK-8: the window watches for this to change and snaps the tile to the chosen corner.</summary>
+    public string MiniCorner
+    {
+        get => Prefs.MiniCorner;
+        set
+        {
+            Prefs.MiniCorner = value;
+            Emit();
+        }
+    }
+
     public bool StartWithWindows => StartupRegistry.IsEnabled;
 
     public string? StartupError { get; private set; }
@@ -745,6 +756,16 @@ public static class Prefs
     {
         get => Store.Get("startupOfferMade") == "true";
         set => Store.Put("startupOfferMade", value ? "true" : "false");
+    }
+
+    /// <summary>
+    /// DESK-8: which corner the mini tile parks in. A choice, not a guess — but still just the
+    /// starting point, since the parent can drag it anywhere afterwards (DESK-9).
+    /// </summary>
+    public static string MiniCorner
+    {
+        get => Store.Get("miniCorner") ?? DesktopShell.MiniCornerDefault;
+        set => Store.Put("miniCorner", value);
     }
 
     /// <summary>DESK-9: each shape remembers its own size and position, separately, across relaunches.</summary>

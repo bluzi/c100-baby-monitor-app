@@ -56,6 +56,7 @@ public sealed partial class MainWindow : Window
 
     private bool _camerasRefreshing;
     private string _shape = DesktopShell.ShapeFull;
+    private string _appliedMiniCorner = Prefs.MiniCorner;
     private bool _pointerInside;
     private bool _chromePinned;
     private bool _chromeVisible = true;
@@ -569,12 +570,7 @@ public sealed partial class MainWindow : Window
 
         if (mini)
         {
-            var margin = (int)Math.Round(24 * Scale);
-            return new RectInt32(
-                work.X + work.Width - size.Width - margin,
-                work.Y + work.Height - size.Height - margin,
-                size.Width,
-                size.Height);
+            return MiniCornerFrame(_state.MiniCorner, size, work);
         }
 
         return new RectInt32(
@@ -582,6 +578,67 @@ public sealed partial class MainWindow : Window
             work.Y + ((work.Height - size.Height) / 2),
             size.Width,
             size.Height);
+    }
+
+    /// <summary>DESK-8: the tile parked against the chosen corner of the work area, a margin clear of its edges.</summary>
+    private RectInt32 MiniCornerFrame(string corner, SizeInt32 size, RectInt32 work)
+    {
+        var margin = (int)Math.Round(24 * Scale);
+        var x = DesktopShell.MiniCornerHugsRight(corner)
+            ? work.X + work.Width - size.Width - margin
+            : work.X + margin;
+        var y = DesktopShell.MiniCornerHugsBottom(corner)
+            ? work.Y + work.Height - size.Height - margin
+            : work.Y + margin;
+        return new RectInt32(x, y, size.Width, size.Height);
+    }
+
+    /// <summary>
+    /// DESK-8: the parent picked a corner in Settings — move the tile there now (and remember it, so it
+    /// lands there next time the mini is shown too), without disturbing the full shape. Cheap on every
+    /// UI tick: it only acts when the corner actually changed.
+    /// </summary>
+    private void ApplyMiniCornerIfChanged()
+    {
+        var corner = _state.MiniCorner;
+        if (corner == _appliedMiniCorner)
+        {
+            return;
+        }
+
+        _appliedMiniCorner = corner;
+
+        var showingMini = _shape == DesktopShell.ShapeMini && !_fullScreen;
+        var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
+        SizeInt32 size;
+        if (showingMini)
+        {
+            var current = AppWindow.Size;
+            size = new SizeInt32(current.Width, current.Height); // keep the size the parent gave it
+        }
+        else if (Prefs.Frame(DesktopShell.ShapeMini) is { } f)
+        {
+            size = new SizeInt32(f.Width, f.Height);
+        }
+        else
+        {
+            size = Scaled(360, 202);
+        }
+
+        var target = MiniCornerFrame(corner, size, work);
+        Prefs.SetFrame(DesktopShell.ShapeMini, target.X, target.Y, target.Width, target.Height);
+        if (showingMini)
+        {
+            _applyingShape = true;
+            try
+            {
+                AppWindow.MoveAndResize(target);
+            }
+            finally
+            {
+                _applyingShape = false;
+            }
+        }
     }
 
     /// <summary>
@@ -807,6 +864,9 @@ public sealed partial class MainWindow : Window
             ApplyShape(Prefs.Shape, restoreFrame: true);
             return;
         }
+
+        // DESK-8: a corner chosen in Settings snaps the tile there (a cheap no-op unless it changed).
+        ApplyMiniCornerIfChanged();
 
         var viewer = screen == "viewer";
         var mini = viewer && _shape == DesktopShell.ShapeMini;

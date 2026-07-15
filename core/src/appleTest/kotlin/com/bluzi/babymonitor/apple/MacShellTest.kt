@@ -128,6 +128,29 @@ class MacShellTest {
         )
     }
 
+    // --- DESK-8: where the mini tile is parked ------------------------------
+
+    @Test
+    fun `DESK-8 each corner hugs the right edges`() {
+        assertTrue(MacShell.miniCornerHugsRight(MacShell.MINI_CORNER_BOTTOM_RIGHT))
+        assertTrue(MacShell.miniCornerHugsBottom(MacShell.MINI_CORNER_BOTTOM_RIGHT))
+
+        assertFalse(MacShell.miniCornerHugsRight(MacShell.MINI_CORNER_BOTTOM_LEFT))
+        assertTrue(MacShell.miniCornerHugsBottom(MacShell.MINI_CORNER_BOTTOM_LEFT))
+
+        assertTrue(MacShell.miniCornerHugsRight(MacShell.MINI_CORNER_TOP_RIGHT))
+        assertFalse(MacShell.miniCornerHugsBottom(MacShell.MINI_CORNER_TOP_RIGHT))
+
+        assertFalse(MacShell.miniCornerHugsRight(MacShell.MINI_CORNER_TOP_LEFT))
+        assertFalse(MacShell.miniCornerHugsBottom(MacShell.MINI_CORNER_TOP_LEFT))
+    }
+
+    @Test
+    fun `DESK-8 an unknown stored corner falls back to bottom-right — never off-screen`() {
+        assertTrue(MacShell.miniCornerHugsRight("gibberish"))
+        assertTrue(MacShell.miniCornerHugsBottom(""))
+    }
+
     // --- BG-14: a Mac has no Stop -------------------------------------------
 
     @Test

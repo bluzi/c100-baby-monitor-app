@@ -26,6 +26,29 @@ object MacShell {
     const val SHAPE_FULL = "full"
     const val SHAPE_MINI = "mini"
 
+    /** DESK-8: the corners the mini tile can be parked in, and the one it starts in. */
+    const val MINI_CORNER_BOTTOM_RIGHT = "bottom-right"
+    const val MINI_CORNER_BOTTOM_LEFT = "bottom-left"
+    const val MINI_CORNER_TOP_RIGHT = "top-right"
+    const val MINI_CORNER_TOP_LEFT = "top-left"
+    const val MINI_CORNER_DEFAULT = MINI_CORNER_BOTTOM_RIGHT
+
+    /**
+     * DESK-8: decode a stored corner into which edges the tile hugs — right, and bottom. Anything
+     * unrecognised falls back to the bottom-right corner, so a corrupt stored value can never strand
+     * the tile off-screen. Which corner is a shared decision; the pixel maths is each desktop's own,
+     * because a Mac's y-axis points up and a PC's points down.
+     */
+    fun miniCornerHugsRight(corner: String): Boolean = when (corner) {
+        MINI_CORNER_BOTTOM_LEFT, MINI_CORNER_TOP_LEFT -> false
+        else -> true
+    }
+
+    fun miniCornerHugsBottom(corner: String): Boolean = when (corner) {
+        MINI_CORNER_TOP_RIGHT, MINI_CORNER_TOP_LEFT -> false
+        else -> true
+    }
+
     /**
      * DESK-11. **Attention is the default.** The tile is allowed to fade only when the monitor is
      * doing exactly what the parent believes it is doing: running, live, no alarm, no expired

@@ -123,6 +123,13 @@ struct SettingsView: View {
 
     private var miniWindow: some View {
         Section {
+            Picker("Corner", selection: $state.miniCorner) {
+                Text("Bottom right").tag(MacShell.shared.MINI_CORNER_BOTTOM_RIGHT)
+                Text("Bottom left").tag(MacShell.shared.MINI_CORNER_BOTTOM_LEFT)
+                Text("Top right").tag(MacShell.shared.MINI_CORNER_TOP_RIGHT)
+                Text("Top left").tag(MacShell.shared.MINI_CORNER_TOP_LEFT)
+            }
+
             Toggle("Fade it when the pointer is away", isOn: $state.miniFadeEnabled)
 
             LabeledContent("When faded") {

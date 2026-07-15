@@ -151,6 +151,13 @@ enum Prefs {
         set { write(MacShell.shared.clampMiniOpacity(value: newValue), "shell.miniOpacity") }
     }
 
+    /// DESK-8: which corner the mini tile parks in. A choice, not a guess — but still just the
+    /// starting point, since the parent can drag it anywhere afterwards (DESK-9).
+    static var miniCorner: String {
+        get { defaults.string(forKey: "shell.miniCorner") ?? MacShell.shared.MINI_CORNER_DEFAULT }
+        set { write(newValue, "shell.miniCorner") }
+    }
+
     /// DESK-19: the offer is made once. Declining it is an answer, and an app that keeps asking is
     /// an app that gets its dialogs dismissed without being read.
     static var loginOfferMade: Bool {
@@ -230,6 +237,11 @@ final class AppState: ObservableObject {
             Prefs.miniIdleOpacity = miniIdleOpacity
             recomputeMiniAlpha()
         }
+    }
+
+    /// DESK-8: the window watches this and snaps the tile to the chosen corner when it changes.
+    @Published var miniCorner = Prefs.miniCorner {
+        didSet { Prefs.miniCorner = miniCorner }
     }
 
     var shape: WindowShape {

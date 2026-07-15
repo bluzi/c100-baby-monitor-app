@@ -26,6 +26,25 @@ public static class DesktopShell
     public const string ShapeFull = "full";
     public const string ShapeMini = "mini";
 
+    /// <summary>DESK-8: the corners the mini tile can be parked in, and the one it starts in.</summary>
+    public const string MiniCornerBottomRight = "bottom-right";
+    public const string MiniCornerBottomLeft = "bottom-left";
+    public const string MiniCornerTopRight = "top-right";
+    public const string MiniCornerTopLeft = "top-left";
+    public const string MiniCornerDefault = MiniCornerBottomRight;
+
+    /// <summary>
+    /// DESK-8: decode a stored corner into which edges the tile hugs — right, and bottom. Anything
+    /// unrecognised falls back to the bottom-right corner, so a corrupt stored value can never strand
+    /// the tile off-screen. Which corner is a shared decision; the pixel maths is each desktop's own,
+    /// because a Mac's y-axis points up and a PC's points down.
+    /// </summary>
+    public static bool MiniCornerHugsRight(string corner) =>
+        corner is not (MiniCornerBottomLeft or MiniCornerTopLeft);
+
+    public static bool MiniCornerHugsBottom(string corner) =>
+        corner is not (MiniCornerTopRight or MiniCornerTopLeft);
+
     /// <summary>
     /// DESK-11. **Attention is the default.** The tile is allowed to fade only when the monitor is doing
     /// exactly what the parent believes it is doing: running, live, no alarm, no expired session, no

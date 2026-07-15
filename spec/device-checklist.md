@@ -284,8 +284,10 @@ D4a. **One window, two shapes (DESK-9, DESK-10, DESK-15):** with the feed live, 
      time: **the picture never blacks out, audio never stutters, and the log shows no reconnect.**
      Move and resize each shape and switch back and forth: each remembers its own size and position,
      and still does after a relaunch. Hover the mini — its close and "make it full" controls appear;
-     move the pointer away — they go, leaving the picture, the feed state **and mute** (DESK-8),
-     which is always there because a tile has no room to say "muted" in words (LIVE-2). Now trigger
+     move the pointer away — they go, leaving the picture, the feed state, the **room-level bar** and
+     **mute** (DESK-8) — the slim level bar along the bottom rises and falls with the room and shows the
+     alarm's trigger mark, pointer or no pointer, and mute stays too because a tile has no room to say
+     "muted" in words (LIVE-2, LIVE-6). Now trigger
      an alarm with the pointer nowhere near the tile: **Acknowledge is on it, without hovering**
      (DESK-8) — an alarm you have to go looking for the controls to silence rings longer than it
      should. Run the pointer back and forth across the tile's own buttons: it must not flicker, and

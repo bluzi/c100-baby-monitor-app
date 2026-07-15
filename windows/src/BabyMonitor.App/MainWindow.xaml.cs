@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.System;
@@ -117,6 +118,7 @@ public sealed partial class MainWindow : Window
         // ALRM-12: the trigger mark has to be placed against the bar's real width, which does not
         // exist until the window has laid itself out — and changes every time it is resized.
         LevelBar.SizeChanged += (_, _) => UpdateLevelBar();
+        MiniLevelBar.SizeChanged += (_, _) => UpdateLevelBar();
 
         _ = LoadAppMarkAsync(); // UI-3: the same mark the phone and the Mac show
 
@@ -941,6 +943,7 @@ public sealed partial class MainWindow : Window
         AlarmText.Text = _state.AlarmText;
         MiniAcknowledge.Visibility = _state.Alarming ? Visibility.Visible : Visibility.Collapsed;
         MiniAlarmBorder.BorderThickness = new Thickness(_state.Alarming ? 2 : 0);
+        MiniLevelBar.Visibility = _state.Running ? Visibility.Visible : Visibility.Collapsed; // LIVE-6
 
         OutageBanner.Visibility = _state.SleepOutage != null ? Visibility.Visible : Visibility.Collapsed;
         OutageText.Text = _state.SleepOutage ?? string.Empty;
@@ -965,7 +968,15 @@ public sealed partial class MainWindow : Window
 
     private void UpdateLevelBar()
     {
-        var width = LevelBar.ActualWidth;
+        // The full window's bar and the mini tile's bar (LIVE-6) — the same reading, drawn on both, so
+        // whichever shape is up shows the room level. Only one is on screen at a time.
+        ApplyLevel(LevelBar, LevelFill, LevelMark);
+        ApplyLevel(MiniLevelBar, MiniLevelFill, MiniLevelMark);
+    }
+
+    private void ApplyLevel(Grid bar, Rectangle fill, Rectangle mark)
+    {
+        var width = bar.ActualWidth;
         if (width <= 0)
         {
             return;
@@ -973,16 +984,16 @@ public sealed partial class MainWindow : Window
 
         var fraction = Math.Clamp(_state.Level / Math.Max(_state.LevelMax, 1), 0, 1);
         var past = _state.AlarmEnabled && _state.Level >= _state.ThresholdDb;
-        LevelFill.Width = width * fraction;
-        LevelFill.Fill = new SolidColorBrush(past
+        fill.Width = width * fraction;
+        fill.Fill = new SolidColorBrush(past
             ? Color.FromArgb(0xFF, 0xE5, 0x53, 0x3B)
             : Color.FromArgb(0xFF, 0x4C, 0xD9, 0x64));
 
         // ALRM-12: where it will ring. The one number on this screen that decides whether a parent is
         // woken — including any learned adjustment (ALRM-16).
-        LevelMark.Visibility = _state.AlarmEnabled ? Visibility.Visible : Visibility.Collapsed;
-        var mark = Math.Clamp(_state.ThresholdDb / Math.Max(_state.LevelMax, 1), 0, 1);
-        LevelMark.Margin = new Thickness((width * mark) - 1, 0, 0, 0);
+        mark.Visibility = _state.AlarmEnabled ? Visibility.Visible : Visibility.Collapsed;
+        var markFraction = Math.Clamp(_state.ThresholdDb / Math.Max(_state.LevelMax, 1), 0, 1);
+        mark.Margin = new Thickness((width * markFraction) - 1, 0, 0, 0);
     }
 
     private Color StatusColor()

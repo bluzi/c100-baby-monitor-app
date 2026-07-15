@@ -318,12 +318,25 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- The tile is dragged by its MIDDLE, and only its middle. A caption region swallows
                      the input of anything drawn over it — and what is drawn over this tile includes
                      Acknowledge, the one control in the whole app that must never stop responding. -->
                 <Border x:Name="MiniDragRegion" Grid.Row="1" Background="Transparent" />
+
+                <!-- LIVE-6: a slim room-level bar, always on (pointer or not), so a glance at the tile
+                     answers "is it quiet?" — the reason a parent leaves this window open at all. Kept a
+                     few pixels tall, above the status row, so the picture stays the tile. -->
+                <Grid x:Name="MiniLevelBar" Grid.Row="2" Height="5" Margin="2,0,2,6"
+                      HorizontalAlignment="Stretch">
+                    <Rectangle RadiusX="2.5" RadiusY="2.5" Fill="#25FFFFFF" />
+                    <Rectangle x:Name="MiniLevelFill" RadiusX="2.5" RadiusY="2.5"
+                               HorizontalAlignment="Left" Width="0" Fill="#4CD964" />
+                    <Rectangle x:Name="MiniLevelMark" Width="2" Height="10"
+                               HorizontalAlignment="Left" Fill="#E6FFFFFF" Visibility="Collapsed" />
+                </Grid>
 
                 <!-- Only with the pointer over it (DESK-10): it is never a mystery tile. -->
                 <Grid x:Name="MiniTopControls" Grid.Row="0" Opacity="0">
@@ -344,7 +357,7 @@
                 <!-- The state of the feed — always, pointer or no pointer. Everything else here comes
                      and goes; this does not. A tile showing a calm picture while the feed died an hour
                      ago is the exact failure this project exists to prevent. -->
-                <Grid Grid.Row="2">
+                <Grid Grid.Row="3">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />

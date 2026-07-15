@@ -40,6 +40,19 @@ struct MiniChrome: View {
             VStack(spacing: 0) {
                 topControls
                 Spacer(minLength: 0)
+                if state.ui.running {
+                    // LIVE-6: a slim room-level bar, always on (pointer or not), so a glance at the
+                    // tile answers "is it quiet?" — the reason a parent leaves this window open at all.
+                    // Kept a few points tall, above the status strip, so the picture stays the tile.
+                    LevelBar(
+                        level: state.ui.level,
+                        max: state.ui.levelMax,
+                        threshold: state.ui.thresholdDb,
+                        armed: state.ui.alarmEnabled
+                    )
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, 6)
+                }
                 statusStrip
             }
             .padding(8)

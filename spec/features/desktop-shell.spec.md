@@ -83,8 +83,11 @@ are looking at, or close one to be rid of the other.
   default, any of the four — and choosing one moves the tile there at once; the parent can still drag
   it anywhere afterwards (DESK-9), and a corrupt stored corner falls back to bottom-right rather than
   off-screen. It floats over other applications — over full-screen and maximised windows, and on a Mac
-  across spaces — so the baby is visible while working (BG-17). It shows the video, the feed state,
-  and two controls that are **always there, not only on hover**:
+  across spaces — so the baby is visible while working (BG-17). It shows the video, the feed state, a
+  **slim room-level bar** and two controls, all **always there, not only on hover**:
+  - **the room-level bar** (LIVE-6), a few pixels tall along the bottom so the picture stays the tile —
+    because a parent leaves this window open precisely to know, at a glance, whether the room is quiet,
+    and that is more than the picture can say. It carries the alarm's trigger mark like the full one;
   - **mute**, because a tile is too small to spend words on "muted", so the mute control itself
     carries it, latched and unmistakable (LIVE-2);
   - **acknowledge**, whenever an alarm is ringing — an alarm you must first go hunting for the

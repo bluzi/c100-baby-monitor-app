@@ -269,10 +269,12 @@ D3. **Mute keeps the alarm working (DESK-4, LIVE-3, LIVE-2):** mute from the sta
     level indicator still moves and, with the alarm on, it still rings. In the window, the mute
     button draws latched and the status line gains "· muted". Only the speaker was ever silent.
 
-D4. **The mini shape floats (DESK-8, BG-17):** put the window in its mini shape. It sits on top of
-    other apps, including a maximised one — and on a Mac, over a full-screened app and across
-    spaces. Move and resize it (it keeps the video's shape), quit and relaunch — it comes back where
-    it was, in the shape it was in. Close it — monitoring carries on.
+D4. **The mini shape floats (DESK-8, BG-17):** put the window in its mini shape. **The very first
+    time** (before it has ever been moved — clear the stored shell prefs if need be) it appears in the
+    **bottom-right corner**, clear of the taskbar / menu bar, never in the middle of the screen. It
+    sits on top of other apps, including a maximised one — and on a Mac, over a full-screened app and
+    across spaces. Move and resize it (it keeps the video's shape), quit and relaunch — it comes back
+    where it was, in the shape it was in. Close it — monitoring carries on.
 
 D4a. **One window, two shapes (DESK-9, DESK-10, DESK-15):** with the feed live, switch full → mini
      and back, from the window's own control, from the status menu, and from the keyboard. Each

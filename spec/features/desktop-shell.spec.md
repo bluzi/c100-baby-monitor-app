@@ -76,7 +76,10 @@ are looking at, or close one to be rid of the other.
   — minus the phone's stop control, which a desktop does not have (BG-14) — and the rare actions
   behind a menu: switch camera, sign out, check for updates (UPD-9), and quit. It can go full screen.
 - **DESK-8** `[device]` In its **mini** shape it is small and always on top, sitting where the user
-  left it. It floats over other applications — over full-screen and maximised windows, and on a Mac
+  left it — and the first time, before it has ever been moved, in the **bottom-right corner** of the
+  screen's work area, clear of the taskbar or menu bar. That is the same corner on both desktops, and
+  it is where every other floating video tile on the platform puts itself; a tile born in the middle
+  of the screen, on top of the work, is a bug. It floats over other applications — over full-screen and maximised windows, and on a Mac
   across spaces — so the baby is visible while working (BG-17). It shows the video, the feed state,
   and two controls that are **always there, not only on hover**:
   - **mute**, because a tile is too small to spend words on "muted", so the mute control itself

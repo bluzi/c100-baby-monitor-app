@@ -525,18 +525,9 @@ public sealed partial class MainWindow : Window
             SetTitleBar(mini ? MiniDragRegion : TitleBarDrag);
 
             var frame = Prefs.Frame(shape);
-            if (frame is { } f)
-            {
-                AppWindow.MoveAndResize(new RectInt32(f.X, f.Y, f.Width, f.Height));
-            }
-            else if (shape == DesktopShell.ShapeMini)
-            {
-                AppWindow.Resize(Scaled(360, 202));
-            }
-            else
-            {
-                AppWindow.Resize(Scaled(1100, 700));
-            }
+            AppWindow.MoveAndResize(frame is { } f
+                ? new RectInt32(f.X, f.Y, f.Width, f.Height)
+                : DefaultFrame(shape));
         }
         finally
         {
@@ -559,6 +550,37 @@ public sealed partial class MainWindow : Window
         var position = AppWindow.Position;
         var size = AppWindow.Size;
         Prefs.SetFrame(_shape, position.X, position.Y, size.Width, size.Height);
+    }
+
+    /// <summary>
+    /// DESK-9: where a shape sits the first time, before the parent has moved it. The mini tile is born
+    /// in the bottom-right corner of the work area — out of the way of most work, clear of the taskbar,
+    /// and where the Mac puts it too, so the two shells match — never stranded in the middle of the
+    /// screen, which is only where a brand-new window happens to land. The full window is centred.
+    /// Both sit on the screen the window is currently on, and everything is in physical pixels: the
+    /// work area, the sizes (DPI-scaled) and the margin alike.
+    /// </summary>
+    private RectInt32 DefaultFrame(string shape)
+    {
+        var mini = shape == DesktopShell.ShapeMini;
+        var size = mini ? Scaled(360, 202) : Scaled(1100, 700);
+        var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
+
+        if (mini)
+        {
+            var margin = (int)Math.Round(24 * Scale);
+            return new RectInt32(
+                work.X + work.Width - size.Width - margin,
+                work.Y + work.Height - size.Height - margin,
+                size.Width,
+                size.Height);
+        }
+
+        return new RectInt32(
+            work.X + ((work.Width - size.Width) / 2),
+            work.Y + ((work.Height - size.Height) / 2),
+            size.Width,
+            size.Height);
     }
 
     /// <summary>

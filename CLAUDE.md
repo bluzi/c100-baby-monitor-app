@@ -305,6 +305,16 @@ each platform's mask will actually show, side by side. (Windows also needs `brew
   two — plus `net/`'s socket and HTTP seams and `platform/`'s clock and randomness. Adding a
   platform means implementing those and nothing else. If you find yourself wanting to widen this
   edge, that is a signal the logic belongs in core.
+- **Every shell must feel native to its platform.** A shell is not a portable UI wearing four
+  costumes — it is the platform's own idiom over the shared monitor. Use each platform's real
+  controls, navigation, layout, typography, gestures and system integrations (the menu bar and
+  Dock on a Mac, the tray and taskbar on a PC, Material and the back gesture on Android, the
+  navigation stack, haptics and Live Activities on iOS), the way a parent who knows that platform
+  expects them to work. Where platforms diverge, each shell does the *native* thing rather than a
+  translation of another's — a Mac sheet is not an Android dialog, a PC's mini window sits where
+  PC windows sit. This is a direct expression of ease of use (principle 2): an app that behaves
+  like the device it is on is one a half-asleep parent can already use. Never copy one platform's
+  UI onto another; give each the shell its users already know.
 - **Contracts at that edge are load-bearing, not stylistic.** `AudioOutput` must keep decoding and
   keep feeding the analysis tap while muted (LIVE-3) — an implementation that mutes by pausing the
   decoder has silently disabled the crying alarm. `VideoOutput.push` must never throw (LIVE-7) —

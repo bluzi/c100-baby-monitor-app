@@ -408,8 +408,8 @@
                         <!-- Credentials -->
                         <StackPanel x:Name="CredentialsGroup" Spacing="12">
                             <TextBox x:Name="UsernameBox" Header="Mi account"
-                                     PlaceholderText="Email, phone or Mi ID" />
-                            <PasswordBox x:Name="PasswordField" Header="Password" />
+                                     PlaceholderText="Email, phone or Mi ID" KeyDown="OnLoginFieldKeyDown" />
+                            <PasswordBox x:Name="PasswordField" Header="Password" KeyDown="OnLoginFieldKeyDown" />
                             <ComboBox x:Name="RegionBox" Header="Server region" HorizontalAlignment="Stretch" />
                             <TextBlock Text="The region the camera is registered in."
                                        Style="{StaticResource CaptionTextBlockStyle}"
@@ -419,12 +419,12 @@
                         <!-- AUTH-3: a captcha, and a fresh one if the code is rejected. -->
                         <StackPanel x:Name="CaptchaGroup" Spacing="12" Visibility="Collapsed">
                             <Image x:Name="CaptchaImage" Height="56" HorizontalAlignment="Left" />
-                            <TextBox x:Name="CaptchaBox" Header="Captcha" />
+                            <TextBox x:Name="CaptchaBox" Header="Captcha" KeyDown="OnLoginFieldKeyDown" />
                         </StackPanel>
 
                         <!-- AUTH-4: the code, and where it went. -->
                         <StackPanel x:Name="CodeGroup" Spacing="12" Visibility="Collapsed">
-                            <TextBox x:Name="CodeBox" Header="Verification code" />
+                            <TextBox x:Name="CodeBox" Header="Verification code" KeyDown="OnLoginFieldKeyDown" />
                         </StackPanel>
 
                         <Button x:Name="SignInButton" Click="OnSignIn"

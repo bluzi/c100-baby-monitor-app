@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
     private bool _camerasRefreshing;
     private string _shape = DesktopShell.ShapeFull;
     private string _appliedMiniCorner = Prefs.MiniCorner;
+    private string _lastScreen = string.Empty;
     private bool _pointerInside;
     private bool _chromePinned;
     private bool _chromeVisible = true;
@@ -137,11 +138,6 @@ public sealed partial class MainWindow : Window
 
             _ = LoadNightVisionAsync(); // LIVE-10: show the mode the camera is actually in
             RefreshCameraList(); // so the camera submenu is populated the first time it is opened
-        }
-
-        if (_state.Screen == "login")
-        {
-            UsernameBox.Focus(FocusState.Programmatic); // AUTH-11: ready to type, no click first
         }
 
         StartUpdateChecks();
@@ -877,6 +873,17 @@ public sealed partial class MainWindow : Window
         MiniChrome.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
         Video.Visibility = viewer ? Visibility.Visible : Visibility.Collapsed;
 
+        // DESK-16 / AUTH-11: arriving on the login screen puts the cursor in the first field, so a
+        // parent (or a password manager) types straight away, no click first. On the transition only —
+        // never on a state tick, which would yank focus mid-type. The captcha and code fields focus
+        // themselves when they appear (HandleSignInStepAsync), so only the credentials form is here.
+        if (screen == "login" && _lastScreen != "login" && CredentialsGroup.Visibility == Visibility.Visible)
+        {
+            UsernameBox.Focus(FocusState.Programmatic);
+        }
+
+        _lastScreen = screen;
+
         if (screen == "devices" && !_camerasLoaded)
         {
             _camerasLoaded = true;
@@ -1140,6 +1147,20 @@ public sealed partial class MainWindow : Window
     }
 
     // --- sign in (AUTH-1/3/4/9/11) -------------------------------------------
+
+    /// <summary>
+    /// DESK-16: Enter submits the form from any login field, the way it does in every other login on
+    /// the platform — a password manager fills the fields and one keystroke signs in, no reach for the
+    /// mouse at 3am. Which step it submits (credentials, captcha, code) is OnSignIn's own business.
+    /// </summary>
+    private void OnLoginFieldKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter && !_busy)
+        {
+            e.Handled = true;
+            OnSignIn(sender, e);
+        }
+    }
 
     private async void OnSignIn(object sender, RoutedEventArgs e)
     {

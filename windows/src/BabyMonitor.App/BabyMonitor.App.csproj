@@ -57,4 +57,33 @@
     <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    THE ONE THING THAT MAKES A PUBLISHED BUILD ACTUALLY RUN.
+
+    A WinUI 3 unpackaged, self-contained *publish* (`msbuild /t:Publish`) silently drops the app's OWN
+    resources: its PRI ($(TargetName).pri) and its compiled XAML — App.xbf, MainWindow.xbf,
+    SettingsWindow.xbf. They are generated into the build output but never added to the publish set, so
+    the folder the updater zips and the installer lays down has no `ms-appx:///…xaml` to load. The very
+    first line of MainWindow's constructor — InitializeComponent() — then throws XamlParseException
+    ("Cannot locate resource from 'ms-appx:///MainWindow.xaml'"), App.OnUnhandledException swallows it
+    (DESK-6), and the process lives on with NO window: a monitor that never appears. A plain `build`
+    output runs fine; only `publish` is missing these, which is why it was invisible until a real PC ran
+    the shipped zip. (The framework PRIs — Microsoft.UI.pri and friends — publish correctly; only the
+    app's own resources are dropped, so we add back only those.)
+
+    ComputeFilesToPublish is the SDK's documented seam for adding files to a publish; ResolvedFileToPublish
+    is its item. The Exclude guards against NETSDK1152 (duplicate relative paths) should a future SDK ever
+    start publishing them itself — then this target simply adds nothing.
+  -->
+  <Target Name="_IncludeAppXamlResourcesInPublish" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_AppXamlResource Include="$(TargetDir)$(TargetName).pri" Condition="Exists('$(TargetDir)$(TargetName).pri')" />
+      <_AppXamlResource Include="$(TargetDir)*.xbf" />
+      <ResolvedFileToPublish Include="@(_AppXamlResource)" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
 </Project>

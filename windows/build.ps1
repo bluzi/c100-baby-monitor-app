@@ -28,20 +28,42 @@ $root = Split-Path -Parent $PSScriptRoot
 $app = Join-Path $PSScriptRoot 'src/BabyMonitor.App/BabyMonitor.App.csproj'
 $out = Join-Path $PSScriptRoot "build/$Platform"
 
+# Built with MSBuild from Visual Studio, NOT `dotnet publish` — the same reason CI is (see release.yml).
+# The Windows App SDK generates the app's resources.pri with an MSBuild task
+# (Microsoft.Build.Packaging.Pri.Tasks) that ships with VS's MSBuild, not with the .NET SDK's; under
+# `dotnet` it is looked for in the SDK tree, is not there, and the build dies with MSB4062. So find VS's
+# MSBuild. `-all` because a VS instance can sit in a state the default vswhere query filters out (e.g.
+# right after a workload is added); `[17.0,)` so an old VS 2019 that cannot build .NET 8 is never picked.
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+$msbuild = & $vswhere -all -prerelease -latest -version '[17.0,)' -products * `
+    -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+if (-not $msbuild -or -not (Test-Path $msbuild)) {
+    throw "MSBuild from Visual Studio 2022+ was not found. Install VS's '.NET desktop development' workload."
+}
+
 Write-Host '==> The spec suite (the monitor itself)' -ForegroundColor Cyan
 dotnet test (Join-Path $PSScriptRoot 'tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj') `
     --configuration $Configuration --nologo
 if ($LASTEXITCODE -ne 0) { throw 'the spec suite failed — nothing is built from a red suite' }
 
 Write-Host "==> Publishing $Configuration $Version ($Platform)" -ForegroundColor Cyan
-dotnet publish $app `
-    --configuration $Configuration `
-    --runtime "win-$Platform" `
-    --output $out `
-    -p:Platform=$Platform `
-    -p:Version=$Version `
-    -p:InformationalVersion=$Version `
-    --nologo
+# /restore in the same call restores with the RID (a self-contained publish needs a RID-specific
+# restore). PublishProtocol=FileSystem is load-bearing: without it /t:Publish builds but never runs the
+# filesystem-publish that copies the self-contained app to PublishDir. The trailing forward slash on
+# PublishDir dodges the Windows backslash-in-quoted-arg trap. (The app's own PRI and its compiled XAML
+# are added back into this publish by a target in BabyMonitor.App.csproj — without it the published app
+# has no ms-appx:///…xaml and never shows a window.)
+& $msbuild $app `
+    /restore /t:Publish `
+    /p:Configuration=$Configuration `
+    /p:Platform=$Platform `
+    /p:RuntimeIdentifier="win-$Platform" `
+    /p:SelfContained=true `
+    /p:PublishProtocol=FileSystem `
+    /p:PublishDir="$out/" `
+    /p:Version=$Version `
+    /p:InformationalVersion=$Version `
+    /nologo
 if ($LASTEXITCODE -ne 0) { throw 'the app did not build' }
 
 Write-Host "==> $out" -ForegroundColor Green

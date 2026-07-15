@@ -435,4 +435,21 @@ Windows:
   *else* can: the core and its whole spec suite are plain `net8.0`, and the shell's C# can be
   type-checked against the real WinUI assemblies by compiling it with `EnableWindowsTargeting=true`
   and stubbed `InitializeComponent`s. Two real bugs were caught that way before the code ever met a
-  PC. The markup itself still needs a Windows build to prove.
+  PC. The markup itself still needs a Windows build to prove — and it must actually be *run*, because:
+- **A WinUI 3 *publish* silently drops the app's own resources, and then the app never opens.** The
+  unpackaged, self-contained `msbuild /t:Publish` copies the *framework* PRIs (`Microsoft.UI.pri`, …)
+  but not the app's own `<AssemblyName>.pri` or its compiled XAML (`App.xbf`, `MainWindow.xbf`,
+  `SettingsWindow.xbf`). The zipped/installed folder then has no `ms-appx:///…xaml`, so the first line
+  of `MainWindow`'s constructor — `InitializeComponent()` — throws `XamlParseException` ("Cannot locate
+  resource from 'ms-appx:///MainWindow.xaml'"), and `App.OnUnhandledException` dutifully swallows it
+  (DESK-6), leaving a live process with **no window**: the monitor that never appears. A plain `build`
+  output runs fine; only `publish` is broken — so it stayed invisible until a real PC ran the shipped
+  zip. `BabyMonitor.App.csproj`'s `_IncludeAppXamlResourcesInPublish` target adds them back into
+  `@(ResolvedFileToPublish)`. This is *the* reason a Windows build must be launched, not just compiled.
+- **Build the app with Visual Studio's MSBuild, never `dotnet publish`** (both `build.ps1` and CI do).
+  The Windows App SDK generates the PRI with an MSBuild task (`Microsoft.Build.Packaging.Pri.Tasks`)
+  that ships in VS's MSBuild, not the .NET SDK's; under `dotnet` it is sought in the SDK tree, missing,
+  and the build dies (MSB4062). Finding VS's MSBuild via `vswhere` needs care: pass `-all` (a VS
+  instance can sit in a state the default query hides, e.g. just after a workload was added) and
+  `-version '[17.0,)'` (VS 2019's MSBuild cannot build .NET 8), and do **not** filter by
+  `-requires Microsoft.Component.MSBuild` (a Community install may not advertise it).

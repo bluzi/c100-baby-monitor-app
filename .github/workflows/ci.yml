@@ -59,11 +59,11 @@ jobs:
         shell: pwsh
         run: |
           $out = Join-Path $env:GITHUB_WORKSPACE 'windows\build\x64'
+          # See release.yml for why PublishProtocol=FileSystem and VS MSBuild are both needed.
           msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
-            /t:Restore /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /nologo
-          msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
-            /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 `
-            /p:SelfContained=true /p:PublishDir="$out/" /nologo
+            /restore /t:Publish `
+            /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 `
+            /p:SelfContained=true /p:PublishProtocol=FileSystem /p:PublishDir="$out/" /nologo
           if (-not (Test-Path (Join-Path $out 'BabyMonitor.exe'))) {
             throw "publish did not produce BabyMonitor.exe in $out"
           }

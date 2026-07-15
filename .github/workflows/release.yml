@@ -309,12 +309,18 @@ jobs:
         shell: pwsh
         run: |
           $out = Join-Path $env:GITHUB_WORKSPACE 'windows\build\x64'
+          # /restore in the same call restores with the RID (a self-contained publish needs a
+          # RID-specific restore). PublishProtocol=FileSystem is the load-bearing flag: without it
+          # /t:Publish builds but does not run the filesystem-publish that copies the self-contained
+          # app to PublishDir. Trailing forward slash on PublishDir dodges the Windows
+          # backslash-in-quoted-arg trap.
           msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
-            /t:Restore /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /nologo
-          msbuild windows\src\BabyMonitor.App\BabyMonitor.App.csproj `
-            /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 `
-            /p:SelfContained=true /p:PublishDir="$out/" `
+            /restore /t:Publish `
+            /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 `
+            /p:SelfContained=true /p:PublishProtocol=FileSystem /p:PublishDir="$out/" `
             /p:Version=$env:VERSION_NAME /p:InformationalVersion=$env:VERSION_NAME /nologo
+          Write-Host "--- contents of $out ---"
+          Get-ChildItem $out -ErrorAction SilentlyContinue | Select-Object -First 8 Name | Format-Table -HideTableHeaders
           if (-not (Test-Path (Join-Path $out 'BabyMonitor.exe'))) {
             throw "publish did not produce BabyMonitor.exe in $out"
           }

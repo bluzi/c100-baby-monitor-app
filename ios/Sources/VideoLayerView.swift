@@ -22,6 +22,10 @@ final class VideoLayerView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black
+        // The picture never handles touches: the tap-to-toggle-chrome gesture (LIVE-11) lives on the
+        // SwiftUI layer above, and a UIView that swallowed the touch would force a transparent tap
+        // sheet to be stacked over the whole screen — which then competed with the control bar's menus.
+        isUserInteractionEnabled = false
         displayLayer.videoGravity = .resizeAspect // show the whole crib — never crop a baby out
         layer.addSublayer(displayLayer)
     }

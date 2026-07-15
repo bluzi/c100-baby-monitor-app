@@ -19,12 +19,14 @@ struct ViewerView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            videoStage
 
-            // LIVE-11: a tap on the bare video toggles the controls. This transparent layer sits above
-            // the picture and below the chrome, so taps that miss a control land here; taps on the
-            // status panel or a button are caught by them and never hide anything.
-            Color.clear
+            // LIVE-11: a tap on the bare video toggles the controls. The gesture lives on the video
+            // itself (whose layer is non-interactive) rather than on a transparent sheet stacked over
+            // the whole screen — that sheet overlapped the control bar and sometimes won the tap meant
+            // for a menu, so the night-vision and overflow menus were intermittently not pressable. A
+            // tap on a control now lands on the control, which sits above the video; only taps on bare
+            // picture reach this gesture.
+            videoStage
                 .contentShape(Rectangle())
                 .onTapGesture { chromeVisible.toggle() }
 

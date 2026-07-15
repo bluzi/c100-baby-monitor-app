@@ -14,6 +14,12 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <RootNamespace>BabyMonitor.App</RootNamespace>
     <AssemblyName>BabyMonitor</AssemblyName>
+
+    <!-- A GUI executable, not a library. Without this the SDK defaults OutputType to Library and the
+         publish produces BabyMonitor.dll with NO BabyMonitor.exe apphost — nothing to launch, nothing
+         for the installer or the updater to run. WinExe (not Exe) so there is no console window behind
+         the tray app. -->
+    <OutputType>WinExe</OutputType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/BabyMonitor.ico</ApplicationIcon>
     <Platforms>x64;ARM64</Platforms>

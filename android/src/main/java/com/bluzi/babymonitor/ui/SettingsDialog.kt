@@ -34,6 +34,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,9 +45,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.bluzi.babymonitor.PipAvailability
 import com.bluzi.babymonitor.data.Settings
+import com.bluzi.babymonitor.pipAvailability
 import com.bluzi.babymonitor.monitor.AlarmKind
 import com.bluzi.babymonitor.monitor.MonitorHub
 import com.bluzi.babymonitor.monitor.alarmSoundDescription
@@ -267,20 +274,59 @@ fun SettingsDialog(
                     onPreview = onPreviewSound,
                 )
 
-                // --- Picture-in-picture (BG-18/19) --------------------------------
+                // --- Picture-in-picture (BG-18/19/20) -----------------------------
                 SectionLabel("Picture-in-picture")
+                val context = LocalContext.current
+                val lifecycleOwner = LocalLifecycleOwner.current
+                // BG-20: re-check on resume so returning from Android's PiP settings (below) is
+                // reflected at once. Not read inline — the app-op check is a binder call and this
+                // dialog recomposes with the live level meter.
+                var pipAvail by remember { mutableStateOf(pipAvailability(context)) }
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) pipAvail = pipAvailability(context)
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
+                val pipUsable = pipAvail == PipAvailability.AVAILABLE
                 ToggleRow(
                     "Keep the video floating when you leave the app", // BG-19
-                    settings.pipEnabled,
+                    checked = settings.pipEnabled && pipUsable, // BG-20: off and disabled when it can't work
+                    enabled = pipUsable,
                 ) {
                     onChange(settings.copy(pipEnabled = it))
                 }
                 Text(
-                    "When you switch to another app, the live video stays in a small floating window. " +
-                        "Audio and the alarm keep working either way.",
+                    when (pipAvail) {
+                        PipAvailability.AVAILABLE ->
+                            "When you switch to another app, the live video stays in a small floating " +
+                                "window. Audio and the alarm keep working either way."
+                        PipAvailability.PERMISSION_OFF ->
+                            "Picture-in-picture is turned off for Baby Monitor in Android's settings. " +
+                                "Turn it on there to keep the video floating when you leave the app."
+                        PipAvailability.UNSUPPORTED ->
+                            "This phone doesn't support picture-in-picture."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (pipAvail == PipAvailability.PERMISSION_OFF) {
+                    // LIVE-13: the shortest route to fixing it is the app's own system settings page,
+                    // which always resolves — the picture-in-picture toggle lives under it.
+                    TextButton(onClick = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.fromParts("package", context.packageName, null),
+                                ),
+                            )
+                        }
+                    }) {
+                        Text("Open app settings")
+                    }
+                }
             }
         },
     )

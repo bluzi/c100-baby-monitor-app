@@ -98,6 +98,10 @@ answer as one — `[desktop]` — because a desktop is a desktop; two phones ans
   (BG-1/3). The switch is the only thing it changes; where the OS has no picture-in-picture there is
   nothing for it to affect. (The desktops have no such switch: their mini window is a different,
   always-available thing — BG-17.)
+- **BG-20** `[mobile]` `[device]` When picture-in-picture cannot happen — the OS has none, or the
+  parent has turned it off for the app in the phone's system settings — the switch (BG-19) is **off
+  and disabled**, and the app says which of the two it is rather than offering a control that would
+  silently do nothing. Where the fix is a system setting, the app points at it.
 
 ## The OS suspending the monitor overnight
 

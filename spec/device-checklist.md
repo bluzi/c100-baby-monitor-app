@@ -90,6 +90,12 @@ platform can do less than another.
     settings, turn "keep the video floating when you leave the app" off, then leave the app on a live
     feed — it now just backgrounds like any other app, **no floating window**, and the audio and the
     crying alarm keep running throughout. Turn it back on and repeat 12b — the window floats again.
+
+12d. **(Both phones) Unavailable PiP is said, not silently offered (BG-20):** revoke the app's PiP
+    permission — on Android, Settings → Apps → Baby Monitor → Picture-in-picture → off; on iOS, run on
+    the Simulator, where PiP does not exist. Open the app's settings: the switch is **off and greyed
+    out**, and the text says why (on Android it points at the system setting; the "Open picture-in-picture
+    settings" button jumps there, and turning it back on re-enables the switch on return).
 13. **(Android) Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,
     then trigger the noise alarm — it is still audible, and the volume is put back where the user
     had it after acknowledging. Repeat, but force-stop the app while it rings: on next launch the

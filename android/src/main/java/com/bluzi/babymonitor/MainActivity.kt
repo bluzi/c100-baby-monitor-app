@@ -1,16 +1,50 @@
 package com.bluzi.babymonitor
 
+import android.app.AppOpsManager
 import android.app.PictureInPictureParams
+import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import com.bluzi.babymonitor.ui.App
+
+/** BG-20: the three states the picture-in-picture switch can be in — see [pipAvailability]. */
+enum class PipAvailability { AVAILABLE, UNSUPPORTED, PERMISSION_OFF }
+
+/**
+ * BG-20: whether picture-in-picture can actually happen right now. Two ways it cannot: the phone has
+ * no PiP at all, or the parent has turned it off for this app in Android's settings — an app-op the
+ * user controls, and one the OS silently obeys (auto-enter simply does nothing). Either way there is
+ * nothing to float, so the settings switch is turned off and disabled and says which case it is.
+ */
+fun pipAvailability(context: Context): PipAvailability {
+    if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+        return PipAvailability.UNSUPPORTED
+    }
+    val appOps = context.getSystemService(AppOpsManager::class.java) ?: return PipAvailability.AVAILABLE
+    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_PICTURE_IN_PICTURE, Process.myUid(), context.packageName)
+    } else {
+        @Suppress("DEPRECATION")
+        appOps.checkOpNoThrow(AppOpsManager.OPSTR_PICTURE_IN_PICTURE, Process.myUid(), context.packageName)
+    }
+    // MODE_DEFAULT is the untouched state, and PiP's default is allow — so only an explicit deny
+    // (the user turning it off, which lands as ignored/errored) counts as off. Treating MODE_DEFAULT
+    // as "off" would wrongly report PiP unavailable on every fresh install.
+    return if (mode == AppOpsManager.MODE_ALLOWED || mode == AppOpsManager.MODE_DEFAULT) {
+        PipAvailability.AVAILABLE
+    } else {
+        PipAvailability.PERMISSION_OFF
+    }
+}
 
 class MainActivity : ComponentActivity() {
     /**
@@ -30,8 +64,19 @@ class MainActivity : ComponentActivity() {
             updatePipParams()
         }
 
-    private val supportsPip: Boolean
-        get() = packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    /**
+     * BG-18: the video's on-screen bounds, reported by the viewer as it is laid out. Handed to the OS
+     * as the source rect so the swipe-to-home transition has something to scale *from* — which is what
+     * makes auto-enter fire reliably under gesture navigation, not just with the Home button.
+     */
+    var pipSourceRect: Rect? = null
+        set(value) {
+            field = value
+            updatePipParams()
+        }
+
+    private val pipAvailable: Boolean
+        get() = pipAvailability(this) == PipAvailability.AVAILABLE
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,7 +93,7 @@ class MainActivity : ComponentActivity() {
         // only from a running feed, and runCatching so a manufacturer that refuses PiP never crashes
         // the monitor. Audio and the alarm carry on through the foreground service regardless (BG-3).
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S &&
-            supportsPip && pipReady && !isInPictureInPictureMode
+            pipAvailable && pipReady && !isInPictureInPictureMode
         ) {
             runCatching { enterPictureInPictureMode(pipParams()) }
         }
@@ -62,7 +107,7 @@ class MainActivity : ComponentActivity() {
      * Below 12 there is nothing to pre-register; [onUserLeaveHint] does the work.
      */
     private fun updatePipParams() {
-        if (supportsPip && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (pipAvailable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             runCatching { setPictureInPictureParams(pipParams()) }
         }
     }
@@ -70,6 +115,7 @@ class MainActivity : ComponentActivity() {
     private fun pipParams(): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
             .setAspectRatio(Rational(16, 9)) // the C100's picture is 16:9
+        pipSourceRect?.let { builder.setSourceRectHint(it) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(pipReady) // float on leave, but only while a feed is live
         }

@@ -1,3 +1,4 @@
+import AVKit
 import BabyMonitorCore
 import SwiftUI
 
@@ -108,15 +109,24 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Picture-in-picture (BG-18/19)
+    // MARK: - Picture-in-picture (BG-18/19/20)
 
     private var pictureInPicture: some View {
-        Section {
-            Toggle("Keep the video floating when you leave the app", isOn: binding("pipEnabled", true))
+        // BG-20: where the OS has no PiP — the Simulator, or unusual hardware — the switch is off and
+        // disabled, and the footer says why, rather than offering a control that would do nothing.
+        let available = AVPictureInPictureController.isPictureInPictureSupported()
+        return Section {
+            Toggle(
+                "Keep the video floating when you leave the app",
+                isOn: available ? binding("pipEnabled", true) : .constant(false)
+            )
+            .disabled(!available)
         } header: {
             Text("Picture-in-picture")
         } footer: {
-            Text("When you switch to another app, the live video stays in a small floating window. Audio and the crying alarm keep working either way.")
+            Text(available
+                ? "When you switch to another app, the live video stays in a small floating window. Audio and the crying alarm keep working either way."
+                : "Picture-in-picture isn't available on this device.")
         }
     }
 

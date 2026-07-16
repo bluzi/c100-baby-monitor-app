@@ -368,6 +368,15 @@ fun ViewerScreen(
                             VideoSurface.surface = null // audio keeps running (LIVE-7)
                         }
                     })
+                    // BG-18: report the picture's on-screen bounds to the activity, so the OS can scale
+                    // the swipe-to-home transition from them — the difference between reliable and flaky
+                    // auto-PiP under gesture navigation.
+                    addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+                        val bounds = android.graphics.Rect()
+                        if (v.getGlobalVisibleRect(bounds)) {
+                            (ctx.findActivity() as? MainActivity)?.pipSourceRect = bounds
+                        }
+                    }
                 }
             },
             modifier = modifier,

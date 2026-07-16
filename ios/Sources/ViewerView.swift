@@ -217,14 +217,14 @@ struct NightVisionControl: View {
     @State private var mode: String?
     @State private var error: String?
 
-    // Base names, not the `.fill` forms: ControlGlyph applies `.symbolVariant(.fill)` itself, and that
-    // falls back to the base symbol where no fill variant exists. `moon.slash` has no `.fill`, so the
-    // literal "moon.slash.fill" resolved to nothing and Off showed no icon at all.
+    // ControlGlyph fills these (adds `.fill`). `moon.slash` was the bug twice over: it has no `.fill`,
+    // and it is not even a real SF Symbol, so Off drew nothing at all. `eye.slash` is real, fills, and
+    // reads as "night seeing, off".
     private var symbol: String {
         switch mode {
         case "ON": return "moon"
         case "AUTO": return "moon.stars"
-        case "OFF": return "moon.slash"
+        case "OFF": return "eye.slash"
         default: return "moon"
         }
     }

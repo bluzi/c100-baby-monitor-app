@@ -20,6 +20,9 @@ using Windows.System;
 using Windows.UI;
 using WinRT.Interop;
 using Log = BabyMonitor.App.Services.Logging.Log;
+// This file needs Microsoft.UI.Xaml.Shapes (Rectangle, for the level bar), which also defines a
+// `Path` type — so bare `Path` collides with System.IO.Path (CS0104). We only ever mean the latter.
+using Path = System.IO.Path;
 
 namespace BabyMonitor.App;
 

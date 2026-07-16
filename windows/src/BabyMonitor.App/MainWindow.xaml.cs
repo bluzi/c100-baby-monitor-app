@@ -527,9 +527,24 @@ public sealed partial class MainWindow : Window
             TitleBarDrag.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
             SetTitleBar(mini ? MiniDragRegion : TitleBarDrag);
 
+            // DESK-25: a remembered frame is only given back if it would land where the parent can see it.
+            // A frame remembered from a minimised window, or from a display that has since gone away,
+            // is discarded for the shape's default — a monitor that reopens off-screen is a monitor the
+            // parent believes never opened.
             var frame = Prefs.Frame(shape);
-            AppWindow.MoveAndResize(frame is { } f
-                ? new RectInt32(f.X, f.Y, f.Width, f.Height)
+            var restorable = frame is { } candidate &&
+                DesktopShell.FrameIsRestorable(
+                    new WindowFrame(candidate.X, candidate.Y, candidate.Width, candidate.Height),
+                    Screens());
+
+            if (frame is { } f && !restorable)
+            {
+                Log.Warn("ui", $"discarding an unreachable stored {shape} frame {f.X},{f.Y},{f.Width},{f.Height} — opening at the default");
+                Prefs.ClearFrame(shape);
+            }
+
+            AppWindow.MoveAndResize(restorable && frame is { } good
+                ? new RectInt32(good.X, good.Y, good.Width, good.Height)
                 : DefaultFrame(shape));
         }
         finally
@@ -550,9 +565,46 @@ public sealed partial class MainWindow : Window
             return; // full screen is not a size worth remembering
         }
 
+        // DESK-25: nor is a minimised one. Win32 parks a minimised window at (-32000,-32000) with a stub
+        // size, and AppWindow reports that verbatim — so remembering it here writes a frame that is off
+        // every screen, and the next launch opens the monitor where nobody can find it.
+        if (AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized })
+        {
+            return;
+        }
+
         var position = AppWindow.Position;
         var size = AppWindow.Size;
+
+        // Belt and braces: whatever the presenter claims, never store a frame we would refuse to restore.
+        if (!DesktopShell.FrameIsRestorable(
+                new WindowFrame(position.X, position.Y, size.Width, size.Height),
+                Screens()))
+        {
+            return;
+        }
+
         Prefs.SetFrame(_shape, position.X, position.Y, size.Width, size.Height);
+    }
+
+    /// <summary>
+    /// DESK-25: every screen's work area, in the physical pixels a stored frame is measured in.
+    ///
+    /// Indexed by hand rather than with LINQ, and that is not a style choice: `FindAll` hands back a
+    /// WinRT vector view whose projection has no usable enumerator, so `.Select(…)` throws at the first
+    /// `GetEnumerator` — inside the constructor, before there is a window to show the error in.
+    /// </summary>
+    private static IReadOnlyList<ScreenArea> Screens()
+    {
+        var displays = DisplayArea.FindAll();
+        var screens = new List<ScreenArea>(displays.Count);
+        for (var i = 0; i < displays.Count; i++)
+        {
+            var work = displays[i].WorkArea;
+            screens.Add(new ScreenArea(work.X, work.Y, work.Width, work.Height));
+        }
+
+        return screens;
     }
 
     /// <summary>
@@ -911,11 +963,14 @@ public sealed partial class MainWindow : Window
         // In the mini tile the warnings that live in the (collapsed) full chrome have nowhere to
         // appear, so its one status line carries them — a tile too small for the full sentence must
         // still never be a silent black square or a calm-looking tile over a monitor that was down.
-        // Priority: a sleep outage to be read (DESK-21) > no decoder (DESK-22) > the feed's own state.
-        // Both warnings are SHORT forms — the full sentence lives in the tray menu and the full view;
+        // Priority: a sleep outage to be read (DESK-21) > a camera we cannot reach at all (DESK-24) >
+        // no decoder (DESK-22) > the feed's own state. Not seeing the camera outranks not decoding it:
+        // one is a monitor that is watching nothing, the other only a missing picture.
+        // These warnings are SHORT forms — the full sentence lives in the tray menu and the full view;
         // the tile only has to say enough that the parent knows to look (and the text is trimmed so it
         // can never grow into the buttons beside it).
         var miniStatus = _state.SleepOutage != null ? "Monitor was down while asleep"
+            : _state.ConnectionBlocked && !_state.NetworkDown ? DesktopShell.FirewallAdviceShort
             : _state.VideoUnavailable ? "No video — needs HEVC support"
             : _state.StatusText;
         MiniStatusText.Text = _state.Muted ? $"{miniStatus} · muted" : miniStatus;
@@ -961,6 +1016,13 @@ public sealed partial class MainWindow : Window
         SleepWarning.Visibility = _state.SleepUnprotected ? Visibility.Visible : Visibility.Collapsed;
         NetworkWarning.Visibility = _state.NetworkDown ? Visibility.Visible : Visibility.Collapsed;
         VideoWarning.Visibility = _state.VideoUnavailable ? Visibility.Visible : Visibility.Collapsed;
+
+        // DESK-24: only when the network itself is up — if the PC is offline, LIVE-13 has already said
+        // the truer thing, and two explanations for one silence is worse than one.
+        FirewallWarning.Visibility = _state.ConnectionBlocked && !_state.NetworkDown
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        FirewallWarningText.Text = DesktopShell.FirewallAdvice;
 
         // LIVE-14: the display stays awake while a window is showing a live feed — and only then.
         PowerRequests.HoldDisplay(AppWindow.IsVisible && _state.Status == Statuses.Live);
@@ -1090,6 +1152,14 @@ public sealed partial class MainWindow : Window
     /// <summary>DESK-22: the shortest route to a picture — the free extension, in the Store.</summary>
     private void OnInstallHevc(object sender, RoutedEventArgs e) =>
         OpenUri("ms-windows-store://pdp/?ProductId=9n4wgh0z6vhq");
+
+    /// <summary>
+    /// DESK-24: the way to the rule that lets the camera answer. The app cannot add it itself — that
+    /// needs an administrator, and this is a per-user install by design — so it opens the place where a
+    /// parent can, rather than describing it and leaving them to hunt.
+    /// </summary>
+    private void OnOpenFirewallSettings(object sender, RoutedEventArgs e) =>
+        OpenUri("windowsdefender://network/");
 
     /// <summary>
     /// Hand a URI to the shell's own handler. Not <c>Launcher.LaunchUriAsync</c>: in an unpackaged app

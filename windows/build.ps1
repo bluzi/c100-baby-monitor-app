@@ -47,6 +47,19 @@ dotnet test (Join-Path $PSScriptRoot 'tests/BabyMonitor.Core.Tests/BabyMonitor.C
 if ($LASTEXITCODE -ne 0) { throw 'the spec suite failed — nothing is built from a red suite' }
 
 Write-Host "==> Publishing $Configuration $Version ($Platform)" -ForegroundColor Cyan
+# Force the app's resource index to be rebuilt, every time.
+#
+# The Windows App SDK generates BabyMonitor.pri with an MSBuild task that decides it is up to date when
+# the *set* of resource files has not changed — and editing a .xaml does not change the set. So an
+# incremental build happily recompiles MainWindow.xaml into a new .xbf and leaves yesterday's index
+# sitting beside it. The pair no longer agree, `ms-appx:///MainWindow.xaml` cannot be resolved, and
+# InitializeComponent throws XamlParseException — which App.OnUnhandledException catches (DESK-6),
+# leaving a live process with NO WINDOW. The monitor that never appears, from nothing but a stale file.
+# Deleting the index costs a second and makes that state unreachable. (This is the incremental-build
+# cousin of the publish bug the csproj's _IncludeAppXamlResourcesInPublish target fixes; CI never sees
+# either, because CI always builds clean — which is exactly why it has to be caught here.)
+Get-ChildItem (Join-Path $PSScriptRoot 'src/BabyMonitor.App') -Include 'BabyMonitor.pri' -Recurse -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
 # /restore in the same call restores with the RID (a self-contained publish needs a RID-specific
 # restore). PublishProtocol=FileSystem is load-bearing: without it /t:Publish builds but never runs the
 # filesystem-publish that copies the self-contained app to PublishDir. The trailing forward slash on

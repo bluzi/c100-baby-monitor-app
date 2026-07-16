@@ -450,3 +450,20 @@ D12. **`[windows]` No H.265 decoder (DESK-22):** on a PC **without** the HEVC Vi
      the level meter keeps moving, and the crying alarm still fires.** Install the extension and
      reopen: the picture appears. This is the one place a PC is weaker than a Mac, and a black
      rectangle with no explanation would be exactly the kind of silence this app exists to prevent.
+
+D13. **`[windows]` The firewall that answers for the camera (DESK-24):** install with the setup on a PC
+     whose network is **Public** (the default for a fresh wired connection). One elevation prompt
+     appears, once, asking to let the camera answer; accept it and the feed goes live. Then the part
+     that matters: **delete the "Baby Monitor" inbound rule** (`Remove-NetFirewallRule -DisplayName
+     'Baby Monitor'`) and restart the app. Within two attempts the feed must say a firewall on this PC
+     is the likely cause and offer the way to it — **it must never sit on "Reconnecting in 15s" for
+     ever**, which is what a parent reads as "it is working on it" while the monitor sees nothing. Put
+     the rule back: it recovers to live on its own, and the warning goes. Also run the install once and
+     **decline** the prompt: the app must still install, still run, and still say what is wrong.
+
+D14. **`[windows]` One camera, one watcher (DESK-24 neighbours):** with the **phone app monitoring the
+     same camera**, start the PC app. The camera has a limited number of P2P sessions, so the PC will
+     connect, authenticate and then receive no media at all — the watchdog drops it after 10 s and it
+     retries. Confirm this is what you are looking at before blaming the PC's media path: stop the phone
+     app and the PC goes live within seconds. (This one is the camera's limit, not a bug to fix — it is
+     here because it costs an afternoon every time it is met cold.)

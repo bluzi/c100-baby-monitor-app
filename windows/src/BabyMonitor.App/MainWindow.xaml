@@ -143,6 +143,26 @@
                                              FontSize="12"
                                              Click="OnInstallHevc" />
                         </Grid>
+
+                        <!-- DESK-24: the camera is not answering and this PC's firewall is the likely
+                             reason. Without this the monitor shows a tidy countdown forever, which reads
+                             as "working on it" rather than "seeing nothing". -->
+                        <Grid x:Name="FirewallWarning" Visibility="Collapsed" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="FirewallWarningText" Grid.Column="0"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="#FFB74D"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center" />
+                            <HyperlinkButton x:Name="FirewallLink" Grid.Column="1"
+                                             Content="Open Firewall settings"
+                                             Padding="0"
+                                             FontSize="12"
+                                             Click="OnOpenFirewallSettings" />
+                        </Grid>
                     </StackPanel>
                 </Border>
 

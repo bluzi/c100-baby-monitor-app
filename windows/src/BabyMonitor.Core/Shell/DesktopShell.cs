@@ -106,6 +106,68 @@ public static class DesktopShell
             .ToList();
 
     /// <summary>
+    /// DESK-24: what the parent is told when the camera never answers. It names the app and the thing to
+    /// allow, because a warning nobody can act on is decor — and it says *likely*, because the same
+    /// silence is what an unplugged camera sounds like, and sending someone to fix a firewall that was
+    /// never the problem is its own kind of lie.
+    /// </summary>
+    public const string FirewallAdvice =
+        "Can't reach the camera. If it is powered on and on this network, Windows Firewall is likely " +
+        "blocking its reply — allow Baby Monitor through Windows Firewall (Private and Public).";
+
+    /// <summary>DESK-24: the short form, for the mini tile — enough that the parent knows to look.</summary>
+    public const string FirewallAdviceShort = "Can't reach camera — check firewall";
+
+    /// <summary>
+    /// DESK-25: the smallest frame worth restoring, and the smallest patch of one that has to remain on a
+    /// screen for the window to count as findable — enough to see and to grab, not a sliver of border.
+    /// </summary>
+    public const int MinFrameWidth = 160;
+    public const int MinFrameHeight = 80;
+    public const int MinVisibleWidth = 120;
+    public const int MinVisibleHeight = 48;
+
+    /// <summary>
+    /// DESK-25: **may a remembered frame be given back to the window?** Only if it would land somewhere the
+    /// parent can actually see it.
+    ///
+    /// Two ways a stored frame turns into a monitor that never appears, and both have happened:
+    ///   * the window was **minimised** when its frame was remembered — Win32 parks a minimised window at
+    ///     (-32000,-32000) and reports a stub size, so the frame that comes back is off every screen;
+    ///   * the display it was last on is **gone** — undocked, unplugged, or rearranged.
+    ///
+    /// Either way the window opens far outside the desktop, the parent sees nothing, and the monitor looks
+    /// dead while it is in fact running. That is the exact failure this project exists to prevent, so the
+    /// check is here, in the core, where it is tested — and it is phrased as "restorable or else", so a
+    /// case nobody thought of falls back to the default position rather than off the edge of the world.
+    /// </summary>
+    public static bool FrameIsRestorable(WindowFrame frame, IReadOnlyList<ScreenArea> screens)
+    {
+        if (frame.Width < MinFrameWidth || frame.Height < MinFrameHeight)
+        {
+            return false;
+        }
+
+        foreach (var screen in screens)
+        {
+            // How much of the window would actually be on this screen.
+            var visibleWidth =
+                Math.Min(frame.X + frame.Width, screen.X + screen.Width) - Math.Max(frame.X, screen.X);
+            var visibleHeight =
+                Math.Min(frame.Y + frame.Height, screen.Y + screen.Height) - Math.Max(frame.Y, screen.Y);
+
+            // A window smaller than the minimum patch only has to be visible in full.
+            if (visibleWidth >= Math.Min(MinVisibleWidth, frame.Width) &&
+                visibleHeight >= Math.Min(MinVisibleHeight, frame.Height))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// DESK-9: which shape the window may take. The mini shape is a *view of a feed* — there is nothing
     /// to float before a camera is chosen, and a sign-in form does not belong in a tile the size of a
     /// postage stamp. So sign-in and the camera picker force the window full, whatever shape the user
@@ -121,6 +183,76 @@ public static class DesktopShell
         return preferred == ShapeMini ? ShapeMini : ShapeFull;
     }
 }
+
+/// <summary>
+/// DESK-24: **is the PC's own firewall eating the camera's answer?**
+///
+/// The camera is not reached by connecting to it; it is asked to punch back, and it answers from an
+/// ephemeral port of its own. Windows Firewall never sent anything to that port, so on a Public network
+/// it drops the reply as unsolicited — and the handshake dies at its very first step, over and over,
+/// while the app shows a tidy "reconnecting in 15s" that a parent reads as "it is working on it".
+/// A Mac and a phone have no such filter, which is why this class exists only here.
+///
+/// It watches for that one signature — repeated failure at LAN search, the step that cannot fail for
+/// any reason *except* not hearing the camera — and it is deliberately conservative in both directions:
+/// one timeout is a blip, not a diagnosis, and a failure that got further is somebody else's fault.
+/// </summary>
+public sealed class FirewallSuspicion
+{
+    /// <summary>How many consecutive first-step failures before we say anything. One is a blip.</summary>
+    public const int AfterFailures = 2;
+
+    /// <summary>
+    /// The failure the firewall produces. Matched on text rather than a type because the protocol layer
+    /// is a mirror of the Kotlin core, byte for byte and line for line — a Windows-only exception added
+    /// there would be a divergence, and this rule is Windows-only. The string is the message Cs2 throws.
+    /// </summary>
+    private const string LanSearchTimeout = "handshake timeout (LAN search)";
+
+    private int _failures;
+
+    /// <summary>DESK-24: true once the camera has failed to answer often enough to be worth saying.</summary>
+    public bool Suspected { get; private set; }
+
+    /// <summary>Feed every engine status. Anything that is not a verdict is ignored.</summary>
+    public void Observe(string status)
+    {
+        if (status == Statuses.Live)
+        {
+            Reset(); // it answered; whatever we suspected, we were wrong
+            return;
+        }
+
+        if (!status.StartsWith("error:", StringComparison.Ordinal))
+        {
+            return; // "connecting", the countdown between attempts — not a verdict either way
+        }
+
+        if (!status.Contains(LanSearchTimeout, StringComparison.Ordinal))
+        {
+            Reset(); // it got past the first step, so the firewall is not what is wrong
+            return;
+        }
+
+        _failures++;
+        if (_failures >= AfterFailures)
+        {
+            Suspected = true;
+        }
+    }
+
+    public void Reset()
+    {
+        _failures = 0;
+        Suspected = false;
+    }
+}
+
+/// <summary>DESK-25: a window's position and size, in physical pixels, as it was remembered.</summary>
+public readonly record struct WindowFrame(int X, int Y, int Width, int Height);
+
+/// <summary>DESK-25: a screen's usable area, in the same physical pixels the frame is in.</summary>
+public readonly record struct ScreenArea(int X, int Y, int Width, int Height);
 
 /// <summary>What the shell needs to know to decide whether the monitor can be allowed to fade quietly.</summary>
 public sealed record MonitorHealth(

@@ -6,7 +6,7 @@ using Xunit;
 namespace BabyMonitor.Core.Tests;
 
 /// <summary>
-/// The Windows shell's decisions (DESK-9/11/18). They live in the core, and are tested, for the same
+/// The Windows shell's decisions (DESK-9/11/18/24/25). They live in the core, and are tested, for the same
 /// reason every other decision does: a rule that is only written in a view is a rule nobody can test,
 /// and this one guards the app's first promise — that a warning is never hidden, and silence is never
 /// mistaken for a calm baby.
@@ -127,6 +127,139 @@ public class DesktopShellTest
         Assert.Equal(
             DesktopShell.MiniOpacityMin,
             DesktopShell.MiniOpacity(Healthy, hovering: false, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.0));
+    }
+
+    // --- DESK-25: a remembered position can never hide the window -------------
+
+    private static readonly ScreenArea[] OneScreen = [new(0, 0, 1920, 1040)];
+
+    [Fact(DisplayName = "DESK-25 a frame that is on the screen is restored")]
+    public void AnOrdinaryFrameIsRestorable()
+    {
+        Assert.True(DesktopShell.FrameIsRestorable(new WindowFrame(410, 170, 1100, 700), OneScreen));
+        Assert.True(DesktopShell.FrameIsRestorable(new WindowFrame(1536, 814, 360, 202), OneScreen));
+    }
+
+    [Fact(DisplayName = "DESK-25 the frame of a minimised window is never restored")]
+    public void AMinimisedFrameIsNotRestorable()
+    {
+        // Win32 parks a minimised window at (-32000,-32000) and reports a stub size. Remember that and
+        // the monitor reopens where nobody can find it — which is exactly what this machine had stored:
+        //   "frame.full": "-32000,-32000,160,39"
+        // The user saw the mini tile and believed the main window was simply gone.
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(-32000, -32000, 160, 39), OneScreen));
+    }
+
+    [Fact(DisplayName = "DESK-25 a frame on a display that is gone is not restored")]
+    public void AFrameOnAVanishedDisplayIsNotRestorable()
+    {
+        // Remembered while docked to a second monitor on the left; that monitor is now unplugged.
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(-1800, 200, 1100, 700), OneScreen));
+        // ...and it comes back when the display does.
+        ScreenArea[] two = [new(0, 0, 1920, 1040), new(-1920, 0, 1920, 1040)];
+        Assert.True(DesktopShell.FrameIsRestorable(new WindowFrame(-1800, 200, 1100, 700), two));
+    }
+
+    [Fact(DisplayName = "DESK-25 a frame with only a sliver on screen is not restored")]
+    public void ASliverIsNotRestorable()
+    {
+        // Nudged almost entirely past the bottom-right edge: technically "on" the screen, but there is
+        // nothing left to see or grab.
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(1900, 1030, 360, 202), OneScreen));
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(-350, 500, 360, 202), OneScreen));
+    }
+
+    [Fact(DisplayName = "DESK-25 a frame with no screens at all is not restored")]
+    public void NoScreensMeansNoRestore()
+    {
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(410, 170, 1100, 700), []));
+    }
+
+    [Fact(DisplayName = "DESK-25 a nonsense stored size is not restored")]
+    public void NonsenseSizesAreNotRestorable()
+    {
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(100, 100, 0, 0), OneScreen));
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(100, 100, -1100, -700), OneScreen));
+        Assert.False(DesktopShell.FrameIsRestorable(new WindowFrame(100, 100, 12, 8), OneScreen));
+    }
+
+    // --- DESK-24: a firewall that never says so -------------------------------
+
+    private const string LanSearchFailure = "error: cs2: handshake timeout (LAN search)";
+
+    [Fact(DisplayName = "DESK-24 repeated failure at the first step is called out as a likely firewall")]
+    public void RepeatedHandshakeTimeoutsAreSuspicious()
+    {
+        // The real thing, from this machine's log: the camera answers its punch from an ephemeral port,
+        // Windows Firewall calls that unsolicited and drops it, and the monitor reconnects forever —
+        // looking busy while seeing nothing. Attempt 13 must not be the first hint.
+        var watch = new FirewallSuspicion();
+        Assert.False(watch.Suspected);
+
+        watch.Observe(Statuses.Connecting);
+        watch.Observe(LanSearchFailure);
+        Assert.False(watch.Suspected); // one failure is a blip, not a diagnosis
+
+        watch.Observe("reconnecting in 2s");
+        watch.Observe(Statuses.Connecting);
+        watch.Observe(LanSearchFailure);
+        Assert.True(watch.Suspected);
+    }
+
+    [Fact(DisplayName = "DESK-24 a feed that goes live clears the suspicion")]
+    public void GoingLiveClearsIt()
+    {
+        var watch = new FirewallSuspicion();
+        watch.Observe(LanSearchFailure);
+        watch.Observe(LanSearchFailure);
+        Assert.True(watch.Suspected);
+
+        watch.Observe(Statuses.Live);
+        Assert.False(watch.Suspected);
+    }
+
+    [Fact(DisplayName = "DESK-24 a different failure is never blamed on the firewall")]
+    public void OtherFailuresAreNotBlamedOnTheFirewall()
+    {
+        // A firewall that drops the punch fails at LAN search and nowhere else. Anything that got
+        // further — a dropped session, a camera that stopped streaming — is a different problem, and
+        // saying "firewall" about it would send the parent to fix the wrong thing.
+        var watch = new FirewallSuspicion();
+        watch.Observe(LanSearchFailure);
+        watch.Observe("error: cs2: connection closed");
+        watch.Observe("error: cs2: connection closed");
+        Assert.False(watch.Suspected);
+
+        // ...and a later run of real handshake timeouts still counts from scratch.
+        watch.Observe(LanSearchFailure);
+        Assert.False(watch.Suspected);
+        watch.Observe(LanSearchFailure);
+        Assert.True(watch.Suspected);
+    }
+
+    [Fact(DisplayName = "DESK-24 the countdown between attempts does not count as an attempt")]
+    public void TheCountdownIsNotAFailure()
+    {
+        // The status ticks "reconnecting in 15s… 14s…" once a second between attempts. If those counted,
+        // a single timeout would be enough to cry firewall.
+        var watch = new FirewallSuspicion();
+        watch.Observe(LanSearchFailure);
+        for (var s = 15; s > 0; s--)
+        {
+            watch.Observe($"reconnecting in {s}s");
+        }
+
+        Assert.False(watch.Suspected);
+    }
+
+    [Fact(DisplayName = "DESK-24 the advice says what to allow")]
+    public void TheAdviceIsActionable()
+    {
+        // It must name the app and the firewall: a warning a half-asleep parent cannot act on is decor.
+        Assert.Contains("Firewall", DesktopShell.FirewallAdvice, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Baby Monitor", DesktopShell.FirewallAdvice, StringComparison.Ordinal);
+        // And it must not state as fact something it only suspects — the camera may simply be off.
+        Assert.Contains("likely", DesktopShell.FirewallAdvice, StringComparison.OrdinalIgnoreCase);
     }
 
     // --- BG-14: a PC has no Stop --------------------------------------------

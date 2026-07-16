@@ -483,6 +483,28 @@ Windows:
   output runs fine; only `publish` is broken — so it stayed invisible until a real PC ran the shipped
   zip. `BabyMonitor.App.csproj`'s `_IncludeAppXamlResourcesInPublish` target adds them back into
   `@(ResolvedFileToPublish)`. This is *the* reason a Windows build must be launched, not just compiled.
+- **A stale `.pri` breaks the app exactly like a missing one — and an incremental build makes stale.**
+  The PRI task decides it is up to date from the *set* of resource files, and editing a `.xaml` does not
+  change the set. So `build.ps1` recompiles `MainWindow.xaml` into a fresh `.xbf` and leaves yesterday's
+  `BabyMonitor.pri` next to it; the two disagree, `ms-appx:///MainWindow.xaml` will not resolve, and you
+  get the same `XamlParseException` → swallowed by `OnUnhandledException` (DESK-6) → **live process, no
+  window** as the publish bug below. It is worse than that one, because a clean build fixes it and CI is
+  always clean, so it can only ever bite a person at their desk — and it looks like whatever you just
+  edited. `build.ps1` now deletes the index before every publish. If you ever see `XamlParseException`
+  from `InitializeComponent`, suspect the index before the markup.
+- **Windows Firewall drops the camera's answer, and only the PC has this problem** (DESK-24). The CS2
+  handshake is not a connection *to* the camera: it asks the camera to punch back, and the camera answers
+  from an **ephemeral port of its own** (19775, 21044, 22379 — a different one every time), never from
+  the `:32108` we sent to. Windows Firewall never sent anything to that port, so on a **Public** network
+  it drops the reply as unsolicited; the handshake dies at LAN search and the monitor reconnects for ever
+  behind a tidy countdown. A Mac and a phone have no such filter, which is why the same core connects
+  there and not here, and why this reads as "the PC build is broken" when nothing is. The installer asks
+  once for an inbound rule; if it is refused the app says so itself rather than counting attempts. When
+  debugging this, `Test-NetConnection … -Port 32108` proves nothing — it is TCP, and the handshake is UDP.
+- **The C100 serves a limited number of P2P sessions.** With the phone app monitoring, a PC connects,
+  authenticates, calls `startMedia` — and the camera simply never streams: no audio, no video, and the
+  watchdog drops it after 10 s. It looks exactly like a broken media path. Close the other clients before
+  concluding anything about the code.
 - **Build the app with Visual Studio's MSBuild, never `dotnet publish`** (both `build.ps1` and CI do).
   The Windows App SDK generates the PRI with an MSBuild task (`Microsoft.Build.Packaging.Pri.Tasks`)
   that ships in VS's MSBuild, not the .NET SDK's; under `dotnet` it is sought in the SDK tree, missing,

@@ -33,6 +33,10 @@ public sealed class AppState : INotifyPropertyChanged
     private bool _sleepUnprotected;
     private bool _networkDown;
     private bool _videoUnavailable;
+    private bool _connectionBlocked;
+
+    /// <summary>DESK-24: watches for the camera never answering — the shape a blocked reply makes.</summary>
+    private readonly FirewallSuspicion _firewallSuspicion = new();
     private string? _sleepOutage;
     private long _sleptAtMs;
     private double _videoAspect;
@@ -56,8 +60,8 @@ public sealed class AppState : INotifyPropertyChanged
 
         // One listener over everything the UI can show. Every one of these fires on a background
         // thread; the UI never touches them directly.
-        MonitorHub.Running.Changed += _ => OnMonitorChanged();
-        MonitorHub.Status.Changed += _ => OnMonitorChanged();
+        MonitorHub.Running.Changed += _ => OnMonitorChanged(null);
+        MonitorHub.Status.Changed += status => OnMonitorChanged(status);
         MonitorHub.Level.Changed += _ => Post(Emit);
         MonitorHub.CameraName.Changed += _ => Post(Emit);
         MonitorHub.Settings.Changed += _ => Post(Emit);
@@ -167,6 +171,16 @@ public sealed class AppState : INotifyPropertyChanged
     {
         get => _videoUnavailable;
         private set => Set(ref _videoUnavailable, value);
+    }
+
+    /// <summary>
+    /// DESK-24: the camera keeps not answering, and a firewall on this PC is the likely reason. The
+    /// monitor carries on retrying — this only replaces a silent countdown with a sentence.
+    /// </summary>
+    public bool ConnectionBlocked
+    {
+        get => _connectionBlocked;
+        private set => Set(ref _connectionBlocked, value);
     }
 
     /// <summary>DESK-12: the shape of the picture the camera sends (width ÷ height), or 0 before there is one.</summary>
@@ -601,7 +615,16 @@ public sealed class AppState : INotifyPropertyChanged
 
     // --- plumbing ------------------------------------------------------------
 
-    private void OnMonitorChanged()
+    /// <param name="status">
+    /// The status **as delivered**, or null when the change was not a status change.
+    ///
+    /// DESK-24: it has to be the delivered value, not <c>MonitorHub.Status.Value</c> read later. The
+    /// engine sets "error: …" for a few milliseconds and the countdown paints straight over it, so a
+    /// posted callback re-reading the current value only ever sees "reconnecting in 15s" — and the one
+    /// failure worth naming is the one that never survives the trip to the UI thread. (Posting keeps
+    /// order, so the statuses still arrive here in the sequence the engine produced them.)
+    /// </param>
+    private void OnMonitorChanged(string? status)
     {
         Post(() =>
         {
@@ -617,6 +640,19 @@ public sealed class AppState : INotifyPropertyChanged
             {
                 VideoUnavailable = false; // a new connection deserves a fresh verdict on the picture
             }
+
+            // DESK-24: the engine's status is the only place the first-step failure is visible.
+            if (status != null)
+            {
+                _firewallSuspicion.Observe(status);
+            }
+
+            if (!Running)
+            {
+                _firewallSuspicion.Reset();
+            }
+
+            ConnectionBlocked = Running && _firewallSuspicion.Suspected;
 
             Emit();
         });
@@ -816,4 +852,7 @@ public static class Prefs
 
     public static void SetFrame(string shape, int x, int y, int width, int height) =>
         Store.Put($"frame.{shape}", $"{x},{y},{width},{height}");
+
+    /// <summary>DESK-25: forget a frame that could not be restored, so it cannot strand the window twice.</summary>
+    public static void ClearFrame(string shape) => Store.Remove($"frame.{shape}");
 }

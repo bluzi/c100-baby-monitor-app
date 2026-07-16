@@ -186,6 +186,23 @@ are looking at, or close one to be rid of the other.
   Extensions** in the Microsoft Store, and **keeps monitoring**: audio, the level meter, the crying
   alarm and the watchdog are all unaffected (LIVE-7). Sound is what monitoring means; the picture is
   a convenience.
+- **DESK-25** `[windows]` **A remembered position can never hide the window** (DESK-9). Only a frame
+  that would land back on a screen the parent can actually see is restored; one that would not is
+  discarded, and that shape opens at its default position instead. On a PC a **minimised** window is
+  parked far off every screen and reports a stub size, so remembering *that* is remembering nowhere —
+  and the window then reopens somewhere no one can find, running and invisible, which is
+  indistinguishable from a monitor that did not open at all. The same holds for a frame left on a
+  display that has since been unplugged.
+- **DESK-24** `[windows]` **Windows blocks the camera's answer by default, and the app must not be
+  silent about it.** The camera is reached by asking it, on the network, to open a connection back —
+  and it answers from a port nothing sent to, which Windows Firewall treats as unsolicited and drops.
+  A Mac and a phone have no such filter, so this hazard is the PC's alone: without the camera's reply
+  the handshake never completes and the monitor reconnects forever, looking busy while seeing nothing.
+  So: the first install asks, once, for permission to let the camera answer, and if that permission is
+  refused or was never given, **the app says which** — when the camera cannot be reached and the
+  connection never gets past the first step, the feed states plainly that a firewall on this PC is the
+  likely cause and what to allow, rather than counting attempts in silence. A retry that says nothing
+  is indistinguishable from a monitor that is working.
 - **DESK-23** `[device]` A desktop has no vibration motor and no separate alarm-volume channel, so
   the phone's answers to "an alarm nobody can hear" (ALRM-10) do not exist here. Instead: the alarm
   plays at its configured volume (ALRM-11, ALRM-14) on the system's default output, on its own audio

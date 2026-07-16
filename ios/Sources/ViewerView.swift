@@ -217,20 +217,23 @@ struct NightVisionControl: View {
     @State private var mode: String?
     @State private var error: String?
 
-    // ControlGlyph fills these (adds `.fill`). `moon.slash` was the bug twice over: it has no `.fill`,
-    // and it is not even a real SF Symbol, so Off drew nothing at all. `eye.slash` is real, fills, and
-    // reads as "night seeing, off".
+    // The whole control stays in the moon family — no `moon.slash` (which is not even a real symbol).
+    // On and Off share the moon; what tells them apart is the treatment: On is lit (the latched well,
+    // full white — see below), Off is a dimmed moon with no well. Auto is the starry moon.
     private var symbol: String {
         switch mode {
-        case "ON": return "moon"
         case "AUTO": return "moon.stars"
-        case "OFF": return "eye.slash"
-        default: return "moon"
+        default: return "moon" // On and Off; the well and the tint distinguish them
         }
     }
 
     var body: some View {
-        ControlMenu(symbol: symbol, label: "Night vision", latched: mode == "ON") {
+        ControlMenu(
+            symbol: symbol,
+            label: "Night vision",
+            latched: mode == "ON", // On is lit: a filled accent well behind the moon
+            tint: mode == "OFF" ? Color.white.opacity(0.4) : .white // Off is a dimmed moon
+        ) {
             Picker("Night vision", selection: Binding(get: { mode ?? "" }, set: { set($0) })) {
                 Text("Off").tag("OFF")
                 Text("Auto").tag("AUTO")

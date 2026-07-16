@@ -100,6 +100,7 @@ struct ControlMenu<Content: View>: View {
     let symbol: String
     let label: String
     var latched = false
+    var tint: Color = .white
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -107,7 +108,7 @@ struct ControlMenu<Content: View>: View {
             content
         } label: {
             ControlGlyph(symbol: symbol)
-                .foregroundStyle(.white)
+                .foregroundStyle(tint)
                 .background(Circle().fill(latched ? AnyShapeStyle(Color.accentColor.opacity(0.9)) : AnyShapeStyle(.clear)))
                 .contentShape(Circle())
         }

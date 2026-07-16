@@ -76,26 +76,20 @@ platform can do less than another.
     sign-in screen rotates freely again.
 12. **(Android) Lock screen (BG-7):** while monitoring, lock the phone and tap the monitoring
     notification (or the launcher icon) — the live feed shows without unlocking.
-12b. **(Both phones) Picture-in-picture (BG-18):** with the live feed showing, switch to another app
-    (the home gesture / recents on Android; the home gesture on iOS) — the video keeps playing in a
-    small floating window over that app, with no controls on it. Tap the window to return: the feed is
-    back inline, uninterrupted, and the audio and the crying alarm never stopped throughout. On a
-    device whose OS has no PiP, the app simply keeps monitoring in the background as before — no float,
-    no gap in the watch.
-    **On Android, test this with the phone on gesture navigation** (the modern default), not just
-    three-button — the swipe-up-home path relies on the OS auto-entering PiP, and it is the one that
-    silently breaks while three-button Home still works.
+12b. **(Both phones) Picture-in-picture (BG-18):** with the live feed showing, tap the
+    **picture-in-picture button** in the control bar — the video floats into a small window with no
+    controls on it, and the app steps aside (to the home screen / previous app). Tap the floating
+    window to return: the feed is back inline, uninterrupted, and the audio and the crying alarm never
+    stopped throughout. **Leaving the app *without* tapping the button does not float it** — it just
+    backgrounds like any other app (audio and alarm still running). Confirm the button reliably floats
+    every time (it is a direct call, so it does not depend on which navigation mode the phone uses).
 
-12c. **(Both phones) Picture-in-picture can be turned off (BG-19):** it is **on by default**. In
-    settings, turn "keep the video floating when you leave the app" off, then leave the app on a live
-    feed — it now just backgrounds like any other app, **no floating window**, and the audio and the
-    crying alarm keep running throughout. Turn it back on and repeat 12b — the window floats again.
+12c. **(Both phones) No PiP, no button (BG-18):** where picture-in-picture cannot happen the button is
+    simply absent — revoke the app's PiP permission (Android: Settings → Apps → Baby Monitor →
+    Picture-in-picture → off) or run on the iOS Simulator, where PiP does not exist: the control bar
+    shows no picture-in-picture button, and monitoring is unaffected. Restore the permission — the
+    button returns.
 
-12d. **(Both phones) Unavailable PiP is said, not silently offered (BG-20):** revoke the app's PiP
-    permission — on Android, Settings → Apps → Baby Monitor → Picture-in-picture → off; on iOS, run on
-    the Simulator, where PiP does not exist. Open the app's settings: the switch is **off and greyed
-    out**, and the text says why (on Android it points at the system setting; the "Open picture-in-picture
-    settings" button jumps there, and turning it back on re-enables the switch on return).
 13. **(Android) Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,
     then trigger the noise alarm — it is still audible, and the volume is put back where the user
     had it after acknowledging. Repeat, but force-stop the app while it rings: on next launch the

@@ -69,7 +69,7 @@ struct ViewerView: View {
             if Preview.active {
                 Preview.backdrop
             } else {
-                VideoSurface(pipEnabled: state.settings["pipEnabled"] as? Bool ?? true) // BG-19
+                VideoSurface()
             }
         }
         .ignoresSafeArea()
@@ -184,6 +184,12 @@ struct ViewerView: View {
             ) { state.toggleMute() }
 
             NightVisionControl()
+
+            // BG-18: float the live video into a system picture-in-picture window, on demand. Shown only
+            // on a live feed the OS will float — hidden on the Simulator, where Apple has no PiP.
+            if state.ui.running, PipControl.isSupported {
+                ControlButton(symbol: "pip.enter", label: "Picture-in-picture") { PipControl.start() }
+            }
 
             ControlButton(symbol: "slider.horizontal.3", label: "Alerts and settings") { showSettings = true }
 

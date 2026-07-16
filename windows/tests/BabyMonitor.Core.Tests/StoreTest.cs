@@ -230,14 +230,6 @@ public class StoreTest
         Assert.Equal(15, reloaded.WatchdogGraceSeconds);
     }
 
-    [Fact(DisplayName = "BG-19 picture-in-picture defaults on and the switch persists")]
-    public void PipEnabledDefaultsOnAndPersists()
-    {
-        Assert.True(_store.LoadSettings().PipEnabled); // on by default
-        _store.SaveSettings(_store.LoadSettings() with { PipEnabled = false });
-        Assert.False(new AppStore(_kv, new MarkingSecretBox()).LoadSettings().PipEnabled);
-    }
-
     [Fact(DisplayName = "ALRM-4+6 a stored alarm volume of zero is floored — a silent alarm is not an alarm")]
     public void VolumeIsFloored()
     {

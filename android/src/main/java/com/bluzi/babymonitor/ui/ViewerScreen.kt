@@ -137,16 +137,11 @@ fun ViewerScreen(
         onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
 
-    // BG-18: keep the baby visible in a picture-in-picture window when the parent switches away from a
-    // running feed. `pipReady` gates it on the feed actually running (so switching away from a
-    // connecting/empty viewer does not float a black tile) AND on the parent leaving it on (BG-19);
-    // the activity does the OS check and never floats where PiP is unsupported. In PiP the chrome is
-    // dropped — the window is too small for it.
+    // BG-18: the parent floats the live video into a picture-in-picture window from the control bar's
+    // button (added below). `pipActivity.pipSourceRect`, reported as the surface lays out, gives the
+    // enter animation something to scale from. In PiP the chrome is dropped — the window is too small.
     val pipActivity = remember(context) { context.findActivity() as? MainActivity }
-    DisposableEffect(pipActivity, running, settings.pipEnabled) {
-        pipActivity?.pipReady = running && settings.pipEnabled
-        onDispose { pipActivity?.pipReady = false }
-    }
+    val pipAvailable = remember(pipActivity) { pipActivity?.pipAvailable == true }
     val inPip = pipActivity?.inPictureInPicture?.value ?: false
 
     // LIVE-11: the controls are toggled by tapping the VIDEO, and by nothing else.
@@ -275,6 +270,9 @@ fun ViewerScreen(
         onNightVision = { showNightVision = true; poke() },
         onSettings = { showSettings = true },
         onStop = { showStop = true; poke() },
+        // BG-18: float button — only on a live feed the OS will actually float (pipActivity does the
+        // OS + permission check). enterPip re-checks at the tap, so a mid-session change stays safe.
+        onPip = if (running && pipAvailable) { { pipActivity?.enterPip(); poke() } } else null,
     )
 
     val alarmBanner: (@Composable (Modifier) -> Unit)? = activeAlarm?.let { kind ->

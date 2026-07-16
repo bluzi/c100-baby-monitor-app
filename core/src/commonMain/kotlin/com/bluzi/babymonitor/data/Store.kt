@@ -102,11 +102,6 @@ data class Settings(
     val feedAlarmVolume: Double = 0.85,
     val cryAlarmVibrate: Boolean = true,
     val feedAlarmVibrate: Boolean = true,
-    // BG-19: whether the picture floats in a system picture-in-picture window when the parent leaves
-    // the app (BG-18). On by default; turning it off just backgrounds the app normally — the audio,
-    // the alarm and the watchdog are unaffected either way. Mobile only (the desktops have their own
-    // always-on mini window), so only the phone shells read it.
-    val pipEnabled: Boolean = true,
 ) {
     fun toJson(): String = JSONObject()
         .put("muted", muted)
@@ -123,7 +118,6 @@ data class Settings(
         .put("feedAlarmVolume", feedAlarmVolume)
         .put("cryAlarmVibrate", cryAlarmVibrate)
         .put("feedAlarmVibrate", feedAlarmVibrate)
-        .put("pipEnabled", pipEnabled)
         .toString()
 
     companion object {
@@ -190,7 +184,6 @@ data class Settings(
                         .coerceIn(VOLUME_MIN, VOLUME_MAX),
                     cryAlarmVibrate = v.optBoolean("cryAlarmVibrate", legacyVibrate),
                     feedAlarmVibrate = v.optBoolean("feedAlarmVibrate", legacyVibrate),
-                    pipEnabled = v.optBoolean("pipEnabled", true),
                 )
             } catch (_: Exception) {
                 Settings()

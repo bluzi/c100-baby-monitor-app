@@ -85,23 +85,16 @@ answer as one — `[desktop]` — because a desktop is a desktop; two phones ans
   never means hunting for it. A locked phone must be unlocked to see the picture; the app never
   suggests otherwise.
 - **BG-18** `[mobile]` `[device]` A phone *can* answer "see the baby while doing something else" the
-  way a desktop's mini window does (BG-17): when the parent switches away from a running feed, the
-  live video continues in the system's **picture-in-picture** window, floating over their other apps,
-  and returning to the app brings it back inline. The floating window is the picture alone — it
-  carries no controls, because a PiP window is a few centimetres of glass. This holds **where the OS
-  supports it**; a device that does not simply keeps monitoring in the background as always, with the
-  audio, the alarm and the watchdog untouched (BG-1/4) — a floating picture is a convenience, and its
-  absence is never a gap in the watch.
-- **BG-19** `[mobile]` `[device]` The floating picture (BG-18) can be turned off. It is **on by
-  default**; a switch in settings turns it off, and then leaving the app just backgrounds it like
-  anything else — the audio, the alarm and the watchdog carry on exactly as they do with it on
-  (BG-1/3). The switch is the only thing it changes; where the OS has no picture-in-picture there is
-  nothing for it to affect. (The desktops have no such switch: their mini window is a different,
-  always-available thing — BG-17.)
-- **BG-20** `[mobile]` `[device]` When picture-in-picture cannot happen — the OS has none, or the
-  parent has turned it off for the app in the phone's system settings — the switch (BG-19) is **off
-  and disabled**, and the app says which of the two it is rather than offering a control that would
-  silently do nothing. Where the fix is a system setting, the app points at it.
+  way a desktop's mini window does (BG-17): the viewer offers a **button** that floats the live video
+  into the system's **picture-in-picture** window, over the parent's other apps, and tapping the
+  floating window brings it back inline. It floats **only when asked** — leaving the app does not
+  float it on its own, because a monitor that surprises a parent with a floating window they did not
+  ask for (and that some phones honour unreliably) is worse than one they summon deliberately. The
+  floating window is the picture alone — no controls, because a PiP window is a few centimetres of
+  glass. The button appears only **where the OS supports it and the parent has allowed it**; where it
+  cannot float — no PiP, or the app-level permission turned off — the button is simply absent, and
+  the audio, the alarm and the watchdog are untouched regardless (BG-1/4). A floating picture is a
+  convenience summoned on demand; its absence is never a gap in the watch.
 
 ## The OS suspending the monitor overnight
 

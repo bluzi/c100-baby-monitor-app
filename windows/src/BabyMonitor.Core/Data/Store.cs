@@ -162,14 +162,6 @@ public sealed record Settings
 
     public bool FeedAlarmVibrate { get; init; } = true;
 
-    /// <summary>
-    /// BG-19: whether the picture floats in a system picture-in-picture window when the parent leaves
-    /// the app (BG-18). On by default. Mobile only — the desktops have their own always-on mini window,
-    /// so the Windows shell never reads this; it is carried here only to keep this record a faithful
-    /// mirror of the Kotlin Settings.
-    /// </summary>
-    public bool PipEnabled { get; init; } = true;
-
     public string ToJson() => new JsonObj()
         .Put("muted", Muted)
         .Put("alarmEnabled", AlarmEnabled)
@@ -185,7 +177,6 @@ public sealed record Settings
         .Put("feedAlarmVolume", FeedAlarmVolume)
         .Put("cryAlarmVibrate", CryAlarmVibrate)
         .Put("feedAlarmVibrate", FeedAlarmVibrate)
-        .Put("pipEnabled", PipEnabled)
         .ToString();
 
     public static Settings FromJson(string? json)
@@ -226,7 +217,6 @@ public sealed record Settings
                 FeedAlarmVolume = Math.Clamp(v.OptDouble("feedAlarmVolume", legacyVolume), VolumeMin, VolumeMax),
                 CryAlarmVibrate = v.OptBoolean("cryAlarmVibrate", legacyVibrate),
                 FeedAlarmVibrate = v.OptBoolean("feedAlarmVibrate", legacyVibrate),
-                PipEnabled = v.OptBoolean("pipEnabled", true),
             };
         }
         catch (JsonException)

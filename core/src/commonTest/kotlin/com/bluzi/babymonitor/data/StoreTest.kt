@@ -219,13 +219,6 @@ class StoreTest {
     }
 
     @Test
-    fun `BG-19 picture-in-picture defaults on and the switch persists`() {
-        assertEquals(true, store.loadSettings().pipEnabled) // on by default
-        store.saveSettings(store.loadSettings().copy(pipEnabled = false))
-        assertEquals(false, AppStore(kv, MarkingSecretBox()).loadSettings().pipEnabled)
-    }
-
-    @Test
     fun `ALRM-4+6 a stored alarm volume of zero is floored — a silent alarm is not an alarm`() {
         kv.put("settings_v1", """{"cryAlarmVolume":0.0,"feedAlarmVolume":0.0}""")
         assertEquals(Settings.VOLUME_MIN, store.loadSettings().cryAlarmVolume, 1e-9)

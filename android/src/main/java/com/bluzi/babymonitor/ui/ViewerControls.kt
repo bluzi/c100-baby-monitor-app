@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
@@ -73,6 +74,7 @@ fun viewerActions(
     onNightVision: () -> Unit,
     onSettings: () -> Unit,
     onStop: () -> Unit,
+    onPip: (() -> Unit)? = null,
 ): List<ViewerAction> = viewerActionKinds(running, status).map { kind ->
     when (kind) {
         ViewerActionKind.Resume -> ViewerAction(Icons.Filled.PlayArrow, "Resume", onClick = onResume)
@@ -93,7 +95,12 @@ fun viewerActions(
     }
     // LIVE-9: switching camera, signing out, and About are rare — they live in the top-right
     // menu (OverlayMenu), keeping the button row down to what a night actually needs.
-}
+} + listOfNotNull(
+    // BG-18: picture-in-picture is mobile-only (the desktop floats via its mini window, BG-17), so it
+    // is appended here rather than in core's shared control set. The caller decides when it is usable —
+    // a live feed on an OS that will float it.
+    onPip?.let { ViewerAction(Icons.Filled.PictureInPictureAlt, "Picture-in-picture", onClick = it) },
+)
 
 /** LIVE-9: the less-used actions behind a top-right menu instead of always-visible buttons. */
 @Composable

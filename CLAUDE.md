@@ -396,10 +396,14 @@ Inherited from the c100 project:
 
 From this repo:
 
-- **GitHub release assets on a private repo redirect to S3, and S3 rejects the request if our
-  `Authorization` header comes with it** ("Only one auth mechanism allowed"). The updater must
-  **strip `Authorization` on a cross-host redirect** — in `URLSession` that means implementing
-  `willPerformHTTPRedirection` and returning a request with the header removed.
+- **The repository is public, and the updater sends no credential — on purpose.** Every device
+  updates itself out of the box with nothing to set up (UPD spec). A release asset still answers with
+  a 302 to GitHub's CDN, but with no `Authorization` header to forward there is nothing to strip, so
+  both shells just follow the redirect (`URLSession` does it for free; the C# side follows manually
+  only to give each hop its own inactivity timeout). **Do not re-add an `Authorization` header to the
+  updater**: the moment it carries a bearer token across the CDN redirect, the CDN rejects the request
+  outright ("Only one auth mechanism allowed") — which is the bug the private-repo version had to work
+  around, and which going public removed.
 - **The macOS SDK is part of what ships, not a property of the build machine.** A Mac app adopts the
   system's current design system only if it was **compiled against the current SDK**. Build it on an
   older one and it compiles, runs, and comes out wearing the previous decade's look on a brand-new

@@ -14,8 +14,6 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var state: AppState
     @State private var settings: [String: Any] = [:]
-    @State private var token = ""
-    @State private var hasToken = false
 
     var body: some View {
         Form {
@@ -31,9 +29,6 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             settings = state.settings
-            // The visual harness never reads a real Keychain — a preview run must not be able to
-            // put a password prompt on a parent's screen.
-            hasToken = Preview.active ? false : UpdaterToken.load() != nil
         }
     }
 
@@ -179,45 +174,21 @@ struct SettingsView: View {
 
     private var updates: some View {
         Section {
+            Toggle("Check for updates automatically", isOn: $state.autoUpdatesEnabled)
+
             LabeledContent("Status") {
                 Text(updateStatusText)
                     .foregroundStyle(updateStatusColor)
             }
 
-            if hasToken {
-                HStack {
-                    Text("GitHub token stored in your Keychain")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Check Now") { NSApp.sendAction(#selector(AppDelegate.checkForUpdatesNow(_:)), to: nil, from: nil) }
-                    Button("Remove") {
-                        UpdaterToken.clear()
-                        hasToken = false
-                        state.updateStatus = .idle
-                        Log.warn("update", "update token removed — the app will no longer update itself")
-                    }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    SecureField("github_pat_…", text: $token)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Save Token") {
-                        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        UpdaterToken.save(trimmed)
-                        token = ""
-                        hasToken = true
-                        Log.info("update", "update token stored — checking now")
-                        NSApp.sendAction(#selector(AppDelegate.checkForUpdatesNow(_:)), to: nil, from: nil)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+            HStack {
+                Spacer()
+                Button("Check Now") { NSApp.sendAction(#selector(AppDelegate.checkForUpdatesNow(_:)), to: nil, from: nil) }
             }
         } header: {
             Text("Updates")
         } footer: {
-            Text("Baby Monitor updates itself from its private repository, which needs a fine-grained GitHub token with read-only access to Contents. It checks once, at launch, and never while it is running — an update arriving at 3am is a risk with no upside. What it finds is verified and installed on disk without touching the running monitor, and then it asks once whether to restart into it. It never restarts itself.")
+            Text("Baby Monitor updates itself, with nothing to set up. It checks once, at launch, and never while it is running — an update arriving at 3am is a risk with no upside. What it finds is verified and installed on disk without touching the running monitor, and then it asks once whether to restart into it. It never restarts itself. Turn the automatic check off and you can still check by hand.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -225,7 +196,7 @@ struct SettingsView: View {
 
     private var updateStatusText: String {
         switch state.updateStatus {
-        case .idle: return hasToken ? "Up to date (\(AppDelegate.version))" : "Not set up"
+        case .idle: return state.autoUpdatesEnabled ? "Up to date (\(AppDelegate.version))" : "Automatic updates are off"
         case .checking: return "Checking…"
         case let .installed(version): return "\(version) installed — runs at the next launch"
         case let .failing(reason): return reason

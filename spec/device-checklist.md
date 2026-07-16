@@ -423,9 +423,18 @@ D10c. **The update does not ask for anything (AUTH-12):** the steps above must c
       answer it, would be a monitor that failed exactly when it mattered. This is the single most
       important step on this list.
 
-D11. **A dead updater says so (UPD-4, UPD-8):** revoke the token the updater uses. At the next launch
-     check the app reports that it can no longer check for updates. Monitoring is completely
-     unaffected. Restore the token — the complaint clears.
+D10d. **Automatic updates can be turned off (UPD-11):** in Settings, switch **off** "Check for updates
+      automatically". Quit and reopen with a newer release published: the app comes up on the **old**
+      version and stages nothing — no launch check ran. Now choose "Check for updates…" by hand
+      (UPD-9): it still finds, verifies and offers the update exactly as in D10. Turn the setting back
+      **on**: the next launch checks again on its own. (The setting persists across relaunches, and
+      exists only on the desktops — the phones have no such control.)
+
+D11. **A dead updater says so (UPD-4, UPD-8):** block `api.github.com` at launch (e.g. add a
+     `127.0.0.1 api.github.com` line to the hosts file — the monitor itself talks to Xiaomi, not
+     GitHub, so this touches only the updater). At the next launch check the app reports that it can no
+     longer check for updates. Monitoring is completely unaffected. Remove the block — the complaint
+     clears.
 
 D12. **`[windows]` No H.265 decoder (DESK-22):** on a PC **without** the HEVC Video Extensions
      installed (or with them removed), open the live feed. The app says in plain words that Windows

@@ -102,7 +102,10 @@ one tag per subsystem:
 - **DPAPI keys on the user, not the binary.** That is the whole reason it is used here: an update
   replaces every byte of the app and the stored session still opens, with no prompt (AUTH-12). The
   Mac had to work for that; Windows gives it away.
-- **A private repo's release asset is a 302 to S3**, and S3 rejects the request if our `Authorization`
-  header follows it ("Only one auth mechanism allowed"). The updater strips the header across hosts.
+- **The repo is public, so the updater sends no credential** — updates work out of the box. A release
+  asset is still a 302 to GitHub's CDN, but with no `Authorization` header to forward there is nothing
+  to strip; the manual redirect-follow is kept only so each hop gets its own inactivity timeout. Do
+  not re-add a bearer token: the CDN rejects a request that carries one across the redirect ("Only one
+  auth mechanism allowed").
 - **Windows will not let a running program overwrite itself.** So the swap is done *by the new
   version*: the old one starts it with `--apply-update`, and exits.

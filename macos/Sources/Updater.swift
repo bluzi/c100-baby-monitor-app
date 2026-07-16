@@ -3,15 +3,16 @@ import CryptoKit
 import Foundation
 
 /// The self-updater (spec/features/updates.spec.md). It works the way Obtainium does on the phone:
-/// a fine-grained, read-only GitHub token in the Keychain, the REST API, and the release assets.
+/// the public repository's REST API and its release assets — no credential, nothing to set up.
 ///
 /// **UPD-5 is the reason this is ours and not Sparkle's.** Sparkle's whole model is "download and
 /// relaunch". A baby monitor that relaunches itself at 3am is precisely the failure this project
 /// exists to prevent. So this downloads, verifies, and then *waits*: the update is applied when
 /// monitoring is stopped, or at the next launch. Never mid-session, and never on its own initiative.
 ///
-/// **UPD-4:** a token expires, and an app that has silently stopped updating looks exactly like an
-/// app that is up to date — for months. So repeated failures are reported, not swallowed.
+/// **UPD-4:** a check can fail — GitHub unreachable, an API error, a download that will not verify —
+/// and an app that has silently stopped updating looks exactly like one that is up to date, for
+/// months. So repeated failures are reported, not swallowed.
 actor Updater {
     struct Release {
         let version: String
@@ -20,7 +21,6 @@ actor Updater {
     }
 
     enum UpdaterError: LocalizedError {
-        case noToken
         case http(Int)
         case noAsset
         case checksumMismatch
@@ -28,12 +28,8 @@ actor Updater {
 
         var errorDescription: String? {
             switch self {
-            case .noToken:
-                return "No GitHub token — the app cannot check for updates."
             case let .http(code):
-                return code == 401 || code == 403
-                    ? "GitHub rejected the token — it may have expired."
-                    : "GitHub returned \(code)."
+                return "GitHub returned \(code)."
             case .noAsset:
                 return "The latest release has no macOS build."
             case .checksumMismatch:
@@ -56,25 +52,19 @@ actor Updater {
         self.currentVersion = currentVersion
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 30
-        session = URLSession(
-            configuration: config,
-            delegate: RedirectAuthStripper(),
-            delegateQueue: nil
-        )
+        session = URLSession(configuration: config)
     }
 
     /// One check. Returns the staged version when a newer one is ready to install, nil when we are
     /// already current. Throws when the check itself failed — the caller counts those (UPD-4).
     func check() async throws -> String? {
-        guard let token = UpdaterToken.load() else { throw UpdaterError.noToken }
-
         do {
-            let release = try await latestRelease(token: token)
+            let release = try await latestRelease()
             guard isNewer(release.version, than: currentVersion) else {
                 consecutiveFailures = 0
                 return nil
             }
-            let bundle = try await download(release: release, token: token)
+            let bundle = try await download(release: release)
             staged = (release.version, bundle)
             consecutiveFailures = 0
             return release.version
@@ -97,11 +87,10 @@ actor Updater {
     /// the updater is broken and it must not be reported as one (UPD-4 exists to catch real
     /// failures, and an updater that cries wolf is one nobody reads). It means the Mac is already
     /// current, and we should keep looking back for the last release that was ours.
-    private func latestRelease(token: String) async throws -> Release {
+    private func latestRelease() async throws -> Release {
         var request = URLRequest(
             url: URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=30")!
         )
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
 
@@ -137,7 +126,7 @@ actor Updater {
         else {
             throw UpdaterError.badChecksumFile
         }
-        let sumsData = try await downloadAsset(id: sumsID, token: token)
+        let sumsData = try await downloadAsset(id: sumsID)
         guard let text = String(data: sumsData, encoding: .utf8),
               let line = text.split(separator: "\n").first(where: { $0.contains("-macos.zip") }),
               let sha = line.split(separator: " ").first
@@ -148,8 +137,8 @@ actor Updater {
         return Release(version: version, assetID: assetID, sha256: String(sha))
     }
 
-    private func download(release: Release, token: String) async throws -> URL {
-        let data = try await downloadAsset(id: release.assetID, token: token)
+    private func download(release: Release) async throws -> URL {
+        let data = try await downloadAsset(id: release.assetID)
 
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         guard digest == release.sha256.lowercased() else {
@@ -186,13 +175,13 @@ actor Updater {
         return app
     }
 
-    private func downloadAsset(id: Int, token: String) async throws -> Data {
-        // The asset endpoint with Accept: octet-stream. GitHub answers 200 with the bytes, or 302
-        // to S3 — see RedirectAuthStripper for why that redirect is the interesting part.
+    private func downloadAsset(id: Int) async throws -> Data {
+        // The asset endpoint with Accept: octet-stream. GitHub answers 200 with the bytes, or 302 to
+        // its CDN — which, on a public repo with no Authorization header to forward, URLSession simply
+        // follows for us.
         var request = URLRequest(
             url: URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases/assets/\(id)")!
         )
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
 
         let (data, response) = try await session.data(for: request)
@@ -221,33 +210,6 @@ actor Updater {
             if x != y { return x > y }
         }
         return false
-    }
-}
-
-/// **The gotcha that costs an afternoon.**
-///
-/// A private repo's release asset has no public URL: the API answers with a 302 to S3. If our
-/// `Authorization` header follows the redirect, S3 rejects the request outright — "Only one auth
-/// mechanism allowed" — because it is already authenticated by the signature in the redirect URL.
-///
-/// URLSession forwards headers across redirects by default. So: strip `Authorization` whenever the
-/// host changes.
-private final class RedirectAuthStripper: NSObject, URLSessionTaskDelegate {
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest,
-        completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        let originalHost = task.originalRequest?.url?.host
-        guard request.url?.host != originalHost else {
-            completionHandler(request) // same host — the header is still ours to send
-            return
-        }
-        var stripped = request
-        stripped.setValue(nil, forHTTPHeaderField: "Authorization")
-        completionHandler(stripped)
     }
 }
 

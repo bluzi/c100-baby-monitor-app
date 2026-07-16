@@ -144,30 +144,20 @@
                 </Border>
             </StackPanel>
 
-            <!-- ===== Updates (UPD-3/4/5) ===== -->
+            <!-- ===== Updates (UPD-3/4/5/11) ===== -->
             <StackPanel Spacing="8">
                 <TextBlock Text="Updates" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <Border Background="#12FFFFFF" CornerRadius="8" Padding="16" BorderThickness="1"
                         BorderBrush="#1AFFFFFF">
                     <StackPanel Spacing="14">
+                        <ToggleSwitch x:Name="AutoUpdateToggle" Header="Check for updates automatically"
+                                      OnContent="On" OffContent="Off" Toggled="OnAutoUpdateToggled" />
+
                         <TextBlock x:Name="UpdateStatusText" />
-
-                        <StackPanel x:Name="TokenGroup" Spacing="8">
-                            <PasswordBox x:Name="TokenBox" Header="GitHub token" PlaceholderText="github_pat_…" />
-                            <Button Content="Save token" Style="{StaticResource AccentButtonStyle}"
-                                    Click="OnSaveToken" HorizontalAlignment="Left" />
-                        </StackPanel>
-
-                        <StackPanel x:Name="TokenStored" Orientation="Horizontal" Spacing="8"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="A token is stored for this Windows user."
-                                       Foreground="#8CFFFFFF" VerticalAlignment="Center" />
-                            <Button Content="Remove" Click="OnRemoveToken" />
-                        </StackPanel>
 
                         <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="#8CFFFFFF"
                                    TextWrapping="Wrap"
-                                   Text="Baby Monitor updates itself from its private repository, which needs a fine-grained GitHub token with read-only access to Contents. Updates are downloaded and verified in the background and installed only while monitoring is stopped — the app will never restart itself while it is watching the baby." />
+                                   Text="Baby Monitor updates itself, with nothing to set up. It checks once, at launch, and never while it is running. Updates are downloaded and verified in the background and installed only while monitoring is stopped — the app will never restart itself while it is watching the baby. Turn the automatic check off and you can still check by hand." />
                     </StackPanel>
                 </Border>
             </StackPanel>

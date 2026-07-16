@@ -28,8 +28,8 @@ public sealed record UpdateStatus(UpdateState State, string? Version = null, str
 }
 
 /// <summary>
-/// The self-updater (spec/features/updates.spec.md). It works the way the Mac's does: a fine-grained,
-/// read-only GitHub token, the REST API, and the release assets.
+/// The self-updater (spec/features/updates.spec.md). It works the way the Mac's does: the public
+/// repository's REST API and its release assets — no credential, nothing to set up.
 ///
 /// The *decisions* — which asset is ours, which line of the checksum file to read, which version is
 /// newer — and everything that touches the disk live in <see cref="BabyMonitor.Core.Update"/>, where
@@ -39,8 +39,9 @@ public sealed record UpdateStatus(UpdateState State, string? Version = null, str
 /// **UPD-5 is the whole design.** It downloads, verifies, and then *waits*: the update is applied when
 /// monitoring is stopped, or at the next launch. Never mid-session, and never on its own initiative.
 ///
-/// **UPD-4:** a token expires, and an app that has silently stopped updating looks exactly like an app
-/// that is up to date — for months. So a failed check is reported, not swallowed.
+/// **UPD-4:** a check can fail — GitHub unreachable, an API error, a download that will not verify —
+/// and an app that has silently stopped updating looks exactly like one that is up to date, for
+/// months. So a failed check is reported, not swallowed.
 /// </summary>
 public sealed class Updater : IDisposable
 {
@@ -55,9 +56,9 @@ public sealed class Updater : IDisposable
     {
         _currentVersion = currentVersion;
 
-        // The gotcha that costs an afternoon: a private repo's release asset is a 302 to S3, and S3
-        // rejects the request outright ("Only one auth mechanism allowed") if our Authorization header
-        // follows the redirect. So we follow redirects ourselves and strip the header across hosts.
+        // A release asset is a 302 to GitHub's CDN. We follow redirects ourselves (AllowAutoRedirect
+        // is off) so each hop gets its own inactivity budget below — and on a public repo there is no
+        // credential to carry across hosts in the first place.
         //
         // No total Timeout: HttpClient.Timeout bounds the *whole* operation, download included, so a
         // five-minute cap would fail a large update on a slow line — and then fail it again at every
@@ -83,14 +84,6 @@ public sealed class Updater : IDisposable
     /// </summary>
     public async Task<string?> CheckAsync(CancellationToken ct = default)
     {
-        var token = UpdaterToken.Load();
-        if (token == null)
-        {
-            // Not a failure — updates simply have not been set up yet, and settings say so. UPD-4 is
-            // about an updater that HAS been set up and has quietly stopped working.
-            throw new NoTokenException();
-        }
-
         if (!UpdateRules.CanCheck(_currentVersion))
         {
             // A dev build (0.0.0) is older than every release; checking would "find an update" every
@@ -98,13 +91,13 @@ public sealed class Updater : IDisposable
             return null;
         }
 
-        var release = await LatestReleaseAsync(token, ct).ConfigureAwait(false);
+        var release = await LatestReleaseAsync(ct).ConfigureAwait(false);
         if (release == null)
         {
             return null; // no release newer than us carries a Windows build: we are current
         }
 
-        var zip = await DownloadAssetAsync(release.AssetId, token, ct).ConfigureAwait(false);
+        var zip = await DownloadAssetAsync(release.AssetId, ct).ConfigureAwait(false);
         Staged = await Task.Run(() => _staging.Stage(zip, release.Version, release.Sha256), ct)
             .ConfigureAwait(false);
         return release.Version;
@@ -265,12 +258,11 @@ public sealed class Updater : IDisposable
     /// page count is not: thirty releases of other-platform work is a few weeks, and past that a
     /// count-limited scan would report a false failure and never look further.
     /// </summary>
-    private async Task<Release?> LatestReleaseAsync(string token, CancellationToken ct)
+    private async Task<Release?> LatestReleaseAsync(CancellationToken ct)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=50");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
 
@@ -327,7 +319,7 @@ public sealed class Updater : IDisposable
             }
 
             var sumsText = System.Text.Encoding.UTF8.GetString(
-                await DownloadAssetAsync(sums.GetProperty("id").GetInt64(), token, ct).ConfigureAwait(false));
+                await DownloadAssetAsync(sums.GetProperty("id").GetInt64(), ct).ConfigureAwait(false));
 
             var sha = UpdateRules.Sha256For(sumsText);
             if (sha == null)
@@ -344,22 +336,14 @@ public sealed class Updater : IDisposable
         return null;
     }
 
-    private async Task<byte[]> DownloadAssetAsync(long id, string token, CancellationToken ct)
+    private async Task<byte[]> DownloadAssetAsync(long id, CancellationToken ct)
     {
         var url = $"https://api.github.com/repos/{Owner}/{Repo}/releases/assets/{id}";
-        var host = new Uri(url).Host;
 
         for (var hop = 0; hop < 5; hop++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
-
-            // Only while we are still talking to GitHub. S3 authenticates by signature and rejects a
-            // request that also carries a bearer token.
-            if (new Uri(url).Host == host)
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            }
 
             using var response = await SendAsync(request, ct).ConfigureAwait(false);
 
@@ -465,15 +449,6 @@ public sealed class UpdaterException : Exception
 {
     public UpdaterException(string message)
         : base(message)
-    {
-    }
-}
-
-/// <summary>Updates are not set up yet. Not a failure, and never reported as one (UPD-4).</summary>
-public sealed class NoTokenException : Exception
-{
-    public NoTokenException()
-        : base("No GitHub token — the app cannot check for updates.")
     {
     }
 }

@@ -1391,6 +1391,15 @@ public sealed partial class MainWindow : Window
     {
         // A version put in place by an earlier run has already taken over by now — that happens in
         // Program.Main, before any of this exists (UPD-10). All that is left is to look for a new one.
+        //
+        // UPD-11: unless the parent has switched the automatic check off. A manual check (UPD-9) still
+        // works — this gate is only on the check the app runs on its own.
+        if (!_state.AutoUpdateEnabled)
+        {
+            Log.Info("update", "automatic updates are off — skipping the launch check");
+            return;
+        }
+
         _ = CheckForUpdateAsync(askedByUser: false);
     }
 
@@ -1412,18 +1421,6 @@ public sealed partial class MainWindow : Window
             }
 
             await OfferRestartAsync(version);
-        }
-        catch (NoTokenException)
-        {
-            // Not a failure — updates simply have not been set up yet, and settings say so. An updater
-            // that cried wolf on a fresh install is one nobody reads by the time it matters.
-            _state.UpdateStatus = UpdateStatus.Idle;
-            if (askedByUser)
-            {
-                await TellUserAsync(
-                    "Updates are not set up.",
-                    "Baby Monitor needs a GitHub token to read its private repository. Add one in Settings.");
-            }
         }
         catch (Exception e)
         {

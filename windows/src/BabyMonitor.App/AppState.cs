@@ -213,6 +213,17 @@ public sealed class AppState : INotifyPropertyChanged
         }
     }
 
+    /// <summary>UPD-11: the automatic launch check can be turned off; a manual check still works.</summary>
+    public bool AutoUpdateEnabled
+    {
+        get => Prefs.AutoUpdateEnabled;
+        set
+        {
+            Prefs.AutoUpdateEnabled = value;
+            Emit();
+        }
+    }
+
     public bool StartWithWindows => StartupRegistry.IsEnabled;
 
     public string? StartupError { get; private set; }
@@ -739,6 +750,17 @@ public static class Prefs
     {
         get => Store.Get("miniFade") != "false";
         set => Store.Put("miniFade", value ? "true" : "false");
+    }
+
+    /// <summary>
+    /// UPD-11: whether the app checks for updates on its own at launch. On by default — updating itself
+    /// is the whole point — but a parent can turn the automatic check off. A manual check still works
+    /// either way.
+    /// </summary>
+    public static bool AutoUpdateEnabled
+    {
+        get => Store.Get("autoUpdate") != "false";
+        set => Store.Put("autoUpdate", value ? "true" : "false");
     }
 
     public static double MiniIdleOpacity

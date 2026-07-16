@@ -133,7 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             case "uptodate": alert = Alerts.plain(title: "Baby Monitor is up to date.", body: "You are running \(Self.version).")
             default: alert = Alerts.plain(
                 title: "Could not check for updates.",
-                body: "GitHub rejected the token — it may have expired."
+                body: "GitHub could not be reached."
             )
             }
             alert.layout()
@@ -592,10 +592,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// So: once, at launch, when the parent is demonstrably at the Mac, because they just opened it.
     /// After that the only checks are the ones a human asks for (UPD-9).
     private func startUpdateChecks() {
-        // The visual harness must never reach for a Keychain item. Checking for an update reads the
-        // updater's GitHub token, and a throwaway build is not the binary that wrote it — so macOS
-        // stops and asks the person at the Mac for their login password.
+        // The visual harness must never touch the network or stage a real update — it is a throwaway
+        // build posing a UI state, not a running monitor.
         guard !Preview.active else { return }
+        // UPD-11: a parent can switch off the automatic launch check. A manual check (UPD-9) still
+        // works — this gate is only on the check the app runs on its own.
+        guard state.autoUpdatesEnabled else {
+            Log.info("update", "automatic updates are off — skipping the launch check")
+            return
+        }
         Task { [weak self] in await self?.checkForUpdate(askedByUser: false) }
     }
 
@@ -608,17 +613,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 return
             }
             try await installAndOfferRestart(version)
-        } catch Updater.UpdaterError.noToken {
-            // Not a failure — updates simply have not been set up yet, and settings say so. UPD-4
-            // is about an updater that HAS been set up and has quietly stopped working; an updater
-            // that cries wolf on a fresh install is one nobody reads by the time it matters.
-            state.updateStatus = .idle
-            if askedByUser {
-                tellUser(
-                    title: "Updates are not set up.",
-                    body: "Baby Monitor needs a GitHub token to read its private repository. Add one in Settings."
-                )
-            }
         } catch {
             // UPD-8: a failed check never touches monitoring. UPD-4: but it is not swallowed either.
             let failing = await updater.isFailingPersistently

@@ -1,8 +1,8 @@
 # Updates
 
 Every push to `main` is a release, and every device is expected to end up running it without anyone
-doing anything. That is the whole point: a baby monitor that needs to be manually updated is one
-that quietly runs last month's bugs.
+doing anything — no account, no credential, nothing to set up. That is the whole point: a baby
+monitor that needs to be manually updated is one that quietly runs last month's bugs.
 
 An updater is also the most dangerous thing in the app. It is the one component allowed to replace
 the running code, and the one component that could take the monitor down at the exact moment it is
@@ -33,6 +33,12 @@ needed. So the rules below are about restraint as much as delivery.
   it before morning.
 - **UPD-6** `[desktop]` `[device]` The running version is visible in the app (LIVE-15), so
   "did the update land?" is answerable at a glance.
+- **UPD-11** `[desktop]` `[device]` Updating automatically is the default, and it can be turned off.
+  A parent can switch off the automatic launch check (UPD-3) in settings; while it is off, the app
+  checks for, downloads and stages nothing on its own. It still updates when asked — a manual check
+  (UPD-9) works exactly as before — so turning the automatic check off silences it without giving up
+  the ability to update. (There is no such control on the phones: Android's updates are Obtainium's
+  and iOS's are the App Store's, and the app drives neither — UPD-2/UPD-2i.)
 
 ## Restraint
 
@@ -59,11 +65,10 @@ needed. So the rules below are about restraint as much as delivery.
 
 ## Saying so when it stops working
 
-- **UPD-4** `[desktop]` `[device]` The updater needs a credential to read the private
-  repository, and credentials expire. If a launch check fails — an expired or revoked token, a
-  repository that cannot be reached — **the app says so** (in settings, and in the menu bar's or the
-  tray's menu). It does not go quiet. An app that has silently stopped updating looks exactly like an
-  app that is up to date, and would keep looking that way for months.
+- **UPD-4** `[desktop]` `[device]` A launch check can still fail — GitHub cannot be reached, its API
+  returns an error, or a download will not verify. When one does, **the app says so** (in settings,
+  and in the menu bar's or the tray's menu). It does not go quiet. An app that has silently stopped
+  updating looks exactly like an app that is up to date, and would keep looking that way for months.
 - **UPD-9** `[desktop]` `[device]` A check can always be asked for by hand — from the menu
   bar's or the tray's menu, and from the live feed's menu — so a parent who wants to know is never
   made to relaunch the app to find out. A manual check behaves exactly like the launch check: verify,

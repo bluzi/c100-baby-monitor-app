@@ -6,7 +6,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using WinRT.Interop;
-using Log = BabyMonitor.App.Services.Logging.Log;
 
 namespace BabyMonitor.App;
 
@@ -95,9 +94,7 @@ public sealed partial class SettingsWindow : Window
             StartupError.IsOpen = _state.StartupError != null;
             StartupError.Message = _state.StartupError ?? string.Empty;
 
-            var hasToken = UpdaterToken.Load() != null;
-            TokenGroup.Visibility = hasToken ? Visibility.Collapsed : Visibility.Visible;
-            TokenStored.Visibility = hasToken ? Visibility.Visible : Visibility.Collapsed;
+            AutoUpdateToggle.IsOn = _state.AutoUpdateEnabled;
             UpdateStatusText.Text = _state.UpdateStatus.State switch
             {
                 UpdateState.Checking => "Checking…",
@@ -107,7 +104,9 @@ public sealed partial class SettingsWindow : Window
                     $"{_state.UpdateStatus.Version} is installed — it runs at the next launch " +
                     $"(you are running {_state.Version})",
                 UpdateState.Failing => _state.UpdateStatus.Reason ?? "Update checks are failing",
-                _ => hasToken ? $"Up to date ({_state.Version})" : "Not set up",
+                // UPD-11: with the automatic check off, we did not check at launch — do not claim to be
+                // up to date. The version is on the About line either way (UPD-6).
+                _ => _state.AutoUpdateEnabled ? $"Up to date ({_state.Version})" : "Automatic updates are off",
             };
         }
         finally
@@ -234,25 +233,13 @@ public sealed partial class SettingsWindow : Window
 
     // --- updates ---------------------------------------------------------------
 
-    private void OnSaveToken(object sender, RoutedEventArgs e)
+    private void OnAutoUpdateToggled(object sender, RoutedEventArgs e)
     {
-        var token = TokenBox.Password.Trim();
-        if (token.Length == 0)
+        if (!_loading)
         {
-            return;
+            _state.AutoUpdateEnabled = AutoUpdateToggle.IsOn;
+            Load(); // reflect the change in the status line straight away
         }
-
-        UpdaterToken.Save(token);
-        TokenBox.Password = string.Empty;
-        Log.Info("update", "update token stored");
-        Load();
-    }
-
-    private void OnRemoveToken(object sender, RoutedEventArgs e)
-    {
-        UpdaterToken.Clear();
-        Log.Warn("update", "update token removed — the app will no longer update itself");
-        Load();
     }
 
     [DllImport("user32.dll")]

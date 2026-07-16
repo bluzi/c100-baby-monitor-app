@@ -140,6 +140,14 @@ enum Prefs {
         set { write(newValue, "shell.miniFade") }
     }
 
+    /// UPD-11: whether the app checks for updates on its own at launch. On by default — updating
+    /// itself is the whole point — but a parent can turn the automatic check off. A manual check still
+    /// works either way.
+    static var autoUpdatesEnabled: Bool {
+        get { defaults.object(forKey: "shell.autoUpdates") as? Bool ?? true }
+        set { write(newValue, "shell.autoUpdates") }
+    }
+
     static var miniIdleOpacity: Double {
         get {
             let stored = defaults.object(forKey: "shell.miniOpacity") as? Double
@@ -242,6 +250,10 @@ final class AppState: ObservableObject {
     /// DESK-8: the window watches this and snaps the tile to the chosen corner when it changes.
     @Published var miniCorner = Prefs.miniCorner {
         didSet { Prefs.miniCorner = miniCorner }
+    }
+
+    @Published var autoUpdatesEnabled = Prefs.autoUpdatesEnabled {
+        didSet { Prefs.autoUpdatesEnabled = autoUpdatesEnabled }
     }
 
     var shape: WindowShape {

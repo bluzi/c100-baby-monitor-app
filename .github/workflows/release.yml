@@ -147,8 +147,8 @@ jobs:
     # macos-26 carries SDK 26.5, which is what the app is developed against, so what ships is what
     # was designed. build.sh refuses to build on anything older rather than ship the old look.
     runs-on: macos-26
-    # A macOS runner bills at 10x on a private repo. A build takes minutes; anything approaching
-    # this cap means something is hung, and a hung job must not quietly cost a fortune.
+    # A build takes minutes; anything approaching this cap means something is hung, and a hung job
+    # should be cut loose rather than left running for hours.
     timeout-minutes: 45
     env:
       # The `secrets` context cannot be read from a step's `if`, so notarisation's "do we have
@@ -206,8 +206,8 @@ jobs:
       #    Open. The app's own updates are downloaded by the app, never quarantined, and never
       #    inspected — so the self-updating path, the one that matters at 3am, does not need this.
       #  - Apple's queue is Apple's queue. It is usually a minute; it has sat for half an hour. A
-      #    macOS runner bills at 10x on a private repo, so waiting it out would cost more per
-      #    release than the notarisation is worth, and a release must never be held hostage to it.
+      #    release must never be held hostage to it, and the notarisation is not worth blocking a
+      #    build on for that long.
       #
       # So: give it 15 minutes, and if Apple has not answered, ship anyway. The only consequence is
       # a right-click on a fresh install.

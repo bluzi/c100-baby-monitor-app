@@ -92,6 +92,12 @@ answer as one — `[desktop]` — because a desktop is a desktop; two phones ans
   supports it**; a device that does not simply keeps monitoring in the background as always, with the
   audio, the alarm and the watchdog untouched (BG-1/4) — a floating picture is a convenience, and its
   absence is never a gap in the watch.
+- **BG-19** `[mobile]` `[device]` The floating picture (BG-18) can be turned off. It is **on by
+  default**; a switch in settings turns it off, and then leaving the app just backgrounds it like
+  anything else — the audio, the alarm and the watchdog carry on exactly as they do with it on
+  (BG-1/3). The switch is the only thing it changes; where the OS has no picture-in-picture there is
+  nothing for it to affect. (The desktops have no such switch: their mini window is a different,
+  always-available thing — BG-17.)
 
 ## The OS suspending the monitor overnight
 

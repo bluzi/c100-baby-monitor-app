@@ -85,6 +85,11 @@ platform can do less than another.
     **On Android, test this with the phone on gesture navigation** (the modern default), not just
     three-button — the swipe-up-home path relies on the OS auto-entering PiP, and it is the one that
     silently breaks while three-button Home still works.
+
+12c. **(Both phones) Picture-in-picture can be turned off (BG-19):** it is **on by default**. In
+    settings, turn "keep the video floating when you leave the app" off, then leave the app on a live
+    feed — it now just backgrounds like any other app, **no floating window**, and the audio and the
+    crying alarm keep running throughout. Turn it back on and repeat 12b — the window floats again.
 13. **(Android) Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,
     then trigger the noise alarm — it is still audible, and the volume is put back where the user
     had it after acknowledging. Repeat, but force-stop the app while it rings: on next launch the

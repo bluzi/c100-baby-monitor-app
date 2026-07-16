@@ -138,12 +138,13 @@ fun ViewerScreen(
     }
 
     // BG-18: keep the baby visible in a picture-in-picture window when the parent switches away from a
-    // running feed. `pipReady` gates it on the feed actually running, so switching away from a
-    // connecting/empty viewer does not float a black tile; the activity does the OS check and never
-    // floats where PiP is unsupported. In PiP the chrome is dropped — the window is too small for it.
+    // running feed. `pipReady` gates it on the feed actually running (so switching away from a
+    // connecting/empty viewer does not float a black tile) AND on the parent leaving it on (BG-19);
+    // the activity does the OS check and never floats where PiP is unsupported. In PiP the chrome is
+    // dropped — the window is too small for it.
     val pipActivity = remember(context) { context.findActivity() as? MainActivity }
-    DisposableEffect(pipActivity, running) {
-        pipActivity?.pipReady = running
+    DisposableEffect(pipActivity, running, settings.pipEnabled) {
+        pipActivity?.pipReady = running && settings.pipEnabled
         onDispose { pipActivity?.pipReady = false }
     }
     val inPip = pipActivity?.inPictureInPicture?.value ?: false

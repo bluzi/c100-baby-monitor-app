@@ -21,6 +21,12 @@ final class VideoLayerView: UIView {
     private var formatDescription: CMVideoFormatDescription?
     private var pipController: AVPictureInPictureController?
 
+    /// BG-19: whether the picture floats when the parent leaves the app. Toggling it only flips the
+    /// controller's auto-start — the audio, the alarm and the watchdog are unaffected either way.
+    var pipEnabled = true {
+        didSet { pipController?.canStartPictureInPictureAutomaticallyFromInline = pipEnabled }
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black
@@ -40,14 +46,20 @@ final class VideoLayerView: UIView {
     /// `canStartPictureInPictureAutomaticallyFromInline`, leaving the app while the feed plays hands the
     /// picture to a floating window; a device that does not support PiP simply never gets one.
     private func setUpPictureInPicture() {
-        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        guard AVPictureInPictureController.isPictureInPictureSupported() else {
+            // The iOS Simulator returns false here — Apple does not implement PiP there — so on the
+            // Simulator the floating window can never appear no matter the code. It works on a device.
+            Log.info("video", "picture-in-picture is not supported here (e.g. the Simulator) — no floating window")
+            return
+        }
         let source = AVPictureInPictureController.ContentSource(
             sampleBufferDisplayLayer: displayLayer,
             playbackDelegate: self
         )
         let controller = AVPictureInPictureController(contentSource: source)
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.canStartPictureInPictureAutomaticallyFromInline = pipEnabled // BG-19
         pipController = controller
+        Log.info("video", "picture-in-picture set up (BG-18); float-on-leave is \(pipEnabled ? "on" : "off")")
     }
 
     @available(*, unavailable)
@@ -250,8 +262,12 @@ final class VideoRendererBridge: NSObject, VideoRenderer {
 
 /// The picture as a SwiftUI view. Core pushes frames into the renderer; this owns the layer.
 struct VideoSurface: UIViewRepresentable {
+    /// BG-19: whether leaving the app floats the picture. The view applies it to the PiP controller.
+    let pipEnabled: Bool
+
     func makeUIView(context: Context) -> VideoLayerView {
         let view = VideoLayerView(frame: .zero)
+        view.pipEnabled = pipEnabled
         let bridge = VideoRendererBridge(view: view)
         context.coordinator.bridge = bridge
         AppleVideo.shared.renderer = bridge
@@ -259,7 +275,9 @@ struct VideoSurface: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: VideoLayerView, context: Context) {}
+    func updateUIView(_ view: VideoLayerView, context: Context) {
+        view.pipEnabled = pipEnabled // BG-19: reflect a settings change onto the live controller
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 

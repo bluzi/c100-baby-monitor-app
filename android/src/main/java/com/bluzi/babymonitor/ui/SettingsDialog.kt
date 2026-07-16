@@ -266,6 +266,21 @@ fun SettingsDialog(
                     onVibrate = { onChange(settings.copy(feedAlarmVibrate = it)) },
                     onPreview = onPreviewSound,
                 )
+
+                // --- Picture-in-picture (BG-18/19) --------------------------------
+                SectionLabel("Picture-in-picture")
+                ToggleRow(
+                    "Keep the video floating when you leave the app", // BG-19
+                    settings.pipEnabled,
+                ) {
+                    onChange(settings.copy(pipEnabled = it))
+                }
+                Text(
+                    "When you switch to another app, the live video stays in a small floating window. " +
+                        "Audio and the alarm keep working either way.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
     )

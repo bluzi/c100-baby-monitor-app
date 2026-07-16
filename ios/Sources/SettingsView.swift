@@ -18,6 +18,7 @@ struct SettingsView: View {
             Form {
                 cryingAlarm
                 watchdog
+                pictureInPicture
             }
             .scrollContentBackground(.hidden)
             .background(Color.black)
@@ -104,6 +105,18 @@ struct SettingsView: View {
                 Text("Outside these hours nothing triggers. A window may cross midnight (e.g. 19:00–07:00).")
                     .font(.caption2).foregroundStyle(.secondary)
             }
+        }
+    }
+
+    // MARK: - Picture-in-picture (BG-18/19)
+
+    private var pictureInPicture: some View {
+        Section {
+            Toggle("Keep the video floating when you leave the app", isOn: binding("pipEnabled", true))
+        } header: {
+            Text("Picture-in-picture")
+        } footer: {
+            Text("When you switch to another app, the live video stays in a small floating window. Audio and the crying alarm keep working either way.")
         }
     }
 

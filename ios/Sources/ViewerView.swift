@@ -69,7 +69,7 @@ struct ViewerView: View {
             if Preview.active {
                 Preview.backdrop
             } else {
-                VideoSurface()
+                VideoSurface(pipEnabled: state.settings["pipEnabled"] as? Bool ?? true) // BG-19
             }
         }
         .ignoresSafeArea()

@@ -82,6 +82,9 @@ platform can do less than another.
     back inline, uninterrupted, and the audio and the crying alarm never stopped throughout. On a
     device whose OS has no PiP, the app simply keeps monitoring in the background as before — no float,
     no gap in the watch.
+    **On Android, test this with the phone on gesture navigation** (the modern default), not just
+    three-button — the swipe-up-home path relies on the OS auto-entering PiP, and it is the one that
+    silently breaks while three-button Home still works.
 13. **(Android) Alarm audibility at zero volume (ALRM-10):** turn the phone's alarm volume all the way down,
     then trigger the noise alarm — it is still audible, and the volume is put back where the user
     had it after acknowledging. Repeat, but force-stop the app while it rings: on next launch the

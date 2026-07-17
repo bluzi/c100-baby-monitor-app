@@ -296,6 +296,18 @@ public sealed class AppState : INotifyPropertyChanged
 
     public void ToggleMute() => SaveSettings(Settings with { Muted = !Settings.Muted });
 
+    /// <summary>
+    /// LIVE-18: ask the camera for a different picture. The engine notices the change and reconnects —
+    /// the quality was chosen when the stream was asked for, so it has to be asked again.
+    /// </summary>
+    public void SetVideoQuality(string quality)
+    {
+        if (quality != Settings.VideoQuality)
+        {
+            SaveSettings(Settings with { VideoQuality = quality });
+        }
+    }
+
     public void SubmitCryFeedback(bool wasCry)
     {
         MonitorHub.SubmitCryFeedback(wasCry);

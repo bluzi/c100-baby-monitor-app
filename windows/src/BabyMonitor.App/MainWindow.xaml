@@ -294,6 +294,26 @@
                             </DropDownButton.Flyout>
                         </DropDownButton>
 
+                        <!-- LIVE-18: which picture to ask the camera for. Unlike night vision this is
+                             ours, not the camera's — and changing it reconnects the feed, which the
+                             menu says out loud rather than letting a parent discover it. -->
+                        <DropDownButton x:Name="QualityButton"
+                                        Background="Transparent" BorderThickness="0" CornerRadius="20"
+                                        ToolTipService.ToolTip="Picture quality">
+                            <TextBlock x:Name="QualityLabel" Text="HD" FontSize="12" FontWeight="SemiBold" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout Placement="Top">
+                                    <RadioMenuFlyoutItem x:Name="QualityHdItem" Text="HD — full picture"
+                                                         GroupName="qual" Click="OnQuality" />
+                                    <RadioMenuFlyoutItem x:Name="QualitySdItem" Text="SD — smaller, for a slow network"
+                                                         GroupName="qual" Click="OnQuality" />
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="QualityNote" IsEnabled="False"
+                                                    Text="Changing quality reconnects the feed" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+
                         <Rectangle Width="1" Height="20" Fill="#33FFFFFF" Margin="4,0" />
 
                         <Button Click="OnMakeMini"

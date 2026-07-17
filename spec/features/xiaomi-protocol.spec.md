@@ -91,8 +91,13 @@ generated from the proven implementation live in `app/src/test/resources/protoco
   is a response containing `"result":"success"`.
 - **PROTO-21** Control commands after auth are sent as command 0x1001 whose payload is
   ChaCha20-encoded `[big-endian u32 inner command][JSON body]`. Video start (0x102) body is
-  `{"videoquality":<q>,"enableaudio":<0|1>}` where q maps hd→2 (3 on C200/C300 models), sd→1,
-  auto→0; video stop is 0x103 with empty body.
+  `{"videoquality":<q>,"enableaudio":<0|1>}` where q maps **hd→3 on the camera models we have
+  measured** (C100, C200, C300) and 2 on any other, sd→1, auto→0; video stop is 0x103 with empty
+  body. The C100 was measured, on the wire: `3` is its full 2304×1296 picture, while `2` is
+  848×480 — the same size `sd` gives. Asking for "hd" and being handed the small picture is not a
+  quality trade-off, it is a lie in the only word the parent reads, so a model whose ladder we know
+  is asked for the picture it actually has. An unknown model keeps the conservative 2, because a
+  value the camera does not understand is worth less than a smaller picture that works.
 - **PROTO-22** Each reassembled channel-2 record is one media packet: 32-byte little-endian
   header — u32 payload size, u32 codec id, u32 sequence, u32 flags, u64 timestamp (ms) —
   followed by the ChaCha20-encrypted payload.

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using BabyMonitor.App.Services;
+using BabyMonitor.Core.Data;
 using BabyMonitor.Core.Monitor;
 using BabyMonitor.Core.Shell;
 using BabyMonitor.Core.Ui;
@@ -1025,6 +1026,13 @@ public sealed partial class MainWindow : Window
             : Visibility.Collapsed;
         FirewallWarningText.Text = DesktopShell.FirewallAdvice;
 
+        // LIVE-18: the control says which picture is being asked for, on the button itself — a menu you
+        // have to open to learn the current state is a state the parent does not know.
+        var sd = _state.Settings.VideoQuality == Settings.QualitySd;
+        QualityLabel.Text = sd ? "SD" : "HD";
+        QualitySdItem.IsChecked = sd;
+        QualityHdItem.IsChecked = !sd;
+
         // LIVE-14: the display stays awake while a window is showing a live feed — and only then.
         PowerRequests.HoldDisplay(AppWindow.IsVisible && _state.Status == Statuses.Live);
 
@@ -1097,6 +1105,10 @@ public sealed partial class MainWindow : Window
     private void OnExit(object sender, RoutedEventArgs e) => _ = ConfirmExitAsync();
 
     private void OnToggleMute(object sender, RoutedEventArgs e) => _state.ToggleMute();
+
+    /// <summary>LIVE-18: ask the camera for the other picture. The feed reconnects; the menu said so.</summary>
+    private void OnQuality(object sender, RoutedEventArgs e) =>
+        _state.SetVideoQuality(ReferenceEquals(sender, QualitySdItem) ? Settings.QualitySd : Settings.QualityHd);
 
     private void OnAcknowledge(object sender, RoutedEventArgs e) => _state.Acknowledge();
 

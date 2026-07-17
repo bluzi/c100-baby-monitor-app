@@ -17,20 +17,27 @@ public class MissTest
         Assert.Equal(0, json.GetInt("support_encrypt"));
     }
 
-    [Fact(DisplayName = "PROTO-21 quality maps hd to 2 for the C100 and 3 for the C200/C300")]
+    [Fact(DisplayName = "PROTO-21 hd asks a known model for the picture it actually has")]
     public void QualityMapping()
     {
-        Assert.Equal(
-            """{"videoquality":2,"enableaudio":1}""",
-            Miss.StartMediaBody("chuangmi.camera.077ac1", "hd", true));
+        // Measured on a real C100, on the wire: 3 is its full 2304x1296 picture and 2 is 848x480 — the
+        // same size sd gives. It asked for "hd" and was handed the small picture for years.
+        Assert.Equal("""{"videoquality":3,"enableaudio":1}""", Miss.StartMediaBody(Miss.ModelC100, "hd", true));
         Assert.Equal("""{"videoquality":3,"enableaudio":1}""", Miss.StartMediaBody(Miss.ModelC200, "hd", true));
         Assert.Equal("""{"videoquality":3,"enableaudio":1}""", Miss.StartMediaBody(Miss.ModelC300, "hd", true));
+
+        // A model whose ladder nobody has measured keeps the conservative 2: a smaller picture that
+        // works beats a number the camera may not understand at all.
+        Assert.Equal(
+            """{"videoquality":2,"enableaudio":1}""",
+            Miss.StartMediaBody("chuangmi.camera.whoknows", "hd", true));
+
         Assert.Equal(
             """{"videoquality":1,"enableaudio":0}""",
-            Miss.StartMediaBody("chuangmi.camera.077ac1", "sd", false));
+            Miss.StartMediaBody(Miss.ModelC100, "sd", false));
         Assert.Equal(
             """{"videoquality":0,"enableaudio":1}""",
-            Miss.StartMediaBody("chuangmi.camera.077ac1", "auto", true));
+            Miss.StartMediaBody(Miss.ModelC100, "auto", true));
     }
 
     [Fact(DisplayName = "PROTO-21 inner commands are BE u32 command plus body")]

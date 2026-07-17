@@ -86,3 +86,15 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   sets the mode on the camera. Because the mode lives on the camera, it is shared by everyone
   viewing it. A read or write that fails (camera offline, etc.) shows a readable error and leaves
   the displayed mode unchanged; the actual `[device]` infrared switch is the camera's.
+- **LIVE-18** `[windows]` The live feed has a **picture-quality control** offering two choices — **HD**,
+  the camera's full picture, and **SD**, a smaller one for a network that cannot carry it. The choice
+  is persisted and applies on the next launch. Unlike night vision (LIVE-10) this lives with the
+  viewer, not the camera: it is what *this* app asks for, so two people watching the same camera can
+  choose differently.
+
+  The quality is chosen when the stream is asked for, so changing it **reconnects the feed** — the
+  picture and sound stop for a second or two and come back at the new size. That is stated by the
+  control rather than discovered: a monitor that goes quiet unexpectedly, even briefly, is the thing
+  this app exists to prevent, and a parent who *chose* the interruption is not surprised by it. The
+  alarm and the watchdog are unaffected (the reconnect is a normal one, and WATCH-3's grace is far
+  longer than it takes).

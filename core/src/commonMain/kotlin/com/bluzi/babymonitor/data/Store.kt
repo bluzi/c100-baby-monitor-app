@@ -84,6 +84,11 @@ object Codecs {
 
 data class Settings(
     val muted: Boolean = false,
+    // LIVE-18: which picture this viewer asks the camera for. Unlike night vision (LIVE-10) it lives
+    // here rather than on the camera, because it is what *this* app requests — two people watching the
+    // same cot can choose differently. HD by default: the picture the camera has is the one to show
+    // unless someone says otherwise.
+    val videoQuality: String = QUALITY_HD,
     val alarmEnabled: Boolean = false,
     // ALRM-2: the one detection control — 1 (needs loud crying) .. 10 (quiet crying), middle default.
     val alarmSensitivity: Int = SENSITIVITY_DEFAULT,
@@ -105,6 +110,7 @@ data class Settings(
 ) {
     fun toJson(): String = JSONObject()
         .put("muted", muted)
+        .put("videoQuality", videoQuality)
         .put("alarmEnabled", alarmEnabled)
         .put("alarmSensitivity", alarmSensitivity)
         .put("alarmScheduleMode", alarmScheduleMode)
@@ -121,6 +127,10 @@ data class Settings(
         .toString()
 
     companion object {
+        // LIVE-18: the two pictures the camera offers. HD is what it actually has.
+        const val QUALITY_HD = "hd"
+        const val QUALITY_SD = "sd"
+
         const val SCHEDULE_ALWAYS = "always"
         const val SCHEDULE_WINDOW = "window"
 
@@ -163,6 +173,10 @@ data class Settings(
                 val legacyVibrate = v.optBoolean("alarmVibrate", true)
                 Settings(
                     muted = v.optBoolean("muted", false),
+                    // Anything unrecognised is HD, not a stored string handed to the camera: a settings
+                    // file from a newer version, or a hand edit, must not end as a quality the camera
+                    // does not understand and a feed that never starts.
+                    videoQuality = if (v.optString("videoQuality", QUALITY_HD) == QUALITY_SD) QUALITY_SD else QUALITY_HD,
                     alarmEnabled = v.optBoolean("alarmEnabled", false),
                     alarmSensitivity = v.optInt("alarmSensitivity", legacySensitivity(v))
                         .coerceIn(SENSITIVITY_MIN, SENSITIVITY_MAX),

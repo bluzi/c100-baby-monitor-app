@@ -128,7 +128,19 @@ public sealed record Settings
         SoundSiren,
     };
 
+    /// <summary>LIVE-18: the two pictures the camera offers. HD is what it actually has.</summary>
+    public const string QualityHd = "hd";
+    public const string QualitySd = "sd";
+
     public bool Muted { get; init; }
+
+    /// <summary>
+    /// LIVE-18: which picture this viewer asks the camera for. Unlike night vision (LIVE-10) it lives
+    /// here rather than on the camera, because it is what *this* app requests — two people watching the
+    /// same cot can choose differently. HD by default: the picture the camera has is the one to show
+    /// unless someone says otherwise.
+    /// </summary>
+    public string VideoQuality { get; init; } = QualityHd;
 
     public bool AlarmEnabled { get; init; }
 
@@ -164,6 +176,7 @@ public sealed record Settings
 
     public string ToJson() => new JsonObj()
         .Put("muted", Muted)
+        .Put("videoQuality", VideoQuality)
         .Put("alarmEnabled", AlarmEnabled)
         .Put("alarmSensitivity", AlarmSensitivity)
         .Put("alarmScheduleMode", AlarmScheduleMode)
@@ -196,6 +209,10 @@ public sealed record Settings
             return new Settings
             {
                 Muted = v.OptBoolean("muted", false),
+                // Anything unrecognised is HD, not a stored string handed to the camera: a settings
+                // file from a newer version, or a hand edit, must not end as a quality the camera does
+                // not understand and a feed that never starts.
+                VideoQuality = v.OptString("videoQuality", QualityHd) == QualitySd ? QualitySd : QualityHd,
                 AlarmEnabled = v.OptBoolean("alarmEnabled", false),
                 AlarmSensitivity = Math.Clamp(
                     v.OptInt("alarmSensitivity", LegacySensitivity(v)),

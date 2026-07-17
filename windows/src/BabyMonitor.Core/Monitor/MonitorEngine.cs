@@ -47,6 +47,22 @@ public sealed class MonitorEngine
     private volatile IAudioOutput? _player;
     private volatile IVideoOutput? _renderer;
     private volatile MissClient? _client;
+
+    /// <summary>
+    /// LIVE-18: the live session, cancellable on its own so a quality change can restart the stream
+    /// without stopping the monitor. Null between connections.
+    /// </summary>
+    private volatile CancellationTokenSource? _sessionCts;
+
+    /// <summary>LIVE-18: the quality the current stream was asked for, to notice when it changes.</summary>
+    private volatile string _mediaQuality = Settings.QualityHd;
+
+    /// <summary>
+    /// LIVE-18: this session was cancelled by us, to re-ask at a new quality — not by a parent stopping
+    /// the monitor. The difference decides whether the loop reconnects or ends, so it is stated rather
+    /// than inferred from a cancellation that looks identical either way.
+    /// </summary>
+    private volatile bool _restartForQuality;
     private volatile AlarmSchedule _schedule = new(Windowed: false);
 
     /// <summary>Replaced by the connection loop, read by the audio thread — hence volatile.</summary>
@@ -243,6 +259,31 @@ public sealed class MonitorEngine
             player.Muted = s.Muted;
         }
 
+        // LIVE-18: mute and the alarm can be changed under a running stream; the picture's size cannot,
+        // because the camera was told which one to send when the stream was asked for. So the ask is
+        // made again — the feed drops and comes back at the new size, which is what the control says it
+        // will do. Only when a session is actually up: at startup this simply records the choice.
+        if (!string.Equals(s.VideoQuality, _mediaQuality, StringComparison.Ordinal))
+        {
+            _mediaQuality = s.VideoQuality;
+            var session = _sessionCts;
+            if (session != null && MonitorHub.Running.Value)
+            {
+                Log.I("engine", $"video quality changed to {s.VideoQuality} — reconnecting the feed");
+                _restartForQuality = true;
+                try
+                {
+                    session.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The session ended on its own between the read and the cancel. It will reconnect
+                    // and read the new quality anyway.
+                    _restartForQuality = false;
+                }
+            }
+        }
+
         _detector.Enabled = s.AlarmEnabled;
         // ALRM-2/16: the dial plus this camera's learned steps set the loudness bar.
         _detector.ThresholdDb = CryCalibration.EffectiveThresholdDb(s.AlarmSensitivity, _calibrationSteps);
@@ -395,6 +436,16 @@ public sealed class MonitorEngine
                 await ConnectOnceAsync(ct).ConfigureAwait(false);
                 attempt = 0; // a successful session resets the backoff (LIVE-5)
             }
+            catch (OperationCanceledException) when (_restartForQuality && !ct.IsCancellationRequested)
+            {
+                // LIVE-18: we ended that session ourselves to ask for a different picture. Straight back
+                // round with no backoff — a parent who just chose HD is watching an empty window, and a
+                // cancellation is only a stop when the *monitor* was stopped.
+                _restartForQuality = false;
+                attempt = 0;
+                Log.I("engine", $"reconnecting at {_mediaQuality} quality");
+                continue;
+            }
             catch (OperationCanceledException)
             {
                 throw;
@@ -537,7 +588,11 @@ public sealed class MonitorEngine
                             Sign: vendor.Sign,
                             Transport: "tcp"),
                         connect.Token).ConfigureAwait(false);
-                    await missClient.StartMediaAsync("hd", true, connect.Token).ConfigureAwait(false);
+
+                    // LIVE-18: the quality is chosen here, once per session — which is exactly why
+                    // changing it has to reconnect rather than take effect quietly.
+                    _mediaQuality = MonitorHub.Settings.Value.VideoQuality;
+                    await missClient.StartMediaAsync(_mediaQuality, true, connect.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
@@ -568,7 +623,19 @@ public sealed class MonitorEngine
             var videoRenderer = _media.Video();
             _renderer = videoRenderer;
 
-            await PumpAsync(missClient, audioPlayer, videoRenderer, device, transport, ct).ConfigureAwait(false);
+            // LIVE-18: the pump runs on the session's own token, so a quality change can end this
+            // session — and only this session — while monitoring carries on.
+            using var live = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _sessionCts = live;
+            try
+            {
+                await PumpAsync(missClient, audioPlayer, videoRenderer, device, transport, live.Token)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _sessionCts = null;
+            }
         }
         finally
         {

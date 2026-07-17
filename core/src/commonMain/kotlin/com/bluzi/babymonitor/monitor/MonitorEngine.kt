@@ -396,7 +396,13 @@ class MonitorEngine(
                             sign = vendor.sign,
                         ),
                     )
-                    missClient.startMedia(quality = "hd", audio = true)
+                    // LIVE-18: the quality is chosen here, once per session. Only the PC offers the
+                    // control today, so on these platforms this is always the default (HD) and never
+                    // changes under a running stream — which is why this core has no restart-on-change
+                    // path and the C# one does. Adding the control to a shell here means adding that
+                    // path too, and proving it on the device: a stream that must be re-asked for is a
+                    // reconnect, and a reconnect is a gap in the sound.
+                    missClient.startMedia(quality = MonitorHub.settings.value.videoQuality, audio = true)
                 }
             } catch (e: TimeoutCancellationException) {
                 throw XiaomiException("the camera did not answer in time")

@@ -18,12 +18,19 @@ class MissTest {
     }
 
     @Test
-    fun `PROTO-21 quality maps hd to 2 for C100 and 3 for C200-C300`() {
-        assertEquals("""{"videoquality":2,"enableaudio":1}""", Miss.startMediaBody("chuangmi.camera.077ac1", "hd", true))
+    fun `PROTO-21 hd asks a known model for the picture it actually has`() {
+        // Measured on a real C100 on the wire: 3 is its full 2304x1296 picture and 2 is 848x480 — the
+        // same size sd gives. It asked for "hd" and was handed the small picture for years.
+        assertEquals("""{"videoquality":3,"enableaudio":1}""", Miss.startMediaBody(Miss.MODEL_C100, "hd", true))
         assertEquals("""{"videoquality":3,"enableaudio":1}""", Miss.startMediaBody(Miss.MODEL_C200, "hd", true))
         assertEquals("""{"videoquality":3,"enableaudio":1}""", Miss.startMediaBody(Miss.MODEL_C300, "hd", true))
-        assertEquals("""{"videoquality":1,"enableaudio":0}""", Miss.startMediaBody("chuangmi.camera.077ac1", "sd", false))
-        assertEquals("""{"videoquality":0,"enableaudio":1}""", Miss.startMediaBody("chuangmi.camera.077ac1", "auto", true))
+
+        // A model whose ladder nobody has measured keeps the conservative 2: a smaller picture that
+        // works beats a number the camera may not understand at all.
+        assertEquals("""{"videoquality":2,"enableaudio":1}""", Miss.startMediaBody("chuangmi.camera.whoknows", "hd", true))
+
+        assertEquals("""{"videoquality":1,"enableaudio":0}""", Miss.startMediaBody(Miss.MODEL_C100, "sd", false))
+        assertEquals("""{"videoquality":0,"enableaudio":1}""", Miss.startMediaBody(Miss.MODEL_C100, "auto", true))
     }
 
     @Test

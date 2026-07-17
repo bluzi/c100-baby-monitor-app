@@ -23,6 +23,7 @@ public static class Miss
     public const long CodecPcma = 1027;
     public const long CodecOpus = 1032;
 
+    public const string ModelC100 = "chuangmi.camera.077ac1";
     public const string ModelC200 = "chuangmi.camera.046c04";
     public const string ModelC300 = "chuangmi.camera.72ac1";
 
@@ -35,14 +36,22 @@ public static class Miss
             .Put("support_encrypt", 0)
             .ToString();
 
-    /// <summary>PROTO-21: quality mapping + start body.</summary>
+    /// <summary>
+    /// PROTO-21: quality mapping + start body.
+    ///
+    /// **"hd" is 3 on every model whose ladder we have measured.** On a real C100, 3 is its full
+    /// 2304x1296 picture and 2 is 848x480 — the same size "sd" gives. So asking for hd and sending 2
+    /// was not a gentler quality, it was the small picture under the only word the parent reads. An
+    /// unmeasured model keeps 2: a number its firmware may not understand is worth less than a smaller
+    /// picture that works.
+    /// </summary>
     public static string StartMediaBody(string model, string quality, bool audio)
     {
         var q = quality switch
         {
             "sd" => "1",
             "auto" => "0",
-            _ => model is ModelC200 or ModelC300 ? "3" : "2",
+            _ => model is ModelC100 or ModelC200 or ModelC300 ? "3" : "2",
         };
         var a = audio ? "1" : "0";
         return $"{{\"videoquality\":{q},\"enableaudio\":{a}}}";

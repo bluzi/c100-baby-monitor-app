@@ -143,6 +143,26 @@ class StoreTest {
     }
 
     @Test
+    fun `LIVE-18 the picture quality persists and defaults to HD`() {
+        // HD out of the box: the picture the camera has is the one to show unless someone says otherwise.
+        assertEquals(Settings.QUALITY_HD, store.loadSettings().videoQuality)
+        store.saveSettings(store.loadSettings().copy(videoQuality = Settings.QUALITY_SD))
+        assertEquals(Settings.QUALITY_SD, AppStore(kv, MarkingSecretBox()).loadSettings().videoQuality)
+        store.saveSettings(store.loadSettings().copy(videoQuality = Settings.QUALITY_HD))
+        assertEquals(Settings.QUALITY_HD, AppStore(kv, MarkingSecretBox()).loadSettings().videoQuality)
+    }
+
+    @Test
+    fun `LIVE-18 a quality nobody recognises reads back as HD`() {
+        // A settings file from a newer version, or a hand edit, must never end as a quality string
+        // handed to the camera that it does not understand — and a feed that then never starts.
+        assertEquals(Settings.QUALITY_HD, Settings.fromJson("""{"videoQuality":"ultra"}""").videoQuality)
+        assertEquals(Settings.QUALITY_HD, Settings.fromJson("""{"videoQuality":""}""").videoQuality)
+        assertEquals(Settings.QUALITY_HD, Settings.fromJson("{}").videoQuality)
+        assertEquals(Settings.QUALITY_SD, Settings.fromJson("""{"videoQuality":"sd"}""").videoQuality)
+    }
+
+    @Test
     fun `ALRM-1+6 alarm defaults off and its settings persist`() {
         val defaults = store.loadSettings()
         assertEquals(false, defaults.alarmEnabled) // ALRM-1: off by default

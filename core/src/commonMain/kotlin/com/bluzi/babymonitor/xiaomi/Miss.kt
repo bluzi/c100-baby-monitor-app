@@ -20,6 +20,7 @@ object Miss {
     const val CODEC_PCMA = 1027L
     const val CODEC_OPUS = 1032L
 
+    const val MODEL_C100 = "chuangmi.camera.077ac1"
     const val MODEL_C200 = "chuangmi.camera.046c04"
     const val MODEL_C300 = "chuangmi.camera.72ac1"
 
@@ -32,12 +33,20 @@ object Miss {
             .put("support_encrypt", 0)
             .toString()
 
-    /** PROTO-21: quality mapping + start body. */
+    /**
+     * PROTO-21: quality mapping + start body.
+     *
+     * **"hd" is 3 on every model whose ladder we have measured.** On a real C100, 3 is its full
+     * 2304x1296 picture and 2 is 848x480 — the same size "sd" gives. So asking for hd and sending 2
+     * was not a gentler quality, it was the small picture under the only word the parent reads. An
+     * unmeasured model keeps 2: a number its firmware may not understand is worth less than a smaller
+     * picture that works.
+     */
     fun startMediaBody(model: String, quality: String, audio: Boolean): String {
         val q = when (quality) {
             "sd" -> "1"
             "auto" -> "0"
-            else -> if (model == MODEL_C200 || model == MODEL_C300) "3" else "2"
+            else -> if (model == MODEL_C100 || model == MODEL_C200 || model == MODEL_C300) "3" else "2"
         }
         val a = if (audio) "1" else "0"
         return """{"videoquality":$q,"enableaudio":$a}"""

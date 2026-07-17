@@ -131,6 +131,30 @@ public class StoreTest
         Assert.Equal(2, _store.CryCalibrationSteps(SampleDevice().Did));
     }
 
+    [Fact(DisplayName = "LIVE-18 the picture quality persists and defaults to HD")]
+    public void VideoQualityPersists()
+    {
+        // HD out of the box: the picture the camera has is the one to show unless someone says otherwise.
+        Assert.Equal(Settings.QualityHd, _store.LoadSettings().VideoQuality);
+
+        _store.SaveSettings(_store.LoadSettings() with { VideoQuality = Settings.QualitySd });
+        Assert.Equal(Settings.QualitySd, new AppStore(_kv, new MarkingSecretBox()).LoadSettings().VideoQuality);
+
+        _store.SaveSettings(_store.LoadSettings() with { VideoQuality = Settings.QualityHd });
+        Assert.Equal(Settings.QualityHd, new AppStore(_kv, new MarkingSecretBox()).LoadSettings().VideoQuality);
+    }
+
+    [Fact(DisplayName = "LIVE-18 a quality nobody recognises reads back as HD")]
+    public void UnknownVideoQualityIsHd()
+    {
+        // A settings file from a newer version, or a hand edit, must never end as a quality string
+        // handed to the camera that it does not understand — and a feed that then never starts.
+        Assert.Equal(Settings.QualityHd, Settings.FromJson("""{"videoQuality":"ultra"}""").VideoQuality);
+        Assert.Equal(Settings.QualityHd, Settings.FromJson("""{"videoQuality":""}""").VideoQuality);
+        Assert.Equal(Settings.QualityHd, Settings.FromJson("{}").VideoQuality);
+        Assert.Equal(Settings.QualitySd, Settings.FromJson("""{"videoQuality":"sd"}""").VideoQuality);
+    }
+
     [Fact(DisplayName = "CAM-2+3 the chosen camera persists and loads back")]
     public void CameraPersists()
     {

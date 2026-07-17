@@ -82,8 +82,40 @@ public sealed class WasapiPcmSink : IPcmSink
             throw new InvalidOperationException("audio: the output device stopped");
         }
 
+        // LIVE-2/3: the volume is applied to the samples, here, rather than handed to WasapiOut.Volume.
+        //
+        // That property routes through the session volume, and on this path it does not silence the
+        // feed — mute looked engaged, the control latched, and the room played on. A mute that does not
+        // mute is worse than no mute at all: a parent who believes the app is quiet learns otherwise at
+        // 3am, and the one thing they asked it to do is the thing it did not do. Scaling the samples is
+        // ours end to end, and it cannot be quietly ignored by anything downstream.
+        //
+        // It is still a volume and never a pause: the decoder and the analysis tap upstream never see
+        // this, so the level meter and the crying alarm carry on behind a silent feed (LIVE-3).
+        var volume = _volume;
         var bytes = new byte[pcm.Length * 2];
-        Buffer.BlockCopy(pcm, 0, bytes, 0, bytes.Length);
+
+        if (volume <= 0f)
+        {
+            buffer.AddSamples(bytes, 0, bytes.Length); // already zeroed: silence, at the same rate
+            return;
+        }
+
+        if (volume < 1f)
+        {
+            var scaled = new short[pcm.Length];
+            for (var i = 0; i < pcm.Length; i++)
+            {
+                scaled[i] = (short)(pcm[i] * volume);
+            }
+
+            Buffer.BlockCopy(scaled, 0, bytes, 0, bytes.Length);
+        }
+        else
+        {
+            Buffer.BlockCopy(pcm, 0, bytes, 0, bytes.Length);
+        }
+
         buffer.AddSamples(bytes, 0, bytes.Length);
     }
 

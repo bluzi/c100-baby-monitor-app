@@ -32,10 +32,10 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
     private byte[]? _parameterSets; // Annex-B VPS+SPS+PPS, prepended to every keyframe
     private WriteableBitmap? _bitmap;
     private byte[]? _ready;         // the newest frame, waiting for the UI thread
+    private int _readyWidth;        // its size — carried with it, so the surface can follow the frame
+    private int _readyHeight;
     private bool _posted;           // a UI update is already queued; do not pile more on
     private bool _torn;
-    private int _width;
-    private int _height;
 
     public SoftwareHevcVideoRenderer(DispatcherQueue ui, Action<WriteableBitmap>? onSurfaceReady = null)
     {
@@ -56,8 +56,6 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
             lock (_lock)
             {
                 _torn = false;
-                _width = width;
-                _height = height;
 
                 var ctx = Libde265.de265_new_decoder();
                 if (ctx == IntPtr.Zero)
@@ -96,20 +94,9 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
                     .ToArray();
             }
 
-            // The surface belongs to the UI thread, so it is made there and handed to the window.
-            _ui.TryEnqueue(() =>
-            {
-                try
-                {
-                    _bitmap = new WriteableBitmap(width, height);
-                    _onSurfaceReady?.Invoke(_bitmap);
-                }
-                catch (Exception e)
-                {
-                    Log.Warn("video", $"could not create the picture surface: {e.Message}");
-                }
-            });
-
+            // The surface is not made here. It is made by the first frame that needs it, at the size the
+            // decoder actually produced (see Draw) — so nothing set up now can be lost, and the picture
+            // cannot end up waiting for a surface that never arrived.
             Log.Info("video", $"libde265 H.265 decoder built ({width}x{height}, {Math.Clamp(Environment.ProcessorCount / 2, 1, 4)} threads)");
             return true;
         }
@@ -229,10 +216,12 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
 
             try
             {
+                var width = Libde265.de265_get_image_width(image, 0);
+                var height = Libde265.de265_get_image_height(image, 0);
                 var frame = ToBgra(image);
                 if (frame != null)
                 {
-                    Present(frame);
+                    Present(frame, width, height);
                 }
             }
             finally
@@ -267,26 +256,9 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
             return null;
         }
 
-        // The decoder is the authority on size: an SPS we misread would otherwise tear the picture.
-        if (width != _width || height != _height)
-        {
-            Log.Info("video", $"picture is {width}x{height}; rebuilding the surface");
-            _width = width;
-            _height = height;
-            _ui.TryEnqueue(() =>
-            {
-                try
-                {
-                    _bitmap = new WriteableBitmap(width, height);
-                    _onSurfaceReady?.Invoke(_bitmap);
-                }
-                catch (Exception e)
-                {
-                    Log.Warn("video", $"could not resize the picture surface: {e.Message}");
-                }
-            });
-        }
-
+        // The decoder is the authority on size — an SPS we misread would otherwise tear the picture —
+        // and the frame carries that size to the surface itself (see Draw). Nothing is arranged here
+        // for a later frame to depend on.
         var y = Libde265.de265_get_image_plane(image, 0, out var yStride);
         var u = Libde265.de265_get_image_plane(image, 1, out var uStride);
         var v = Libde265.de265_get_image_plane(image, 2, out var vStride);
@@ -344,8 +316,15 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
     /// A monitor that shows a picture from ten seconds ago is worse than one that drops a frame
     /// (LIVE-8), so a frame that arrives while another is still waiting replaces it rather than queueing
     /// behind it. Under load the picture loses frames; it never falls behind.
+    ///
+    /// **Nothing here may latch.** This coalescing needs a "a frame is already on its way" flag, and a
+    /// flag that is cleared by a callback is a flag that stays set for ever if the callback never runs —
+    /// which is a picture frozen for the rest of the night while the audio plays on, and a parent
+    /// looking at a room as it was an hour ago. So the flag is cleared on the failure path too, and the
+    /// surface follows the frame rather than being arranged separately: every state here has to be
+    /// recoverable by the next frame.
     /// </summary>
-    private void Present(byte[] bgra)
+    private void Present(byte[] bgra, int width, int height)
     {
         lock (_lock)
         {
@@ -355,6 +334,8 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
             }
 
             _ready = bgra;
+            _readyWidth = width;
+            _readyHeight = height;
             if (_posted)
             {
                 return;
@@ -363,38 +344,59 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
             _posted = true;
         }
 
-        _ui.TryEnqueue(() =>
+        if (!_ui.TryEnqueue(() => Draw()))
         {
-            byte[]? frame;
+            // The queue would not take it (the window is going away, or the dispatcher is shutting
+            // down). Clearing the flag is what lets the picture come back if it does not: leaving it set
+            // would freeze the feed permanently, and silently.
             lock (_lock)
             {
-                frame = _ready;
-                _ready = null;
                 _posted = false;
             }
+        }
+    }
 
+    /// <summary>Draw the newest frame. UI thread only.</summary>
+    private void Draw()
+    {
+        byte[]? frame;
+        int width, height;
+        lock (_lock)
+        {
+            frame = _ready;
+            width = _readyWidth;
+            height = _readyHeight;
+            _ready = null;
+            _posted = false;
+        }
+
+        if (frame == null || _torn || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            // The surface follows the frame. Deciding the size somewhere else and hoping the two agree
+            // is how a mismatch becomes permanent: one dropped resize and every frame afterwards fails
+            // the comparison for ever.
             var bitmap = _bitmap;
-            if (frame == null || bitmap == null || _torn)
+            if (bitmap == null || bitmap.PixelWidth != width || bitmap.PixelHeight != height)
             {
-                return;
+                bitmap = new WriteableBitmap(width, height);
+                _bitmap = bitmap;
+                _onSurfaceReady?.Invoke(bitmap);
+                Log.Info("video", $"picture surface is {width}x{height}");
             }
 
-            try
-            {
-                if (bitmap.PixelWidth * bitmap.PixelHeight * 4 != frame.Length)
-                {
-                    return; // a resize is in flight; the next frame lands on the new surface
-                }
-
-                using var stream = bitmap.PixelBuffer.AsStream();
-                stream.Write(frame, 0, frame.Length);
-                bitmap.Invalidate();
-            }
-            catch (Exception e)
-            {
-                Log.Warn("video", $"could not draw a frame: {e.Message}");
-            }
-        });
+            using var stream = bitmap.PixelBuffer.AsStream();
+            stream.Write(frame, 0, frame.Length);
+            bitmap.Invalidate();
+        }
+        catch (Exception e)
+        {
+            Log.Warn("video", $"could not draw a frame: {e.Message}");
+        }
     }
 
     private void ReleaseDecoder()

@@ -119,6 +119,17 @@ platform can do less than another.
     network). Within seconds the status leaves "Live" and reconnect attempts begin. Leave it off
     and reopen the app: it never claims "Live" while the camera sends nothing. With the watchdog
     armed (its toggle and the crying alarm on), its alarm rings after the grace period.
+17b. **A frozen picture (WATCH-12):** the half of a stall that looks healthy. First, and most
+    important, the false positive: leave a live feed running for a good ten minutes on a still,
+    dark room with nothing moving in it — the picture must never be called frozen (the log never
+    says "the picture froze"), because a monitor that reconnects every ten seconds over a sleeping
+    baby is worse than the bug this guards. Then the real thing: with audio still arriving, make the
+    picture stop (pause the camera's video / black-hole the video stream while the session lives).
+    Within ~10s the feed stops claiming Live, says it is retrying, and reconnects on its own back to
+    a moving picture — and the sound is gone only for the second or two the reconnect takes. The
+    crying alarm keeps working across it and the watchdog alarm does not fire. Last, a camera whose
+    video is simply unsupported (or a decoder that will not start) must NOT loop: it says so once and
+    keeps the sound (LIVE-7, DESK-22).
 18. **Session expiry (BG-8, AUTH-8):** sign in, then invalidate the session server-side (sign out of
     the Mi account elsewhere / revoke the device). The status and notification say the session
     expired rather than looping "Connection lost", and opening the app lands on sign-in. Then the

@@ -39,6 +39,9 @@ public sealed class MonitorEngine
     private readonly BabyNoiseDetector _detector = new();
     private readonly StreamWatchdog _watchdog = new();
 
+    /// <summary>WATCH-12: the other half of the watchdog — audio can be alive while the picture is not.</summary>
+    private readonly PictureLiveness _picture = new();
+
     private CancellationTokenSource? _auxCts;
     private CancellationTokenSource? _connCts;
     private Task? _connTask;
@@ -320,6 +323,25 @@ public sealed class MonitorEngine
                 catch (Exception e)
                 {
                     Log.W("engine", $"could not close the stalled connection: {e.Message}");
+                }
+            }
+
+            // WATCH-12: the mirror of the check above. Audio is arriving, so the feed is honestly live —
+            // but a picture that has stopped moving is a photograph of a quiet cot, and a parent glancing
+            // at it is reassured by it. Only while live: during a reconnect there is no picture to be
+            // frozen, and the check above owns a feed that has gone quiet.
+            if (status == Statuses.Live && _picture.Frozen(now))
+            {
+                Log.W("engine", $"the picture froze (unchanged for {_picture.FreezeMs}ms) — reconnecting the feed");
+                MonitorHub.Status.Value = "error: the picture froze";
+                _picture.Reset(); // it is said and being dealt with; do not say it every tick
+                try
+                {
+                    _client?.Close();
+                }
+                catch (Exception e)
+                {
+                    Log.W("engine", $"could not close the frozen connection: {e.Message}");
                 }
             }
 
@@ -607,6 +629,7 @@ public sealed class MonitorEngine
             // still completes this handshake; only audio proves the feed. Stay "connecting".
             MonitorHub.LastAudioAtMs = 0;
             MonitorHub.Status.Value = Statuses.Connecting;
+            _picture.Reset(); // WATCH-12: a new session inherits nothing from the last one's picture
 
             _meter = new LevelMeter(); // fresh baseline per connection
             var audioPlayer = _media.Audio(OnPcmWindow);
@@ -831,6 +854,9 @@ public sealed class MonitorEngine
                                 Log.I("engine", "first video frame (h265)");
                             }
 
+                            // WATCH-12: judged on what the camera sent, before any queue can drop it
+                            // (LIVE-8) — a backlog we chose to skip is not a picture that froze.
+                            _picture.OnFrame(video.Data, NowMs());
                             Interlocked.Increment(ref videoBacklog);
                             videoQueue.Writer.TryWrite(video);
                             break;

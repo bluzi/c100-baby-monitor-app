@@ -89,6 +89,9 @@ class MonitorEngine(
     private val detector = BabyNoiseDetector()
     private val watchdog = StreamWatchdog()
 
+    /** WATCH-12: the other half of the watchdog — audio can be alive while the picture is not. */
+    private val picture = PictureLiveness()
+
     /** The connection in flight, so a stalled feed can be forced closed from the tick loop. */
     @Volatile
     private var client: MissClient? = null
@@ -202,6 +205,17 @@ class MonitorEngine(
                 if (feedStalled(status, lastAudio, now)) {
                     Log.w("engine", "feed stalled (no audio for ${now - lastAudio}ms) — dropping the connection")
                     MonitorHub.status.value = "error: the camera stopped sending audio"
+                    runCatching { client?.close() }
+                }
+
+                // WATCH-12: the mirror of the check above. Audio is arriving, so the feed is honestly
+                // live — but a picture that has stopped moving is a photograph of a quiet cot, and a
+                // parent glancing at it is reassured by it. Only while live: during a reconnect there
+                // is no picture to be frozen, and the check above owns a feed that has gone quiet.
+                if (status == STATUS_LIVE && picture.frozen(now)) {
+                    Log.w("engine", "the picture froze (unchanged for ${picture.freezeMs}ms) — reconnecting the feed")
+                    MonitorHub.status.value = "error: the picture froze"
+                    picture.reset() // it is said and being dealt with; do not say it every tick
                     runCatching { client?.close() }
                 }
 
@@ -461,6 +475,7 @@ class MonitorEngine(
             // off still completes this handshake; only audio proves the feed. Stay "connecting".
             MonitorHub.lastAudioAtMs = 0
             MonitorHub.status.value = STATUS_CONNECTING
+            picture.reset() // WATCH-12: a new session inherits nothing from the last one's picture
 
             meter = LevelMeter() // fresh baseline per connection
             val audioPlayer = media.audio(onPcmWindow = ::onPcmWindow)
@@ -551,6 +566,9 @@ class MonitorEngine(
                                     sawVideo = true
                                     Log.i("engine", "first video frame (h265)")
                                 }
+                                // WATCH-12: judged on what the camera sent, before any queue can drop
+                                // it (LIVE-8) — a backlog we chose to skip is not a picture that froze.
+                                picture.onFrame(frame.data, nowMs())
                                 videoBacklog.increment()
                                 videoQueue.trySend(frame)
                             } else if (!unsupportedVideoLogged) {

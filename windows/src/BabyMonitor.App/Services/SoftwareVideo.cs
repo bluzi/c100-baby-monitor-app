@@ -164,15 +164,28 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
                 pinned.Free();
             }
 
-            // Decode until it stops asking. WAITING_FOR_INPUT_DATA is not a failure — it is the decoder
-            // saying "that is all I can do with what you have given me so far".
-            int more;
-            do
+            // Decode until it stops asking, taking finished pictures out on EVERY pass.
+            //
+            // Draining only at the end is not a tidier way to write the same loop: the decoder's output
+            // queue is small, and a picture left sitting in it is a slot it cannot reuse. Fill the queue
+            // and it stops decoding entirely ("DPB/output queue full") — the picture then stutters or
+            // stops for a reason that is nothing to do with the camera and entirely our own doing.
+            //
+            // Bounded, because a decoder that somehow never finishes must not take the feed's thread with
+            // it: video is best-effort (LIVE-7), and audio is what monitoring means.
+            for (var pass = 0; pass < 64; pass++)
             {
-                var err = Libde265.de265_decode(ctx, out more);
+                var err = Libde265.de265_decode(ctx, out var more);
+                DrainPictures(ctx);
+
                 if (err == Libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA)
                 {
-                    break;
+                    return; // it has had everything this access unit carries
+                }
+
+                if (err == Libde265.DE265_ERROR_IMAGE_BUFFER_FULL)
+                {
+                    continue; // we just emptied the queue; let it carry on
                 }
 
                 if (err != Libde265.DE265_OK)
@@ -180,12 +193,14 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
                     // A broken packet is a dropped frame, never a dropped session: the stream recovers at
                     // the next keyframe, and PROTO-23's rule (a bad packet is skipped) holds here too.
                     Log.Warn("video", $"libde265 could not decode a frame: {Libde265.ErrorText(err)}");
-                    break;
+                    return;
+                }
+
+                if (more == 0)
+                {
+                    return;
                 }
             }
-            while (more != 0);
-
-            DrainPictures(ctx);
         }
         catch (Exception e)
         {

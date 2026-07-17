@@ -29,6 +29,12 @@ internal static class Libde265
     /// </summary>
     public const int DE265_ERROR_WAITING_FOR_INPUT_DATA = 13;
 
+    /// <summary>
+    /// The decoder's output queue is full and it will not decode another frame until pictures are taken
+    /// out of it (9 — de265.h). Not a fault in the stream: a fault in the caller's loop.
+    /// </summary>
+    public const int DE265_ERROR_IMAGE_BUFFER_FULL = 9;
+
     /// <summary>de265_chroma_420. The camera sends 4:2:0, which is the only format this renderer converts.</summary>
     public const int DE265_CHROMA_420 = 1;
 

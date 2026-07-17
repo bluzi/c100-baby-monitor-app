@@ -81,6 +81,18 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    testOptions {
+        // Android's unit-test android.jar is all stubs that throw, and `elapsedRealtimeMs` is
+        // SystemClock.elapsedRealtime — so anything that constructs the engine died here on the JVM
+        // before it ran a line. That is why the engine's lifecycle had no test on this target while the
+        // C# port's had one; the criteria that live in the engine were only ever pinned on one side.
+        //
+        // MIND THE TRAP THIS BUYS: with the stubs defaulted, that clock reads **0 for ever** on the JVM.
+        // Nothing here may assert on time passing — a watchdog or backoff test would pass vacuously,
+        // which is worse than not having it. Time-dependent behaviour belongs on the native targets
+        // (macosArm64Test / iosSimulatorArm64Test), where the clock is real, and `allTests` runs them.
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // `check` must mean every platform, or the promise that both apps behave the same is worth

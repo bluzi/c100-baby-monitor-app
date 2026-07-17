@@ -53,6 +53,10 @@ extension View {
 struct ControlGlyph: View {
     let symbol: String
 
+    /// LIVE-18: a control whose state is a *word* rather than a shape — "HD" / "SD". Drawn here, in
+    /// the same box as every symbol, so it still reads as one of the row.
+    var text: String? = nil
+
     /// Optical sizing: a crescent is a small shape in a large box while a speaker fills its box, so
     /// the handful that sit small are drawn a touch larger to make the row read as one row.
     private var opticalSize: CGFloat {
@@ -64,11 +68,18 @@ struct ControlGlyph: View {
     }
 
     var body: some View {
-        Image(systemName: symbol)
-            .symbolVariant(.fill)
-            .symbolRenderingMode(.hierarchical)
-            .font(.system(size: opticalSize, weight: .semibold))
-            .frame(width: 46, height: 46)
+        Group {
+            if let text {
+                Text(text)
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+            } else {
+                Image(systemName: symbol)
+                    .symbolVariant(.fill)
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: opticalSize, weight: .semibold))
+            }
+        }
+        .frame(width: 46, height: 46)
     }
 }
 
@@ -97,8 +108,10 @@ struct ControlButton: View {
 /// A control on the bar that opens a menu — night vision, and the overflow. A SwiftUI `Menu` wrapping
 /// the same glyph, so it reads identically to the buttons beside it.
 struct ControlMenu<Content: View>: View {
-    let symbol: String
+    var symbol: String = ""
     let label: String
+    /// LIVE-18: set instead of `symbol` when the control's state is a word — see `ControlGlyph`.
+    var text: String? = nil
     var latched = false
     var tint: Color = .white
     @ViewBuilder var content: Content
@@ -107,7 +120,7 @@ struct ControlMenu<Content: View>: View {
         Menu {
             content
         } label: {
-            ControlGlyph(symbol: symbol)
+            ControlGlyph(symbol: symbol, text: text)
                 .foregroundStyle(tint)
                 .background(Circle().fill(latched ? AnyShapeStyle(Color.accentColor.opacity(0.9)) : AnyShapeStyle(.clear)))
                 .contentShape(Circle())

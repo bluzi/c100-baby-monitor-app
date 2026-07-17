@@ -770,7 +770,6 @@ public sealed partial class MainWindow : Window
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        _pointerInside = true;
         _chromeVisible = true;
         _chromeTimer.Stop();
         _chromeTimer.Start();
@@ -779,20 +778,22 @@ public sealed partial class MainWindow : Window
 
     private void OnPointerExited(object sender, PointerRoutedEventArgs e)
     {
-        // PointerExited bubbles. Moving the pointer off one of the tile's own buttons raises it on that
-        // child, and it bubbles here — so without this guard the tile would fade and drop its controls
-        // while the pointer is still sitting on it (DESK-10/11: the moment the pointer is over it, it is
-        // solid). Only a pointer leaving Root itself is the pointer leaving the window.
-        if (!ReferenceEquals(e.OriginalSource, sender))
-        {
-            return;
-        }
-
-        _pointerInside = false;
+        // A hint to re-check, never an answer — see UpdateChrome. It fires when the pointer merely crosses
+        // from the video onto one of the tile's own buttons, and it does not fire at all in cases where the
+        // pointer really has left, so nothing here may conclude anything from it having arrived.
         _chromeTimer.Stop();
         _chromeTimer.Start();
         UpdateChrome();
     }
+
+    /// <summary>
+    /// DESK-10/11: is the pointer over this window right now? Both the cursor and the window's rect are in
+    /// physical screen pixels, so they compare directly and no DPI scaling enters into it.
+    /// </summary>
+    private bool PointerIsOverWindow() =>
+        GetCursorPos(out var pt) &&
+        GetWindowRect(_hwnd, out var r) &&
+        pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom;
 
     /// <summary>Nothing may vanish from under the pointer that is reaching for it.</summary>
     private void OnChromePointerEntered(object sender, PointerRoutedEventArgs e)
@@ -823,6 +824,15 @@ public sealed partial class MainWindow : Window
 
     private void UpdateChrome()
     {
+        // DESK-10/11: whether the pointer is on the tile is *asked of the system*, never remembered from
+        // the last pointer event. XAML cannot answer it: enter/exit are raised on whichever child is
+        // deepest under the pointer, so "left the video for a button on the tile" and "left the window"
+        // arrive indistinguishable — and a real exit sometimes raises nothing at all. Trusting those
+        // events latched the tile hovered at the first mouse move and left it that way for the life of
+        // the window: it never faded (DESK-11) and never hid close/make-it-full (DESK-10). The cursor's
+        // position against the window's own rect is the truth, it is cheap, and it cannot drift.
+        _pointerInside = PointerIsOverWindow();
+
         var visible = _chromeVisible || _chromePinned;
         ControlBar.Opacity = visible ? 1 : 0;
         ControlBar.IsHitTestVisible = visible;
@@ -857,7 +867,13 @@ public sealed partial class MainWindow : Window
                 SetWindowLong(_hwnd, GwlExStyle, style | WsExLayered);
             }
 
-            SetLayeredWindowAttributes(_hwnd, 0, (byte)(Math.Clamp(opacity, 0.05, 1.0) * 255), LwaAlpha);
+            // These return failure rather than throwing, and a tile that quietly refuses to fade is a
+            // setting the parent changed and cannot see. Say it.
+            if (!SetLayeredWindowAttributes(_hwnd, 0, (byte)(Math.Clamp(opacity, 0.05, 1.0) * 255), LwaAlpha))
+            {
+                Log.Warn("ui", $"the tile would not fade to {opacity:F2} — " +
+                    $"SetLayeredWindowAttributes failed with {Marshal.GetLastWin32Error()}");
+            }
         }
         catch (Exception e)
         {
@@ -1645,6 +1661,26 @@ public sealed partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out PointL point);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RectL rect);
+
+    private struct PointL
+    {
+        public int X;
+        public int Y;
+    }
+
+    private struct RectL
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);

@@ -108,6 +108,11 @@ extension View {
 struct ControlGlyph: View {
     let symbol: String
 
+    /// LIVE-18: a control whose state is a *word* rather than a shape — "HD" / "SD". It is drawn
+    /// here, in the same box as every symbol, so a control that says its state in letters still
+    /// reads as one of the row rather than as something bolted onto the end of it.
+    var text: String? = nil
+
     /// Optical sizing, which is not the same as sizing.
     ///
     /// Every glyph here is drawn at the same point size, and the moon *still* looked smaller than
@@ -124,11 +129,18 @@ struct ControlGlyph: View {
     }
 
     var body: some View {
-        Image(systemName: symbol)
-            .symbolVariant(.fill)
-            .symbolRenderingMode(.hierarchical)
-            .font(.system(size: opticalSize, weight: .semibold))
-            .frame(width: 34, height: 34)
+        Group {
+            if let text {
+                Text(text)
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+            } else {
+                Image(systemName: symbol)
+                    .symbolVariant(.fill)
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: opticalSize, weight: .semibold))
+            }
+        }
+        .frame(width: 34, height: 34)
     }
 }
 
@@ -171,8 +183,10 @@ struct ControlButton: View {
 /// symptoms of the same thing — a menu pretending to be a button. This *is* a button, and the menu
 /// it pops is the system's, with the system's own hover, keyboard handling and checkmarks.
 struct ControlMenuButton: View {
-    let symbol: String
+    var symbol: String = ""
     let label: String
+    /// LIVE-18: set instead of `symbol` when the control's state is a word — see `ControlGlyph`.
+    var text: String? = nil
     let items: () -> [ControlMenuItem]
 
     @StateObject private var anchor = MenuAnchorHolder()
@@ -180,7 +194,7 @@ struct ControlMenuButton: View {
 
     var body: some View {
         Button(action: present) {
-            ControlGlyph(symbol: symbol)
+            ControlGlyph(symbol: symbol, text: text)
                 .foregroundStyle(.white)
                 .background(Circle().fill(Color.white.opacity(hovering ? 0.16 : 0)))
                 .contentShape(Circle())

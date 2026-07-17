@@ -86,15 +86,23 @@ state. Monitoring starts when the live feed opens and keeps running until explic
   sets the mode on the camera. Because the mode lives on the camera, it is shared by everyone
   viewing it. A read or write that fails (camera offline, etc.) shows a readable error and leaves
   the displayed mode unchanged; the actual `[device]` infrared switch is the camera's.
-- **LIVE-18** `[windows]` The live feed has a **picture-quality control** offering two choices — **HD**,
-  the camera's full picture, and **SD**, a smaller one for a network that cannot carry it. The choice
-  is persisted and applies on the next launch. Unlike night vision (LIVE-10) this lives with the
-  viewer, not the camera: it is what *this* app asks for, so two people watching the same camera can
-  choose differently.
+- **LIVE-18** The live feed has a **picture-quality control** offering two choices — **HD**,
+  the camera's full picture, and **SD**, a smaller one for a network that cannot carry it. It sits
+  with the feed's other controls, beside night vision, and **shows which quality is in use without
+  being opened** — a control you must open to learn the current state is a state the parent does not
+  know. The choice is persisted and applies on the next launch. Unlike night vision (LIVE-10) this
+  lives with the viewer, not the camera: it is what *this* app asks for, so two people watching the
+  same camera can choose differently, and it cannot fail the way a write to the camera can.
 
   The quality is chosen when the stream is asked for, so changing it **reconnects the feed** — the
   picture and sound stop for a second or two and come back at the new size. That is stated by the
   control rather than discovered: a monitor that goes quiet unexpectedly, even briefly, is the thing
   this app exists to prevent, and a parent who *chose* the interruption is not surprised by it. The
+  reconnect is **immediate — it never waits out a backoff** (LIVE-5's growing waits answer a network
+  that failed, and nothing failed here; a parent who just chose HD is watching an empty window). The
   alarm and the watchdog are unaffected (the reconnect is a normal one, and WATCH-3's grace is far
-  longer than it takes).
+  longer than it takes), and changing the quality while the monitor is **stopped** reconnects nothing
+  — it only records the choice, which the next stream is asked for.
+- **LIVE-19** `[desktop]` The mini shape does not carry the quality control. A tile earns only the
+  controls a parent uses without thinking (DESK-8); a rare, deliberate choice that stops the sound for
+  a second or two is the opposite of that, and it lives in the full shape.

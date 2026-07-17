@@ -296,6 +296,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// LIVE-18: HD or SD. Unlike night vision this is the *viewer's* choice, not the camera's — a plain
+    /// settings write that cannot fail, so there is no error path here and none in the control. The
+    /// engine notices the new quality and re-asks the camera, which is why the control says the feed
+    /// reconnects: the parent is told before it happens rather than left to watch it happen.
+    var videoQuality: String { settings["videoQuality"] as? String ?? "hd" }
+
+    func setVideoQuality(_ quality: String) {
+        guard !Preview.active else { return }
+        Log.info("ui", "picture quality → \(quality)")
+        settings["videoQuality"] = quality
+    }
+
     /// ALRM-11: does the alarm that is ringing have vibrate on? Read from the same settings the tone's
     /// volume comes from, so the phone buzzes exactly when the parent asked it to.
     private func alarmVibrates(_ kind: String) -> Bool {

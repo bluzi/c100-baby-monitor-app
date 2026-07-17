@@ -114,6 +114,7 @@ fun ViewerScreen(
     var showAbout by remember { mutableStateOf(false) }
 
     // LIVE-10: night vision — the camera's own mode, read on open, written on change.
+    var showPictureQuality by remember { mutableStateOf(false) } // LIVE-18
     var showNightVision by remember { mutableStateOf(false) }
     var nightVision by remember { mutableStateOf<NightVisionMode?>(null) }
     var nightVisionBusy by remember { mutableStateOf(false) }
@@ -265,9 +266,11 @@ fun ViewerScreen(
         running = running,
         status = status,
         nightVision = nightVision,
+        videoQuality = settings.videoQuality, // LIVE-18: the icon reads HD or SD
         onToggleMute = { saveSettings(settings.copy(muted = !settings.muted)); poke() },
         onResume = { MonitorService.start(context); poke() },
         onNightVision = { showNightVision = true; poke() },
+        onPictureQuality = { showPictureQuality = true; poke() },
         onSettings = { showSettings = true },
         onStop = { showStop = true; poke() },
         // BG-18: float button — only on a live feed the OS will actually float (pipActivity does the
@@ -457,6 +460,26 @@ fun ViewerScreen(
                 onSignOut() // AUTH-10
             },
             onDismiss = { showSignOut = false },
+        )
+    }
+    if (showPictureQuality) { // LIVE-18
+        PictureQualityDialog(
+            current = settings.videoQuality,
+            running = running,
+            onSelect = { quality ->
+                showPictureQuality = false
+                if (quality != settings.videoQuality) {
+                    // A local settings write: it cannot fail, so there is no error path and nothing
+                    // to revert (this is the asymmetry with night vision's write to the camera).
+                    //
+                    // And a write is all it is. The reconnect LIVE-18 promises belongs to the engine,
+                    // which notices the quality it asked for is no longer the one wanted and asks
+                    // again — the same on every platform. Restarting the service from here would
+                    // reconnect a second time, on top of the engine already doing it.
+                    saveSettings(settings.copy(videoQuality = quality))
+                }
+            },
+            onDismiss = { showPictureQuality = false },
         )
     }
     if (showNightVision) { // LIVE-10

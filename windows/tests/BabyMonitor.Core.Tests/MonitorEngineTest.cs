@@ -142,6 +142,74 @@ public class MonitorEngineTest : IDisposable
         Assert.Fail($"the engine never reported a failed attempt (status: {MonitorHub.Status.Value})");
     }
 
+    [Fact(DisplayName = "LIVE-18 changing the picture quality re-asks the camera — the feed reconnects")]
+    public async Task ChangingQualityReconnectsTheFeed()
+    {
+        // The quality is chosen when the stream is asked for, so a parent who picks SD under a running
+        // stream must get a NEW session — otherwise the control silently does nothing until the next
+        // reconnect, which may be hours away. The camera cannot be asked to change its mind mid-stream.
+        //
+        // The ask itself is encrypted on the wire (MISS/ChaCha20), so what is observed here is the
+        // session count; that the quality string maps to the right `videoquality` is PROTO-21's job.
+        var camera = new RestartingCamera();
+        var engine = new MonitorEngine(_store, _ringer, new NullMedia(), camera, LiveCameraHttp());
+
+        engine.Start();
+        await camera.WaitForSessionAsync(1);
+
+        _store.SaveSettings(_store.LoadSettings() with { VideoQuality = Settings.QualitySd });
+        MonitorHub.ApplySettings(_store.LoadSettings());
+
+        // A second session, without anything having failed — this is the reconnect the control promises.
+        await camera.WaitForSessionAsync(2);
+
+        engine.Stop();
+    }
+
+    [Fact(DisplayName = "LIVE-18 choosing the quality already in use disturbs nothing")]
+    public async Task ChoosingTheSameQualityDoesNotReconnect()
+    {
+        // Re-picking HD when HD is already playing must not drop the sound. A monitor that goes quiet
+        // for no reason at all is worse than one that never offered the control.
+        var camera = new RestartingCamera();
+        var engine = new MonitorEngine(_store, _ringer, new NullMedia(), camera, LiveCameraHttp());
+
+        engine.Start();
+        await camera.WaitForSessionAsync(1);
+
+        // Same quality, and a mute toggle beside it: settings do change, the picture's size does not.
+        _store.SaveSettings(_store.LoadSettings() with { VideoQuality = Settings.QualityHd, Muted = true });
+        MonitorHub.ApplySettings(_store.LoadSettings());
+        await Task.Delay(300);
+
+        Assert.Equal(1, camera.Sessions);
+        engine.Stop();
+    }
+
+    /// <summary>One command record: [BE u32 len][LE u32 cmd][payload]. Shared by the camera fakes below.</summary>
+    private static byte[] AuthOk()
+    {
+        var payload = System.Text.Encoding.UTF8.GetBytes("""{"result":"success"}""");
+        var record = new byte[8 + payload.Length];
+        record.PutBeU32(0, 4 + payload.Length);
+        record.PutLeU32(4, 0x100);
+        Buffer.BlockCopy(payload, 0, record, 8, payload.Length);
+        return record;
+    }
+
+    private static byte[] Drw(byte[] chunk, int channel, int seq)
+    {
+        var b = new byte[8 + chunk.Length];
+        b[0] = 0xf1;
+        b[1] = 0xd0;
+        b.PutBeU16(2, 4 + 4 + chunk.Length);
+        b[4] = 0xd1;
+        b[5] = (byte)channel;
+        b.PutBeU16(6, seq);
+        Buffer.BlockCopy(chunk, 0, b, 8, chunk.Length);
+        return b;
+    }
+
     /// <summary>A cloud that hands out a real camera: vendor cs2, a device key, a sign token.</summary>
     private static IMiHttp LiveCameraHttp()
     {
@@ -163,6 +231,148 @@ public class MonitorEngineTest : IDisposable
             throw new SocketClosedException("http: the device list is not part of this test");
         };
         return http;
+    }
+
+    /// <summary>
+    /// A camera that will complete the CS2 handshake and the MISS session **as many times as it is
+    /// asked to** — one fresh socket per session, each answering the auth. SlowCamera hands out the same
+    /// pair for the life of the test, which is all a single session needs; a reconnect needs the camera
+    /// to still be there the second time, which is exactly what LIVE-18 turns on.
+    /// </summary>
+    private sealed class RestartingCamera : ISocketFactory
+    {
+        private readonly object _gate = new();
+        private readonly List<TaskCompletionSource> _waiters = new();
+        private int _sessions;
+
+        /// <summary>How many times the monitor has got as far as asking this camera for media.</summary>
+        public int Sessions
+        {
+            get { lock (_gate) { return _sessions; } }
+        }
+
+        public IUdpSocket Udp()
+        {
+            var udp = new FakeUdp();
+            // PROTO-15: the punch packet, then "use TCP".
+            udp.Incoming.Writer.TryWrite(new Datagram(new byte[] { 0xf1, 0x41, 0, 4, 9, 9, 9, 9 }, "192.0.2.1", 32108));
+            udp.Incoming.Writer.TryWrite(new Datagram(new byte[] { 0xf1, 0x43, 0, 0 }, "192.0.2.1", 32108));
+            return udp;
+        }
+
+        public ITcpSocket Tcp() => new SessionTcp(this);
+
+        /// <summary>Resolves once the camera has been asked for media <paramref name="n"/> times.</summary>
+        public Task WaitForSessionAsync(int n)
+        {
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_gate)
+            {
+                if (_sessions >= n)
+                {
+                    return Task.CompletedTask;
+                }
+
+                _waiters.Add(tcs);
+            }
+
+            return WaitFor(n, tcs);
+        }
+
+        private async Task WaitFor(int n, TaskCompletionSource tcs)
+        {
+            while (true)
+            {
+                await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    if (_sessions >= n)
+                    {
+                        return;
+                    }
+
+                    tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _waiters.Add(tcs);
+                }
+            }
+        }
+
+        private void OnMediaAsked()
+        {
+            List<TaskCompletionSource> waiting;
+            lock (_gate)
+            {
+                _sessions++;
+                waiting = new List<TaskCompletionSource>(_waiters);
+                _waiters.Clear();
+            }
+
+            foreach (var w in waiting)
+            {
+                w.TrySetResult();
+            }
+        }
+
+        /// <summary>One session's socket: answers the auth, then counts the ask for media.</summary>
+        private sealed class SessionTcp : ITcpSocket
+        {
+            private readonly System.Threading.Channels.Channel<byte> _incoming =
+                System.Threading.Channels.Channel.CreateUnbounded<byte>();
+
+            private readonly RestartingCamera _camera;
+            private volatile bool _closed;
+            private int _writes;
+
+            public SessionTcp(RestartingCamera camera)
+            {
+                _camera = camera;
+                // PROTO-20: the MISS session says yes.
+                foreach (var b in Cs2.TcpFrame(Drw(AuthOk(), channel: 0, seq: 0)))
+                {
+                    _incoming.Writer.TryWrite(b);
+                }
+            }
+
+            public Task ConnectAsync(string host, int port, CancellationToken ct = default) => Task.CompletedTask;
+
+            public Task WriteAsync(byte[] data, CancellationToken ct = default)
+            {
+                // The first write is the auth request; the second is startMedia — by then the monitor is
+                // on the camera and this session is real. (The rest are keepalives and the goodbye.)
+                if (Interlocked.Increment(ref _writes) == 2)
+                {
+                    _camera.OnMediaAsked();
+                }
+
+                return Task.CompletedTask;
+            }
+
+            public async Task<byte[]> ReadExactAsync(int n, CancellationToken ct = default)
+            {
+                var buf = new byte[n];
+                for (var i = 0; i < n; i++)
+                {
+                    buf[i] = await _incoming.Reader.ReadAsync(ct).ConfigureAwait(false);
+                }
+
+                return buf;
+            }
+
+            public void Close()
+            {
+                // Closing is how the engine ends a session to re-ask at another quality: the reader must
+                // come undone rather than block for ever, or the reconnect never happens.
+                if (_closed)
+                {
+                    return;
+                }
+
+                _closed = true;
+                _incoming.Writer.TryComplete(new SocketClosedException("tcp: closed"));
+            }
+
+            public void Dispose() => Close();
+        }
     }
 
     /// <summary>
@@ -193,30 +403,6 @@ public class MonitorEngineTest : IDisposable
         public ITcpSocket Tcp() => _tcp;
 
         public Task WaitForSessionAsync() => _session.Task.WaitAsync(TimeSpan.FromSeconds(10));
-
-        /// <summary>One command record: [BE u32 len][LE u32 cmd][payload].</summary>
-        private static byte[] AuthOk()
-        {
-            var payload = System.Text.Encoding.UTF8.GetBytes("""{"result":"success"}""");
-            var record = new byte[8 + payload.Length];
-            record.PutBeU32(0, 4 + payload.Length);
-            record.PutLeU32(4, 0x100);
-            Buffer.BlockCopy(payload, 0, record, 8, payload.Length);
-            return record;
-        }
-
-        private static byte[] Drw(byte[] chunk, int channel, int seq)
-        {
-            var b = new byte[8 + chunk.Length];
-            b[0] = 0xf1;
-            b[1] = 0xd0;
-            b.PutBeU16(2, 4 + 4 + chunk.Length);
-            b[4] = 0xd1;
-            b[5] = (byte)channel;
-            b.PutBeU16(6, seq);
-            Buffer.BlockCopy(chunk, 0, b, 8, chunk.Length);
-            return b;
-        }
 
         private sealed class SlowTcp : ITcpSocket
         {

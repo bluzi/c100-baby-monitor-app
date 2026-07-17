@@ -184,6 +184,7 @@ struct ViewerView: View {
             ) { state.toggleMute() }
 
             NightVisionControl()
+            QualityControl()
 
             // BG-18: float the live video into a system picture-in-picture window, on demand. Shown only
             // on a live feed the OS will float — hidden on the Simulator, where Apple has no PiP.
@@ -261,5 +262,39 @@ struct NightVisionControl: View {
         BabyMonitor.shared.setNightVision(mode: option) { message in
             if let message { error = message } else { mode = option; error = nil }
         }
+    }
+}
+
+/// LIVE-18: the picture's quality — HD, or SD for a network that cannot carry it.
+///
+/// It sits beside night vision and is deliberately *not* built like it. Night vision lives on the
+/// camera, is shared by everyone watching, and can be refused — hence its read, its callbacks and its
+/// error line. Quality lives here, with the viewer: a local settings write that cannot fail, so it has
+/// none of that, and copying it would invent an error that cannot happen.
+///
+/// The current quality is the control's own face, not something behind it — a control you must open to
+/// learn the current state is a state the parent does not know. Which is also why it is a word and not
+/// a glyph: "SD" needs no legend at 3am.
+struct QualityControl: View {
+    @EnvironmentObject private var state: AppState
+    @State private var quality = "hd"
+
+    var body: some View {
+        ControlMenu(label: "Picture quality", text: quality == "sd" ? "SD" : "HD") {
+            Picker("Picture quality", selection: Binding(get: { quality }, set: { set($0) })) {
+                Text("HD — the camera's full picture").tag("hd")
+                Text("SD — smaller, for a slow network").tag("sd")
+            }
+            // LIVE-18: changing quality re-asks the camera, so the stream drops and comes back. Said
+            // here, before it is chosen — never left to be discovered as a feed that blinked out.
+            Section { Text("Changing this reconnects the feed") }
+        }
+        .onAppear { quality = state.videoQuality }
+    }
+
+    private func set(_ option: String) {
+        guard option != quality else { return }
+        quality = option
+        state.setVideoQuality(option)
     }
 }

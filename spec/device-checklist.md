@@ -138,6 +138,15 @@ platform can do less than another.
     Pick another mode; the camera's infrared switches accordingly and the choice sticks after
     reopening. Unplug the camera and try again: a readable error appears and the shown mode does
     not change.
+20b. **Picture quality (LIVE-18):** the control reads HD without being opened. Pick SD — it says
+    first that changing it reconnects the feed, and then it does: the picture and sound stop for a
+    second or two and come back visibly smaller, the control now reads SD, and the status goes
+    connecting → live rather than showing an error or a countdown (`adb logcat -s BabyMonitor` /
+    the PC's log shows "video quality changed … reconnecting", then a reconnect with no backoff
+    wait). No alarm fires across the gap. Pick SD again while on SD — nothing happens at all; the
+    sound does not break. Restart the app: it comes back on SD. On a second viewer of the same
+    camera, the quality is unchanged — this choice is this app's, not the camera's (unlike
+    LIVE-10). With monitoring stopped, changing it reconnects nothing and is simply remembered.
 21. **Camera list failures (CAM-5):** with the phone offline, open the camera picker — a readable
     error with a Retry. On an account with no cameras, it says so rather than showing an empty list.
 22. **The alarm sounds (ALRM-11, ALRM-14):** in settings, preview every sound — each is audible and

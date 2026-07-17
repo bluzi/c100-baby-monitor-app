@@ -1,8 +1,11 @@
 package com.bluzi.babymonitor.monitor
 
 import com.bluzi.babymonitor.data.AppStore
+import com.bluzi.babymonitor.data.Settings
 import com.bluzi.babymonitor.dsp.analyzeWindow
 import com.bluzi.babymonitor.log.Log
+import com.bluzi.babymonitor.net.MiHttp
+import com.bluzi.babymonitor.net.SocketFactory
 import com.bluzi.babymonitor.net.platformHttp
 import com.bluzi.babymonitor.net.platformSockets
 import com.bluzi.babymonitor.platform.elapsedRealtimeMs
@@ -63,6 +66,11 @@ class MonitorEngine(
     private val scope: CoroutineScope,
     private val ringer: Ringer,
     private val media: MediaFactory,
+    // The network, as a seam rather than a global — the C# port has taken both as parameters from the
+    // start, and reaching for the platform's own instead is what left this engine with no test of its
+    // lifecycle at all while the port had one. The defaults are the real thing, so no shell passes them.
+    private val sockets: SocketFactory = platformSockets,
+    private val http: MiHttp = platformHttp,
 ) {
     // Written by the connection coroutine (on expiry), read from the main thread in start()/stop().
     @Volatile
@@ -84,6 +92,18 @@ class MonitorEngine(
     /** The connection in flight, so a stalled feed can be forced closed from the tick loop. */
     @Volatile
     private var client: MissClient? = null
+
+    /** LIVE-18: the quality the current stream was asked for, so a change to it can be noticed. */
+    @Volatile
+    private var mediaQuality: String = Settings.QUALITY_HD
+
+    /**
+     * LIVE-18: this session was ended by us, to re-ask the camera at a new quality — it was not lost.
+     * It is what tells the reconnect loop to go straight back round instead of waiting out a backoff
+     * that answers a failure which did not happen.
+     */
+    @Volatile
+    private var restartForQuality = false
 
     @Volatile
     private var schedule = AlarmSchedule(windowed = false)
@@ -154,6 +174,7 @@ class MonitorEngine(
                 // turn the alarm on, see it on, and have nothing arm. Never let that happen.
                 runCatching {
                     player?.muted = s.muted
+                    applyVideoQuality(s)
                     detector.enabled = s.alarmEnabled
                     // ALRM-2/16: the dial plus this camera's learned steps set the loudness bar.
                     detector.thresholdDb = effectiveThresholdDb(s.alarmSensitivity, calibrationSteps)
@@ -236,6 +257,25 @@ class MonitorEngine(
         job = null
     }
 
+    /**
+     * LIVE-18: mute and the alarm can be changed under a running stream; the picture's size cannot,
+     * because the camera was told which one to send when the stream was asked for. So the ask is made
+     * again — the feed drops and comes back at the new size, which is exactly what the control says it
+     * will do. Only when a session is actually up: with the monitor stopped this just records the
+     * choice, and the next stream is asked for it.
+     */
+    private fun applyVideoQuality(s: Settings) {
+        if (s.videoQuality == mediaQuality) return
+        mediaQuality = s.videoQuality
+        if (!MonitorHub.running.value || client == null) return
+
+        Log.i("engine", "video quality changed to ${s.videoQuality} — reconnecting the feed")
+        // Closing the connection is how the watchdog ends a session too (WATCH-7): the pumps unwind and
+        // the reconnect loop takes over. The flag is what keeps that from being read as a failure.
+        restartForQuality = true
+        runCatching { client?.close() }
+    }
+
     private fun acknowledgeAlarm() {
         // Read what is ringing before acknowledge clears it — the answer belongs to THIS alarm.
         val acknowledged = MonitorHub.activeAlarm.value
@@ -310,6 +350,15 @@ class MonitorEngine(
                 job = null
                 return
             } catch (e: Exception) {
+                if (restartForQuality) {
+                    // LIVE-18: we ended that session ourselves to ask for a different picture. Straight
+                    // back round with no backoff and no error on screen — a parent who just chose HD is
+                    // watching an empty window, and nothing here actually failed.
+                    restartForQuality = false
+                    attempt = 0
+                    Log.i("engine", "reconnecting at $mediaQuality quality")
+                    continue
+                }
                 Log.w("engine", "connection ended: ${e.message}", e)
                 MonitorHub.status.value = "error: ${e.message ?: e.toString()}"
             }
@@ -344,7 +393,7 @@ class MonitorEngine(
         MonitorHub.cameraName.value = device.name
         MonitorHub.status.value = STATUS_CONNECTING
 
-        val cloud = MiCloud(platformHttp, session = session)
+        val cloud = MiCloud(http, session = session)
         cloud.onSessionRefreshed = { store.saveSession(it) } // AUTH-7
 
         // Refresh the camera's LAN address in case DHCP moved it since last time.
@@ -374,7 +423,7 @@ class MonitorEngine(
             throw UnsupportedCameraException("this camera speaks '${vendorName(vendor.vendor)}' — only cs2 is supported")
         }
 
-        val missClient = MissClient(device.model, platformSockets)
+        val missClient = MissClient(device.model, sockets)
         client = missClient
         // Everything from here on must be released on EVERY exit path. A CS2 connection owns its
         // own socket and a 1 Hz keepalive coroutine that only close() ever stops — leaking one per
@@ -396,13 +445,11 @@ class MonitorEngine(
                             sign = vendor.sign,
                         ),
                     )
-                    // LIVE-18: the quality is chosen here, once per session. Only the PC offers the
-                    // control today, so on these platforms this is always the default (HD) and never
-                    // changes under a running stream — which is why this core has no restart-on-change
-                    // path and the C# one does. Adding the control to a shell here means adding that
-                    // path too, and proving it on the device: a stream that must be re-asked for is a
-                    // reconnect, and a reconnect is a gap in the sound.
-                    missClient.startMedia(quality = MonitorHub.settings.value.videoQuality, audio = true)
+                    // LIVE-18: the quality is chosen here, once per session — which is exactly why
+                    // changing it has to end the session and ask again (applyVideoQuality). Recording
+                    // what we asked for is what lets that change be noticed at all.
+                    mediaQuality = MonitorHub.settings.value.videoQuality
+                    missClient.startMedia(quality = mediaQuality, audio = true)
                 }
             } catch (e: TimeoutCancellationException) {
                 throw XiaomiException("the camera did not answer in time")

@@ -12,9 +12,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Hd
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Sd
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeOff
@@ -41,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
+import com.bluzi.babymonitor.data.Settings
 import com.bluzi.babymonitor.monitor.LevelMeter
 import com.bluzi.babymonitor.monitor.displayLevelDb
 import com.bluzi.babymonitor.monitor.statusLine
@@ -69,29 +72,44 @@ fun viewerActions(
     running: Boolean,
     status: String,
     nightVision: NightVisionMode?,
+    videoQuality: String,
     onToggleMute: () -> Unit,
     onResume: () -> Unit,
     onNightVision: () -> Unit,
+    onPictureQuality: () -> Unit,
     onSettings: () -> Unit,
     onStop: () -> Unit,
     onPip: (() -> Unit)? = null,
-): List<ViewerAction> = viewerActionKinds(running, status).map { kind ->
+): List<ViewerAction> = viewerActionKinds(running, status).flatMap { kind ->
     when (kind) {
-        ViewerActionKind.Resume -> ViewerAction(Icons.Filled.PlayArrow, "Resume", onClick = onResume)
-        ViewerActionKind.Stop -> ViewerAction(Icons.Filled.Stop, "Stop monitoring", onClick = onStop)
-        ViewerActionKind.Mute -> ViewerAction(
-            if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-            if (muted) "Muted — tap for sound" else "Mute",
-            active = muted, // LIVE-2: muted draws latched, unmistakably a state
-            onClick = onToggleMute,
+        ViewerActionKind.Resume -> listOf(ViewerAction(Icons.Filled.PlayArrow, "Resume", onClick = onResume))
+        ViewerActionKind.Stop -> listOf(ViewerAction(Icons.Filled.Stop, "Stop monitoring", onClick = onStop))
+        ViewerActionKind.Mute -> listOf(
+            ViewerAction(
+                if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                if (muted) "Muted — tap for sound" else "Mute",
+                active = muted, // LIVE-2: muted draws latched, unmistakably a state
+                onClick = onToggleMute,
+            ),
         )
-        // LIVE-10: filled moon = forced on, outline = off/auto/unknown.
-        ViewerActionKind.NightVision -> ViewerAction(
-            if (nightVision == NightVisionMode.ON) Icons.Filled.DarkMode else Icons.Outlined.DarkMode,
-            "Night vision",
-            onClick = onNightVision,
+        ViewerActionKind.NightVision -> listOf(
+            // LIVE-10: filled moon = forced on, outline = off/auto/unknown.
+            ViewerAction(
+                if (nightVision == NightVisionMode.ON) Icons.Filled.DarkMode else Icons.Outlined.DarkMode,
+                "Night vision",
+                onClick = onNightVision,
+            ),
+            // LIVE-18: picture quality is what THIS app asks the camera for — a local setting, not a
+            // camera capability — so it is not core's shared decision (cf. BG-18's PiP) and is placed
+            // here, beside night vision, as the spec asks. The icon is the state: it reads HD or SD
+            // without being opened, so the quality in use is never a thing you must tap to learn.
+            ViewerAction(
+                if (videoQuality == Settings.QUALITY_SD) Icons.Filled.Sd else Icons.Filled.Hd,
+                if (videoQuality == Settings.QUALITY_SD) "Picture quality — SD" else "Picture quality — HD",
+                onClick = onPictureQuality,
+            ),
         )
-        ViewerActionKind.Alerts -> ViewerAction(Icons.Filled.Tune, "Alerts", onClick = onSettings)
+        ViewerActionKind.Alerts -> listOf(ViewerAction(Icons.Filled.Tune, "Alerts", onClick = onSettings))
     }
     // LIVE-9: switching camera, signing out, and About are rare — they live in the top-right
     // menu (OverlayMenu), keeping the button row down to what a night actually needs.

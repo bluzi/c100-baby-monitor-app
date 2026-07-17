@@ -24,6 +24,14 @@ namespace BabyMonitor.App.Services;
 /// </summary>
 public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
 {
+    /// <summary>
+    /// DESK-27: how many decodes may say "buffer full" and hand back nothing before the decoder is
+    /// declared wedged. At the camera's ~20 frames a second this is well under a second — long enough
+    /// that a moment's contention is not mistaken for a wedge, short enough that nobody is looking at a
+    /// photograph while we make up our mind.
+    /// </summary>
+    private const int WedgeStreakLimit = 10;
+
     private readonly object _lock = new();
     private readonly DispatcherQueue _ui;
     private readonly Action<WriteableBitmap>? _onSurfaceReady;
@@ -31,6 +39,18 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
     private IntPtr _ctx;
     private byte[]? _parameterSets; // Annex-B VPS+SPS+PPS, prepended to every keyframe
     private WriteableBitmap? _bitmap;
+
+    // DESK-27: what the decoder was built from, kept so it can be built again from scratch. See
+    // RebuildIfWedged — a decoder that has wedged cannot be talked round, only replaced.
+    private byte[]? _cfgVps;
+    private byte[]? _cfgSps;
+    private byte[]? _cfgPps;
+    private int _cfgWidth;
+    private int _cfgHeight;
+
+    /// <summary>DESK-27: decodes that said "buffer full" while handing back no picture at all.</summary>
+    private int _wedgeStreak;
+
     private byte[]? _ready;         // the newest frame, waiting for the UI thread
     private int _readyWidth;        // its size — carried with it, so the surface can follow the frame
     private int _readyHeight;
@@ -82,6 +102,15 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
                 }
 
                 _ctx = ctx;
+                _wedgeStreak = 0;
+
+                // DESK-27: kept so the decoder can be built again without the camera's help — a wedged
+                // one is replaced, and waiting for a fresh Configure would mean waiting for a reconnect.
+                _cfgVps = vps;
+                _cfgSps = sps;
+                _cfgPps = pps;
+                _cfgWidth = width;
+                _cfgHeight = height;
 
                 // The camera sends VPS/SPS/PPS in their own access units, so the decoder never sees them
                 // in the stream we forward — every keyframe gets them prepended instead. A decoder that
@@ -121,6 +150,7 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
         {
             IntPtr ctx;
             byte[]? sets;
+            var isKeyframe = Hevc.IsKeyframe(annexB);
             lock (_lock)
             {
                 if (_torn || _ctx == IntPtr.Zero)
@@ -132,7 +162,7 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
                 sets = _parameterSets;
             }
 
-            var data = Hevc.IsKeyframe(annexB) && sets != null
+            var data = isKeyframe && sets != null
                 ? sets.Concat(annexB).ToArray()
                 : annexB;
 
@@ -160,19 +190,29 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
             //
             // Bounded, because a decoder that somehow never finishes must not take the feed's thread with
             // it: video is best-effort (LIVE-7), and audio is what monitoring means.
+            var drewSomething = false;
+            var sawBufferFull = false;
             for (var pass = 0; pass < 64; pass++)
             {
                 var err = Libde265.de265_decode(ctx, out var more);
-                DrainPictures(ctx);
+                drewSomething |= DrainPictures(ctx);
 
                 if (err == Libde265.DE265_ERROR_WAITING_FOR_INPUT_DATA)
                 {
-                    return; // it has had everything this access unit carries
+                    break; // it has had everything this access unit carries
                 }
 
                 if (err == Libde265.DE265_ERROR_IMAGE_BUFFER_FULL)
                 {
-                    continue; // we just emptied the queue; let it carry on
+                    // "DPB full, extract some images before continuing" — which we just tried to do. If
+                    // nothing came out, that instruction cannot be followed, and see RebuildIfWedged.
+                    sawBufferFull = true;
+                    if (!drewSomething)
+                    {
+                        break;
+                    }
+
+                    continue; // we did empty the queue; let it carry on
                 }
 
                 if (err != Libde265.DE265_OK)
@@ -180,19 +220,79 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
                     // A broken packet is a dropped frame, never a dropped session: the stream recovers at
                     // the next keyframe, and PROTO-23's rule (a bad packet is skipped) holds here too.
                     Log.Warn("video", $"libde265 could not decode a frame: {Libde265.ErrorText(err)}");
-                    return;
+                    break;
                 }
 
                 if (more == 0)
                 {
-                    return;
+                    break;
                 }
             }
+
+            RebuildIfWedged(drewSomething, sawBufferFull);
         }
         catch (Exception e)
         {
             Log.Warn("video", $"could not decode a frame: {e.Message}");
         }
+    }
+
+    /// <summary>
+    /// DESK-27: **a decoder that has wedged is replaced, because it cannot be talked round.**
+    ///
+    /// libde265 refuses to decode once its picture buffer is full ("extract some images before
+    /// continuing") — and it will not give the images back. `param_suppress_faulty_pictures`, which
+    /// DESK-26 turns on so a half-decoded cot never reaches the screen, drops faulty pictures on the
+    /// floor *instead of* queueing them for output (decctx.cc, push_picture_to_output_queue): they are
+    /// never handed over, so they are never released, so their buffer slots are never freed. Lose enough
+    /// reference frames — a dropped backlog (LIVE-8) will do it — and the buffer fills with pictures
+    /// nobody can extract. Full, so it will not decode; silent, so it will not drain. It never recovers.
+    ///
+    /// Measured, and it is not an edge case: the picture froze about 25 seconds into every session and
+    /// stayed frozen, while frames arrived at 20/s, keyframes among them, and nothing was logged. Audio
+    /// played on and the feed said Live — a photograph of a sleeping baby, held up for as long as anyone
+    /// cared to look at it. That is the exact lie this project exists to prevent.
+    ///
+    /// So the signature is watched for directly — "buffer full" while handing back nothing — and the
+    /// answer is a new decoder. The next keyframe carries the parameter sets and the picture returns.
+    /// The streak is what keeps this honest: a decoder still waiting for its first keyframe says
+    /// WAITING_FOR_INPUT_DATA, never this, so a healthy start cannot be mistaken for a wedge.
+    /// </summary>
+    private void RebuildIfWedged(bool drewSomething, bool sawBufferFull)
+    {
+        if (drewSomething || !sawBufferFull)
+        {
+            _wedgeStreak = 0;
+            return;
+        }
+
+        if (++_wedgeStreak < WedgeStreakLimit)
+        {
+            return;
+        }
+
+        byte[]? vps, sps, pps;
+        int w, h;
+        lock (_lock)
+        {
+            vps = _cfgVps;
+            sps = _cfgSps;
+            pps = _cfgPps;
+            w = _cfgWidth;
+            h = _cfgHeight;
+        }
+
+        if (vps == null || sps == null || pps == null)
+        {
+            return; // nothing to rebuild from; the next Configure will sort it out
+        }
+
+        Log.Warn(
+            "video",
+            $"the decoder wedged — its picture buffer is full and it will hand nothing back " +
+            $"({_wedgeStreak} decodes). Building a new one; the picture returns at the next keyframe.");
+        _wedgeStreak = 0;
+        Configure(vps, sps, pps, w, h);
     }
 
     public void TearDown()
@@ -203,17 +303,22 @@ public sealed class SoftwareHevcVideoRenderer : IVideoRenderer, IDisposable
 
     public void Dispose() => ReleaseDecoder();
 
-    /// <summary>Take every finished picture out, and give each one back — a picture not released is a stall.</summary>
-    private void DrainPictures(IntPtr ctx)
+    /// <summary>
+    /// Take every finished picture out, and give each one back — a picture not released is a stall.
+    /// Returns whether anything came out at all, which is how a wedged decoder is recognised (DESK-27).
+    /// </summary>
+    private bool DrainPictures(IntPtr ctx)
     {
+        var any = false;
         while (true)
         {
             var image = Libde265.de265_get_next_picture(ctx);
             if (image == IntPtr.Zero)
             {
-                return;
+                return any;
             }
 
+            any = true;
             try
             {
                 var width = Libde265.de265_get_image_width(image, 0);

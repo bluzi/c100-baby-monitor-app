@@ -60,7 +60,16 @@ $bld = Join-Path $here "build/$Platform"
 $out = Join-Path $here "bin/$Platform"
 $dll = Join-Path $out 'libde265.dll'
 
-if ((Test-Path $dll) -and -not $Force) {
+# What the cached .dll would have to have been built from to be worth keeping. The pinned tag is not
+# enough on its own: this decoder is patched (see below), and a .dll built from the same tag *before*
+# that patch is a decoder whose picture freezes within a minute of every session, with nothing in the
+# log to say so. "The file exists" is the kind of cache check that ships that .dll for months, so the
+# stamp names the patch too — change the patch, and every cached build rebuilds itself.
+$builtFrom = "$Version+desk27-suppressed-picture-releases-its-slot"
+$stamp = "$dll.built-from"
+
+if ((Test-Path $dll) -and -not $Force -and
+    (Test-Path $stamp) -and ((Get-Content $stamp -Raw).Trim() -eq $builtFrom)) {
     Write-Host "==> libde265 already built: $dll" -ForegroundColor Green
     return
 }
@@ -101,6 +110,49 @@ if (-not (Test-Path $src)) {
     # native command's stderr into error records that $ErrorActionPreference='Stop' makes fatal. The
     # exit code is the only honest signal here.
     Invoke-Native { git clone --depth 1 --branch $Version $Repo $src } 'could not fetch libde265'
+}
+
+# --- the patch -------------------------------------------------------------
+# DESK-27: libde265 leaks a picture-buffer slot for every faulty picture it suppresses — and DESK-26
+# is why suppression is on, so the leak is ours by construction rather than bad luck.
+#
+# push_picture_to_output_queue() drops a faulty picture on the floor instead of queueing it for
+# output, but leaves PicOutputFlag set. The decoder's own invariant (image.h) is that a slot is free
+# only when `PicOutputFlag == false && PicState == UnusedForReference`, so a suppressed picture holds
+# its slot for ever. Lose enough reference frames — a dropped backlog (LIVE-8) will do it — and the
+# buffer fills with pictures nobody can extract: de265_decode answers IMAGE_BUFFER_FULL ("extract
+# some images before continuing") while de265_get_next_picture hands back nothing. Full, so it will
+# not decode; silent, so it cannot be drained. It never recovers on its own.
+#
+# Measured on a real C100 before this existed: the picture froze ~25 s into every session and stayed
+# frozen — while frames arrived at 20/s, audio played, the status said Live and the log said nothing.
+# A photograph of a sleeping baby, held up for as long as anyone cared to look at it.
+#
+# Clearing the flag is exactly what the surrounding code does elsewhere (dpb.cc) to let a slot go: the
+# picture is still never shown, which is all DESK-26 asks — it just stops being immortal.
+$decctx = Join-Path $src 'libde265/decctx.cc'
+$marker = 'outimg->PicOutputFlag = false; // baby-monitor DESK-27'
+# Normalised to LF before anything is matched: git hands this file over with whatever line endings
+# core.autocrlf happens to want on the machine doing the clone, so a patch that matches CRLF would
+# apply here and silently miss on a runner configured the other way — shipping an unpatched decoder
+# from a build that looked perfectly green. MSVC does not care which it compiles.
+$text = [IO.File]::ReadAllText($decctx).Replace("`r`n", "`n")
+if (-not $text.Contains($marker)) {
+    $needle = "    if (outimg->integrity != INTEGRITY_CORRECT &&`n        param_suppress_faulty_pictures) {`n    }`n"
+    if (-not $text.Contains($needle)) {
+        throw "libde265 $Version no longer has the faulty-picture suppression block this patch fixes. " +
+              'Check whether upstream fixed the leak (then drop this patch) or moved it (then update it) — ' +
+              'do NOT build unpatched: the picture freezes within a minute and nothing says so.'
+    }
+
+    $fixed = "    if (outimg->integrity != INTEGRITY_CORRECT &&`n" +
+             "        param_suppress_faulty_pictures) {`n" +
+             "      // A suppressed picture is never handed to the caller, so nothing will ever release it.`n" +
+             "      // Say it is not for output and the DPB can reclaim the slot (image.h: can_be_released).`n" +
+             "      $marker`n" +
+             "    }`n"
+    [IO.File]::WriteAllText($decctx, $text.Replace($needle, $fixed))
+    Write-Host '==> Patched libde265: a suppressed picture gives its buffer slot back (DESK-27)' -ForegroundColor Cyan
 }
 
 # --- the build -------------------------------------------------------------
@@ -152,5 +204,9 @@ if ($dumpbin) {
     }
     Write-Host "    depends only on: $($deps -join ', ')" -ForegroundColor DarkGray
 }
+
+# Written last, and only here: the stamp says "this exact .dll came from that exact source". Written
+# any earlier and a build that failed halfway would leave a stamp vouching for a decoder nobody built.
+Set-Content -Path $stamp -Value $builtFrom -Encoding ASCII
 
 Write-Host "==> $dll ($([math]::Round((Get-Item $dll).Length / 1KB)) KB)" -ForegroundColor Green

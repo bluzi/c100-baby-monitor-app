@@ -474,6 +474,17 @@ D12. **`[windows]` Video out of the box (DESK-22, DESK-26):** on a PC with **no 
      plain words that it cannot draw the video, and **audio keeps playing, the level meter keeps moving,
      and the crying alarm still fires.** A black rectangle with no explanation is exactly the kind of
      silence this app exists to prevent.
+D12b. **`[windows]` The picture keeps moving for a long watch (DESK-27):** the check above, held for
+     **twenty minutes**, because this failure needs a few minutes to build and then never lets go. Watch
+     the **camera's own timestamp overlay** and nothing else — it is the only thing in the app that
+     cannot lie to you. Every other signal reads healthy right through it: frames arrive, the connection
+     holds, audio plays, the status says **Live**, and the log says nothing at all. If those digits stop
+     for more than a few seconds, the picture is a photograph and the app is telling a parent their baby
+     is fine on the strength of a still image. (Measured before this existed: frozen within ~25 seconds,
+     then frozen for good — 185 of 188 samples.) The log should show the odd
+     `the decoder wedged … Building a new one` — every few minutes is normal and correct; the picture
+     must not visibly stop when it does. A **continuous** stream of them is a different bug: the rebuild
+     is not taking, and it needs looking at rather than living with.
 
 D13. **`[windows]` The firewall that answers for the camera (DESK-24):** install with the setup on a PC
      whose network is **Public** (the default for a fresh wired connection). One elevation prompt

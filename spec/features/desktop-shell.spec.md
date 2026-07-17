@@ -191,7 +191,25 @@ are looking at, or close one to be rid of the other.
 - **DESK-26** `[windows]` `[device]` **A frame that decoded wrongly is never shown.** Joining a live stream means
   the first frames arrive without the references they were coded against, and a half-decoded frame of a
   cot looks calm in exactly the way a real one does. The feed shows nothing until it has a frame it can
-  stand behind, rather than a picture that might be a lie.
+  stand behind, rather than a picture that might be a lie. (Suppressing those frames is what wedges the
+  decoder, which is why DESK-27 exists: the two are a pair, and neither is optional.)
+- **DESK-27** `[windows]` `[device]` **A wedged decoder is replaced, not waited on.** The decoder can reach a state
+  it cannot leave: its picture buffer fills, so it refuses to decode, and it will not hand the pictures
+  back, so the buffer never empties. Suppressing faulty frames (DESK-26) is what fills it — a suppressed
+  picture keeps its slot for ever — and losing reference frames is enough to start it, which a dropped
+  backlog (LIVE-8) does routinely.
+
+  It is the worst-looking failure in this app precisely because it looks like nothing at all: frames keep
+  arriving, the connection is healthy, audio plays, the status truthfully says **Live** — and the picture
+  is a photograph of a sleeping baby, held up for as long as anyone cares to look at it. Nothing upstream
+  can see it: the camera is fine and the wire is fine (WATCH-12 watches the wire and stays quiet). Only
+  the decoder's own silence gives it away.
+
+  So the app watches for that silence — the decoder saying its buffer is full while handing back no
+  picture — and **builds a new decoder**. The picture returns at the next keyframe, a few seconds later.
+  Audio, the level meter, the crying alarm and the watchdog are untouched throughout (LIVE-7): this is a
+  picture fault, and it is fixed without spending a single second of sound. It is said in the log, every
+  time — a recovery nobody records is a bug nobody can find twice.
 - **DESK-25** `[windows]` **A remembered position can never hide the window** (DESK-9). Only a frame
   that would land back on a screen the parent can actually see is restored; one that would not is
   discarded, and that shape opens at its default position instead. On a PC a **minimised** window is

@@ -298,6 +298,14 @@ jobs:
       - name: Run the spec suite
         run: dotnet test windows/tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj --nologo
 
+      # THE PICTURE'S DECODER (DESK-22). Windows ships no H.265 decoder and the camera speaks nothing
+      # else, so the app carries its own — built here from pinned source, 772 KB, statically linked so it
+      # needs no VC++ redistributable on a parent's PC. The runners already have MSVC and CMake. Without
+      # this step the csproj refuses to build rather than publish an app with a black rectangle.
+      - name: Build the H.265 decoder
+        shell: pwsh
+        run: .\windows\hevc\build-libde265.ps1 -Platform x64
+
       # Built with **MSBuild from Visual Studio**, not `dotnet publish`. The Windows App SDK generates a
       # resources.pri at build time, and the MSBuild task that does it
       # (Microsoft.Build.Packaging.Pri.Tasks) ships with VS's MSBuild, not with the .NET SDK's — under

@@ -41,7 +41,7 @@ public sealed partial class MainWindow : Window
 
     private readonly AppState _state;
     private readonly TrayIcon _tray;
-    private readonly MediaFoundationVideoRenderer _renderer = new();
+    private readonly SoftwareHevcVideoRenderer _renderer;
     private readonly DispatcherTimer _chromeTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private readonly Updater _updater = new(Updater.CurrentVersion);
 
@@ -87,8 +87,9 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
 
-        // The picture: one surface, both shapes, never rebuilt (DESK-9).
-        Video.SetMediaPlayer(_renderer.Player);
+        // The picture: one surface, both shapes, never rebuilt (DESK-9). The decoder hands its bitmap
+        // over when it has one; until then there is simply nothing to draw.
+        _renderer = new SoftwareHevcVideoRenderer(DispatcherQueue, bitmap => Video.Source = bitmap);
         _state.OnVideoRendererChanged(_renderer);
 
         // DESK-1/2: the tray icon is the app. It also owns the window that hears the machine sleep.

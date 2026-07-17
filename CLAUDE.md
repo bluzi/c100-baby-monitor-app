@@ -258,7 +258,10 @@ windows/              THE PC. Its own core, because Windows cannot consume the K
                            core/protocol-vectors.json. This is what makes a second implementation
                            safe rather than reckless.
   src/BabyMonitor.App/     The shell: WinUI 3. Tray icon (Win32), one window / two shapes, WASAPI,
-                           Media Foundation, DPAPI, the updater.
+                           libde265 (the picture), DPAPI, the updater.
+  hevc/build-libde265.ps1  THE PICTURE'S DECODER, built from pinned source and bundled — because
+                           Windows has none and the camera speaks H.265 only (DESK-22). Cached; CI
+                           builds it per release. The .dll is an output, never committed.
   Sources/
     AppDelegate.swift   Lifecycle, the menu bar item and its menu, updates, sleep/wake
     MainMenu.swift      The standard Mac menus — and therefore ⌘V (DESK-16)
@@ -457,9 +460,21 @@ Windows:
   camera's shape (DESK-12), so it earns its keep twice.
 - **The camera sends VPS/SPS/PPS in their own access units**, so the Windows renderer prepends them
   to every keyframe. A decoder that started late has nothing to start from otherwise.
-- **Windows may have no H.265 decoder at all** (the HEVC Video Extensions are a separate free Store
-  download). That is a capability gap, so it is *behaviour*: the app says so, points at the
-  extension, and keeps monitoring (DESK-22). It must never be a black rectangle.
+- **Windows has no H.265 decoder, so the app brings one.** The camera speaks H.265 and nothing else —
+  measured, at every quality it offers: `videoquality` 0/3 give 2304x1296 and 1/2 give 848x480, all
+  H.265. Media Foundation only gets a decoder from the *HEVC Video Extensions*, a separate Store
+  download, which made the picture depend on an errand — and on a PC with no Store, or nobody signed
+  into it, the picture was never coming. So `windows/hevc/build-libde265.ps1` builds **libde265** from
+  pinned source (772 KB) and the app decodes in-process (DESK-22). Two things about that build are
+  load-bearing, and both are checked by the script rather than hoped for: the CRT is **statically
+  linked** (otherwise the DLL needs the VC++ redistributable, and fails to load on exactly the clean
+  machines this exists to serve), and the decoder is told to **suppress faulty pictures** (DESK-26) —
+  joining a live stream hands you frames without their references, and a grey blocky half-picture of a
+  cot reads as "the baby is fine" just as well as the real thing. It must never be a black rectangle,
+  and it must never be a *convincing wrong* one either.
+- **Do not guess libde265's enum values — read `de265.h`.** `DE265_ERROR_WAITING_FOR_INPUT_DATA` is
+  **13**; 10 is `CANNOT_START_THREADPOOL`. Mistaking the two makes the normal end of every decode pass
+  look like a stall, and the log fills with failures while the picture works.
 - **DPAPI keys on the user, not the binary** — which is the whole reason the session uses it. An
   update replaces every byte of the app and the stored session still opens with no prompt (AUTH-12).
   The Mac needs a Developer ID, a provisioning profile and an entitlement to buy the same thing.

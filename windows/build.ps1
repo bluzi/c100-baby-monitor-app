@@ -41,6 +41,12 @@ if (-not $msbuild -or -not (Test-Path $msbuild)) {
     throw "MSBuild from Visual Studio 2022+ was not found. Install VS's '.NET desktop development' workload."
 }
 
+# The picture's decoder (DESK-22). Cached: this is a no-op after the first build. It comes first
+# because a publish without it is a monitor with a black rectangle, and the csproj refuses to build
+# without it rather than let that ship.
+& (Join-Path $PSScriptRoot 'hevc/build-libde265.ps1') -Platform $Platform
+if ($LASTEXITCODE -ne 0 -and $null -ne $LASTEXITCODE) { throw 'the H.265 decoder did not build' }
+
 Write-Host '==> The spec suite (the monitor itself)' -ForegroundColor Cyan
 dotnet test (Join-Path $PSScriptRoot 'tests/BabyMonitor.Core.Tests/BabyMonitor.Core.Tests.csproj') `
     --configuration $Configuration --nologo

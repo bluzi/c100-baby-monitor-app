@@ -31,11 +31,12 @@
             <KeyboardAccelerator Key="Escape" Invoked="OnEscapeAccelerator" />
         </Grid.KeyboardAccelerators>
 
-        <!-- The picture. One surface, both shapes, never rebuilt. -->
-        <MediaPlayerElement x:Name="Video"
-                            AreTransportControlsEnabled="False"
-                            Stretch="UniformToFill"
-                            IsTapEnabled="False" />
+        <!-- The picture. One surface, both shapes, never rebuilt.
+             The frames come from the decoder the app carries (DESK-22) and are drawn straight into a
+             bitmap, so there is no media player and nothing for Windows to be missing. -->
+        <Image x:Name="Video"
+               Stretch="UniformToFill"
+               IsTapEnabled="False" />
 
         <!-- =====================  THE FULL SHAPE (DESK-7)  ===================== -->
         <Grid x:Name="ViewerChrome" Visibility="Collapsed">

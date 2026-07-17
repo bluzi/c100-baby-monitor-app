@@ -587,7 +587,7 @@ public sealed class AppState : INotifyPropertyChanged
     // --- video ---------------------------------------------------------------
 
     /// <summary>Called by the window when it builds (or drops) the picture's decoder.</summary>
-    public void OnVideoRendererChanged(MediaFoundationVideoRenderer? renderer)
+    public void OnVideoRendererChanged(SoftwareHevcVideoRenderer? renderer)
     {
         VideoSink.Renderer = renderer;
         if (renderer == null)

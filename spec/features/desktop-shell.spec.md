@@ -178,14 +178,20 @@ are looking at, or close one to be rid of the other.
   3. treats the gap as a real outage: the watchdog does not pretend the feed was alive (WATCH-2).
 
   A parent who closes the lid must not be able to believe the baby was being monitored.
-- **DESK-22** `[windows]` `[device]` **Windows does not always ship an H.265 decoder** (a Mac
-  always has one, which is why this is the one criterion here that is not shared). The camera sends
-  H.265 and nothing else, so on a PC without the codec there is no picture — and a black rectangle
-  that never explains itself is exactly the kind of silence this app refuses. When the system cannot
-  decode the video, the app says so in plain words on the feed, points at the free **HEVC Video
-  Extensions** in the Microsoft Store, and **keeps monitoring**: audio, the level meter, the crying
-  alarm and the watchdog are all unaffected (LIVE-7). Sound is what monitoring means; the picture is
-  a convenience.
+- **DESK-22** `[windows]` `[device]` **The PC shows video out of the box, and asks nobody for anything.** Windows
+  ships no H.265 decoder of its own (a Mac always has one, which is why this criterion is not shared),
+  and the camera sends H.265 and nothing else — at every quality it offers. Leaving that gap to the
+  system meant the picture depended on a parent finding a Store download, and on a PC with no Store,
+  or no account signed into it, the picture was never coming at all. **So the app carries its own
+  decoder**, and a fresh install shows the feed with nothing installed, bought, or signed in to.
+  A decoder that cannot start, or a stream it cannot draw, still ends the way this app ends every
+  capability gap: it says so in plain words on the feed and **keeps monitoring** — audio, the level
+  meter, the crying alarm and the watchdog are all unaffected (LIVE-7). Sound is what monitoring
+  means; the picture is a convenience.
+- **DESK-26** `[windows]` `[device]` **A frame that decoded wrongly is never shown.** Joining a live stream means
+  the first frames arrive without the references they were coded against, and a half-decoded frame of a
+  cot looks calm in exactly the way a real one does. The feed shows nothing until it has a frame it can
+  stand behind, rather than a picture that might be a lie.
 - **DESK-25** `[windows]` **A remembered position can never hide the window** (DESK-9). Only a frame
   that would land back on a screen the parent can actually see is restored; one that would not is
   discarded, and that shape opens at its default position instead. On a PC a **minimised** window is

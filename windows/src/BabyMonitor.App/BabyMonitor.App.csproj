@@ -29,6 +29,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>12</LangVersion>
 
+    <!-- The YUV-to-BGRA conversion walks the decoder's own planes. Every frame of the feed goes through
+         that loop, and doing it through managed bounds checks costs more than the decode does. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
     <!-- Unpackaged: no MSIX, no app identity, no Store. The bootstrapper is generated for us. -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
@@ -56,6 +60,34 @@
   <ItemGroup>
     <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!--
+    THE PICTURE'S DECODER, CARRIED WITH THE APP (DESK-22).
+
+    Windows has no H.265 decoder of its own and the camera speaks nothing else, so without this the
+    picture depended on a parent finding a Store page. libde265 is built from source by
+    windows/hevc/build-libde265.ps1 (772 KB, statically linked, needs only KERNEL32) and travels in the
+    same folder the updater swaps. It is a build output, not a committed binary — build.ps1 and CI both
+    build it before publishing.
+  -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../../hevc/bin/$(Platform)/libde265.dll"
+          Condition="Exists('$(MSBuildThisFileDirectory)../../hevc/bin/$(Platform)/libde265.dll')">
+      <Link>libde265.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    A build without the decoder is a build with no picture, and that must never leave here quietly. It
+    would run, connect, play audio and show a black rectangle — the exact failure DESK-22 exists to
+    prevent, arriving by way of a forgotten build step. So say so, at build time, on our machine.
+  -->
+  <Target Name="_RequireHevcDecoder" BeforeTargets="Build">
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)../../hevc/bin/$(Platform)/libde265.dll')"
+           Text="libde265.dll is missing for $(Platform). Run windows\hevc\build-libde265.ps1 -Platform $(Platform) (build.ps1 does this for you)." />
+  </Target>
 
   <!--
     THE ONE THING THAT MAKES A PUBLISHED BUILD ACTUALLY RUN.

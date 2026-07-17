@@ -444,12 +444,16 @@ D11. **A dead updater says so (UPD-4, UPD-8):** block `api.github.com` at launch
      longer check for updates. Monitoring is completely unaffected. Remove the block — the complaint
      clears.
 
-D12. **`[windows]` No H.265 decoder (DESK-22):** on a PC **without** the HEVC Video Extensions
-     installed (or with them removed), open the live feed. The app says in plain words that Windows
-     cannot decode this camera's video and points at the free extension — and **audio keeps playing,
-     the level meter keeps moving, and the crying alarm still fires.** Install the extension and
-     reopen: the picture appears. This is the one place a PC is weaker than a Mac, and a black
-     rectangle with no explanation would be exactly the kind of silence this app exists to prevent.
+D12. **`[windows]` Video out of the box (DESK-22, DESK-26):** on a PC with **no HEVC Video Extensions
+     installed** — check with `Get-AppxPackage -Name "*HEVC*"`, which must come back empty — install
+     with the setup and open the live feed. **The picture appears**, with nothing bought, downloaded or
+     signed in to: the decoder travels with the app. Confirm it is a real picture and not a frozen one
+     (the camera's timestamp overlay ticks), and that it is **never** shown as a grey blocky
+     half-picture while it starts (DESK-26) — the feed stays empty until a frame is worth trusting.
+     Then the honest half: rename `libde265.dll` in the install folder and restart. The app must say in
+     plain words that it cannot draw the video, and **audio keeps playing, the level meter keeps moving,
+     and the crying alarm still fires.** A black rectangle with no explanation is exactly the kind of
+     silence this app exists to prevent.
 
 D13. **`[windows]` The firewall that answers for the camera (DESK-24):** install with the setup on a PC
      whose network is **Public** (the default for a fresh wired connection). One elevation prompt

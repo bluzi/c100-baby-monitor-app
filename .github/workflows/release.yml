@@ -279,7 +279,18 @@ jobs:
   windows:
     needs: [plan, create-release]
     if: needs.plan.outputs.windows == 'true'
-    runs-on: windows-latest
+    # PINNED, and not out of caution about the app — about the PICTURE.
+    #
+    # `windows-latest` now carries Visual Studio 18 (MSVC 19.51), and that compiler turns libde265's
+    # hand-written SSE into a decoder that produces garbage: the same source, built by the same script,
+    # ships a window full of coloured noise instead of a cot, and crashes the app outright on some
+    # frames. Nothing says so — the decoder reports success, the log is clean, and the feed calls itself
+    # Live. It was caught only by installing the release and looking at it.
+    #
+    # The C# is innocent: a local Release build against a 14.4x-built decoder is perfect. So the runner
+    # image is the variable, and it is pinned to the toolchain the decoder is actually verified against.
+    # Before moving this forward, build the decoder on the new image and LOOK AT THE PICTURE.
+    runs-on: windows-2022
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

@@ -475,6 +475,19 @@ Windows:
 - **Do not guess libde265's enum values — read `de265.h`.** `DE265_ERROR_WAITING_FOR_INPUT_DATA` is
   **13**; 10 is `CANNOT_START_THREADPOOL`. Mistaking the two makes the normal end of every decode pass
   look like a stall, and the log fills with failures while the picture works.
+- **Take pictures out of the decoder on every pass of the decode loop, not after it.** libde265's output
+  queue is small; a finished picture left in it is a slot it cannot reuse, and once the queue is full it
+  refuses to decode at all (`DPB/output queue full`). The feed then stutters for a reason that has
+  nothing to do with the network.
+- **The compiler that builds the decoder is part of what ships — pin it.** MSVC **19.51** (Visual Studio
+  18, which `windows-latest` now carries) miscompiles libde265's hand-written SSE: the release shipped a
+  window of coloured noise instead of a cot, and access-violated on some frames. **Nothing reported it** —
+  the decoder returned success, the log was clean, and the feed said Live. The same source built by MSVC
+  14.44 is perfect, and a local *Release* build proved the C# innocent. So the Windows job is pinned to
+  `windows-2022`. This is the Mac's SDK lesson in another costume: a **debug build did not prove a
+  release build**, and *our* build did not prove *CI's*. The only thing that proves the picture is
+  installing the published artifact and looking at it — the log will lie to you here, because a decoder
+  that is wrong does not know it is wrong.
 - **DPAPI keys on the user, not the binary** — which is the whole reason the session uses it. An
   update replaces every byte of the app and the stored session still opens with no prompt (AUTH-12).
   The Mac needs a Developer ID, a provisioning profile and an entitlement to buy the same thing.

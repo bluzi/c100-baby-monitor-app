@@ -227,6 +227,12 @@ final class AppState: ObservableObject {
     @Published private(set) var pointerInside = false
     @Published private(set) var chromeVisible = true
     @Published private(set) var miniAlpha: Double = 1
+
+    /// DESK-28: the mini tile is locked click-through for a game. Session-only on purpose — never
+    /// written to `Prefs` — so a restart always returns a tile the parent can touch. Only ever has an
+    /// effect while the tile is genuinely the shape on screen (see `effectiveMiniLocked`); leaving the
+    /// tile clears it. The window watches this and makes itself click-through and non-activating.
+    @Published private(set) var miniLocked = false
     @Published private(set) var reduceTransparency = false
     @Published private(set) var reduceMotion = false
     @Published var openAtLogin = LoginItem.isEnabled
@@ -261,6 +267,11 @@ final class AppState: ObservableObject {
             rawValue: MacShell.shared.windowShape(screen: ui.screen, preferred: preferredShape.rawValue)
         ) ?? .full
     }
+
+    /// DESK-28: the lock has an effect only while the tile is genuinely the shape on screen. A forced
+    /// full for sign-in (DESK-9), or the full window, is never click-through — so a form with fields to
+    /// type into can never end up behind a click-through, non-activating window.
+    var effectiveMiniLocked: Bool { miniLocked && shape == .mini }
 
     /// LIVE-13: the camera is only reachable on its own network. A Mac with no network at all
     /// cannot reach it, and must say so rather than sit on "Connecting…" looking busy.
@@ -332,6 +343,9 @@ final class AppState: ObservableObject {
     private func apply(_ state: UiState) {
         let wasRunning = ui.running
         ui = state
+        // DESK-28: a screen change (sign-out, switching camera) can force the window full — clear the
+        // lock if the tile is no longer what is on screen.
+        reconcileMiniLock()
         recomputeMiniAlpha()
         guard state.running != wasRunning else { return }
         if state.running {
@@ -399,10 +413,36 @@ final class AppState: ObservableObject {
     func setShape(_ shape: WindowShape) {
         preferredShape = shape
         Prefs.shape = shape
+        reconcileMiniLock()
         recomputeMiniAlpha()
     }
 
     func toggleShape() { setShape(shape.other) }
+
+    // MARK: - The game lock (DESK-28)
+
+    /// DESK-28: turn the game lock on or off. It never shows or foregrounds the window — the whole
+    /// point is to leave the game with the focus — so it is only ever reached from the menu bar, over a
+    /// tile that is already on screen. Locking stops the tile reacting to the pointer at all; unlocking
+    /// hands it back its pointer, its hover controls and its normal fade (the window re-reads where the
+    /// pointer actually is).
+    func toggleMiniLock() {
+        miniLocked.toggle()
+        Log.info("ui", miniLocked ? "mini window locked click-through (game mode)" : "mini window unlocked")
+        // A locked tile does not react to the pointer — it cannot be pointed at, it is click-through.
+        if miniLocked { pointerInside = false }
+        recomputeMiniAlpha()
+    }
+
+    /// DESK-28: the lock lives only on the tile. The moment the tile is no longer the shape on screen —
+    /// a forced full for sign-in, or the parent choosing the full window — the lock is cleared, so a
+    /// window with fields to type into is never left click-through, and returning to the tile never
+    /// finds it silently still locked.
+    private func reconcileMiniLock() {
+        guard miniLocked, shape != .mini else { return }
+        miniLocked = false
+        Log.info("ui", "mini window unlocked — the tile is no longer the shape on screen")
+    }
 
     // MARK: - The picture's shape (DESK-12)
 
@@ -418,6 +458,9 @@ final class AppState: ObservableObject {
     /// Any movement brings the controls back — no click, ever. A parent who has to click to find
     /// out what the monitor is doing is a parent who stops checking.
     func pointerMoved() {
+        // DESK-28: a locked tile does not react to the pointer at all — it is click-through, so this
+        // should not fire, but guard it so a stray event can never brighten a locked tile.
+        guard !effectiveMiniLocked else { return }
         pointerInside = true
         chromeVisible = true
         recomputeMiniAlpha()
@@ -440,6 +483,12 @@ final class AppState: ObservableObject {
     /// So after anything that moves or resizes the window, the truth is looked up rather than
     /// remembered: is the pointer, right now, inside the frame?
     func pointerMayHaveLeft(windowFrame: NSRect, visible: Bool) {
+        // DESK-28: a locked tile is click-through and never reacts to the pointer, even one resting
+        // over it after a morph. Hold it out of the hover state until it is unlocked.
+        if effectiveMiniLocked {
+            if pointerInside { pointerExited() }
+            return
+        }
         let inside = visible && windowFrame.contains(NSEvent.mouseLocation)
         guard inside != pointerInside else { return }
         if inside { pointerMoved() } else { pointerExited() }
@@ -468,6 +517,16 @@ final class AppState: ObservableObject {
     }
 
     private func recomputeMiniAlpha() {
+        // DESK-28: a locked tile is held at its idle opacity regardless of the pointer or a ringing
+        // alarm — the one departure from DESK-11, decided in core so it is testable.
+        if effectiveMiniLocked {
+            miniAlpha = MacShell.shared.lockedMiniOpacity(
+                fadeEnabled: miniFadeEnabled,
+                reduceTransparency: reduceTransparency,
+                idleOpacity: miniIdleOpacity
+            )
+            return
+        }
         miniAlpha = MacShell.shared.miniOpacity(
             health: ui.health,
             hovering: pointerInside,

@@ -128,6 +128,55 @@ class MacShellTest {
         )
     }
 
+    // --- DESK-28: the mini tile, locked for a game --------------------------
+
+    @Test
+    fun `DESK-28 a locked mini holds its idle opacity with no pointer near it`() {
+        assertEquals(
+            0.4,
+            MacShell.lockedMiniOpacity(fadeEnabled = true, reduceTransparency = false, idleOpacity = 0.4),
+        )
+    }
+
+    @Test
+    fun `DESK-28 a locked mini stays at its idle opacity even while an alarm rings`() {
+        // The one place a tile does NOT obey DESK-11's "attention forces it opaque": the whole point of
+        // the lock is not to seize the screen back from the game. lockedMiniOpacity takes no health at
+        // all — a ringing alarm cannot reach it, and the cry is carried by the alarm's audio path
+        // (DESK-23) and the status icon (DESK-1) instead. Contrast miniOpacity, which snaps to 1.0 here.
+        val alarming = healthy.copy(activeAlarm = "BABY_NOISE")
+        assertEquals(
+            1.0,
+            MacShell.miniOpacity(alarming, hovering = false, fadeEnabled = true, reduceTransparency = false, idleOpacity = 0.3),
+        )
+        assertEquals(
+            0.3,
+            MacShell.lockedMiniOpacity(fadeEnabled = true, reduceTransparency = false, idleOpacity = 0.3),
+        )
+    }
+
+    @Test
+    fun `DESK-28 a locked mini is solid when fading is off or transparency is disabled`() {
+        assertEquals(
+            1.0,
+            MacShell.lockedMiniOpacity(fadeEnabled = false, reduceTransparency = false, idleOpacity = 0.3),
+        )
+        assertEquals(
+            1.0,
+            MacShell.lockedMiniOpacity(fadeEnabled = true, reduceTransparency = true, idleOpacity = 0.3),
+        )
+    }
+
+    @Test
+    fun `DESK-28 a locked mini can never be set so faint that it cannot be seen`() {
+        // Click-through does not mean invisible: a stored 0 from an old build or a slider on the floor
+        // must still clamp to the visible minimum.
+        assertEquals(
+            MacShell.MINI_OPACITY_MIN,
+            MacShell.lockedMiniOpacity(fadeEnabled = true, reduceTransparency = false, idleOpacity = 0.0),
+        )
+    }
+
     // --- DESK-8: where the mini tile is parked ------------------------------
 
     @Test

@@ -366,6 +366,28 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    // MARK: - The game lock (DESK-28)
+
+    /// Make the window match the lock — click-through and non-activating while the mini tile is
+    /// locked, an ordinary window otherwise. `ignoresMouseEvents` is the platform's own way to let
+    /// every click and every mouse-move fall straight through to the game underneath; while locked the
+    /// tile is never made key, activated or raised, so it never takes focus from the game either.
+    ///
+    /// Safe to call on any change: the lock only has an effect while the mini tile is genuinely the
+    /// shape on screen (core's `effectiveMiniLocked`), so a full window — a sign-in form, say — can
+    /// never be left click-through with fields nobody can click into.
+    private func applyLock() {
+        let locked = state.effectiveMiniLocked
+        guard window.ignoresMouseEvents != locked else { return }
+        window.ignoresMouseEvents = locked
+        Log.info("ui", "mini window click-through \(locked ? "on" : "off")")
+        if !locked {
+            // Unlocking hands the tile back its pointer: ask where the pointer actually is now rather
+            // than trusting a hover state that was frozen off while it was locked.
+            state.pointerMayHaveLeft(windowFrame: window.frame, visible: window.isVisible)
+        }
+    }
+
     // MARK: - Frames (DESK-9: each shape remembers its own)
 
     private func frame(for shape: WindowShape) -> NSRect {
@@ -464,6 +486,14 @@ final class MonitorWindowController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.applyAlpha(animated: true) }
+            .store(in: &cancellables)
+
+        // DESK-28: the game lock makes the tile click-through and non-activating. It is cleared the
+        // moment the tile is no longer on screen (core's `reconcileMiniLock`), which lands here too.
+        state.$miniLocked
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.applyLock() }
             .store(in: &cancellables)
 
         // DESK-8: a corner chosen in Settings snaps the tile there. `dropFirst` so launch honours the

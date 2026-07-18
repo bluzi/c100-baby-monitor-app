@@ -16,6 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var statusItem: NSStatusItem!
     private var cancellables = Set<AnyCancellable>()
 
+    /// The menu bar item's menu, rebuilt as the app's situation changes (DESK-2). It is **not**
+    /// attached to the status item permanently: it is popped up from the click handler, so a plain
+    /// left-click can acknowledge a ringing alarm (DESK-28) while any other click opens it as usual.
+    private var trayMenu = NSMenu()
+
     private var monitor: MonitorWindowController!
     private var settingsWindow: NSWindow?
 
@@ -58,7 +63,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         MainMenu.install() // DESK-16: and with it, ⌘V
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.menu = NSMenu()
+        // DESK-2 / DESK-28: the menu is popped up from a click handler rather than left attached to the
+        // item, so a plain left-click while an alarm rings can acknowledge it — the one silence that
+        // needs neither the (possibly locked, click-through) tile nor the menu — while every other
+        // click still opens the menu the ordinary way.
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(statusItemClicked(_:))
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        trayMenu.delegate = self // menuWillOpen — see refreshCameraList()
         refreshCameraList() // so the camera submenu is populated the first time it is opened
 
         monitor = MonitorWindowController(state: state)
@@ -73,6 +85,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             .store(in: &cancellables)
 
         state.$updateStatus
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.rebuildMenu(self?.state.ui ?? BabyMonitor.shared.state()) }
+            .store(in: &cancellables)
+
+        // DESK-28: the lock's checkmark lives in this menu, and toggling it does not change `ui`.
+        state.$miniLocked
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuildMenu(self?.state.ui ?? BabyMonitor.shared.state()) }
             .store(in: &cancellables)
@@ -93,18 +111,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// a menu that silently was not there, and "the code looks right" is what let that ship.
     private func logMenus() {
         // The menu bar's own menu, which is the one that changes with what the app can do (DESK-2).
-        if let tray = statusItem.menu {
-            let items = tray.items.filter { !$0.isSeparatorItem }.map { item -> String in
-                let mark = item.state == .on ? "✓" : ""
-                let sub = item.submenu.map { s in
-                    " ▸ [" + s.items.filter { !$0.isSeparatorItem }
-                        .map { ($0.state == .on ? "✓" : "") + $0.title }
-                        .joined(separator: " · ") + "]"
-                } ?? ""
-                return mark + item.title + sub
-            }
-            Log.info("ui", "tray (\(state.ui.screen)): \(items.joined(separator: " · "))")
+        // Read from `trayMenu`: it is no longer attached to the status item (DESK-28), so
+        // `statusItem.menu` is nil except while the menu is actually up.
+        let tray = trayMenu
+        let items = tray.items.filter { !$0.isSeparatorItem }.map { item -> String in
+            let mark = item.state == .on ? "✓" : ""
+            let sub = item.submenu.map { s in
+                " ▸ [" + s.items.filter { !$0.isSeparatorItem }
+                    .map { ($0.state == .on ? "✓" : "") + $0.title }
+                    .joined(separator: " · ") + "]"
+            } ?? ""
+            return mark + item.title + sub
         }
+        Log.info("ui", "tray (\(state.ui.screen)): \(items.joined(separator: " · "))")
 
         NSApp.mainMenu?.update() // what the menu bar would show if it were pulled down right now
         for menu in NSApp.mainMenu?.items.compactMap(\.submenu) ?? [] {
@@ -235,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let signature = [
             ui.screen, ui.statusLine, String(ui.running), String(ui.muted), ui.activeAlarm ?? "",
             String(ui.canResume), ui.sleepOutage ?? "", String(state.sleepUnprotected),
-            String(describing: state.updateStatus), state.shape.rawValue,
+            String(describing: state.updateStatus), state.shape.rawValue, String(state.miniLocked),
             cameras.map(\.did).joined(separator: ","), selectedCameraDid ?? "",
         ].joined(separator: "|")
         guard signature != menuSignature else { return }
@@ -249,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         }
         appendAppItems(to: menu)
         menu.delegate = self // menuWillOpen — see refreshCameraList()
-        statusItem.menu = menu
+        trayMenu = menu
     }
 
     /// AUTH-1: nothing is being monitored and nothing can be. The menu says so, and offers the one
@@ -329,6 +348,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         mini.target = self
         mini.state = state.shape == .mini ? .on : .off
         menu.addItem(mini)
+
+        // DESK-28: lock the tile click-through for a game — offered only while the tile is the shape on
+        // screen (locking is a property of the floating tile), and it is the menu bar, never the
+        // click-through tile itself, that turns it off again.
+        if state.shape == .mini {
+            let lock = NSMenuItem(
+                title: "Lock Mini Window (click-through)",
+                action: #selector(toggleMiniLock),
+                keyEquivalent: ""
+            )
+            lock.target = self
+            lock.state = state.miniLocked ? .on : .off
+            menu.addItem(lock)
+        }
 
         menu.addItem(.separator())
 
@@ -500,6 +533,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     @objc func toggleShape(_ sender: Any?) {
         if !monitor.isVisible { monitor.show() }
         state.toggleShape()
+    }
+
+    /// DESK-28: lock or unlock the floating tile for a game. Deliberately does **not** show or
+    /// foreground the window — the whole point is to leave the game with the focus — so it is only
+    /// ever reached from the menu bar, over a tile that is already on screen.
+    @objc private func toggleMiniLock() { state.toggleMiniLock() }
+
+    /// **DESK-2 / DESK-28: what a click on the menu bar item does.**
+    ///
+    /// A plain left-click acknowledges a ringing alarm, and only then — the one way to silence an
+    /// alarm that needs neither the tile (which may be locked and click-through) nor a walk through
+    /// the menu. Every other click — a right-click, a Control-click, or a left-click when nothing is
+    /// ringing — opens the menu the ordinary way.
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent
+        let secondary = event?.type == .rightMouseUp
+            || event?.modifierFlags.contains(.control) == true
+        if !secondary, state.ui.activeAlarm != nil {
+            state.acknowledge()
+            return
+        }
+        popUpTrayMenu()
+    }
+
+    /// Show the menu bar menu from the click handler. The menu is attached to the status item only
+    /// for the duration of the click, which keeps the ordinary menu behaviour — including
+    /// `menuWillOpen`, which refreshes the camera list (DESK-2) — while leaving a plain click free to
+    /// acknowledge an alarm (DESK-28).
+    private func popUpTrayMenu() {
+        statusItem.menu = trayMenu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
     }
 
     @objc func showAbout(_ sender: Any?) {

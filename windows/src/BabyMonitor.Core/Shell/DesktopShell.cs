@@ -86,7 +86,7 @@ public static class DesktopShell
         double.IsNaN(value) ? MiniOpacityDefault : Math.Clamp(value, MiniOpacityMin, MiniOpacityMax);
 
     /// <summary>
-    /// DESK-28 `[windows]`: how solid the mini tile is drawn **while it is locked** for a game.
+    /// DESK-28 `[desktop]`: how solid the mini tile is drawn **while it is locked** for a game.
     ///
     /// This is the one deliberate departure from <see cref="MiniOpacity"/>: a locked tile is held at its
     /// idle opacity no matter what — it does not brighten for the pointer (it cannot be pointed at; it is

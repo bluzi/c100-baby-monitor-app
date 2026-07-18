@@ -129,6 +129,53 @@ public class DesktopShellTest
             DesktopShell.MiniOpacity(Healthy, hovering: false, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.0));
     }
 
+    // --- DESK-28: the mini tile, locked for a game ----------------------------
+
+    [Fact(DisplayName = "DESK-28 a locked mini holds its idle opacity with no pointer near it")]
+    public void LockedHoldsIdleOpacity()
+    {
+        Assert.Equal(
+            0.4,
+            DesktopShell.LockedMiniOpacity(fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.4));
+    }
+
+    [Fact(DisplayName = "DESK-28 a locked mini stays at its idle opacity even while an alarm rings")]
+    public void LockedDoesNotBrightenForAttention()
+    {
+        // The one place a tile does NOT obey DESK-11's "attention forces it opaque": the whole point of
+        // the lock is not to seize the screen back from the game. LockedMiniOpacity takes no health at
+        // all — a ringing alarm cannot reach it, and the cry is carried by the alarm's audio path
+        // (DESK-23) and the status icon (DESK-1) instead. Contrast MiniOpacity, which snaps to 1.0 here.
+        var alarming = Healthy with { ActiveAlarm = "BabyNoise" };
+        Assert.Equal(
+            1.0,
+            DesktopShell.MiniOpacity(alarming, hovering: false, fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.3));
+        Assert.Equal(
+            0.3,
+            DesktopShell.LockedMiniOpacity(fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.3));
+    }
+
+    [Fact(DisplayName = "DESK-28 a locked mini is solid when fading is off or transparency is disabled")]
+    public void LockedIsSolidWhenNotFading()
+    {
+        Assert.Equal(
+            1.0,
+            DesktopShell.LockedMiniOpacity(fadeEnabled: false, transparencyDisabled: false, idleOpacity: 0.3));
+        Assert.Equal(
+            1.0,
+            DesktopShell.LockedMiniOpacity(fadeEnabled: true, transparencyDisabled: true, idleOpacity: 0.3));
+    }
+
+    [Fact(DisplayName = "DESK-28 a locked mini can never be set so faint that it cannot be seen")]
+    public void LockedIsNeverInvisible()
+    {
+        // Click-through does not mean invisible: a stored 0, from an old build or a slider on the floor,
+        // must still clamp to the visible minimum.
+        Assert.Equal(
+            DesktopShell.MiniOpacityMin,
+            DesktopShell.LockedMiniOpacity(fadeEnabled: true, transparencyDisabled: false, idleOpacity: 0.0));
+    }
+
     // --- DESK-25: a remembered position can never hide the window -------------
 
     private static readonly ScreenArea[] OneScreen = [new(0, 0, 1920, 1040)];

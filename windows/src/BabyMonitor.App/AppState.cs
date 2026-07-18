@@ -264,6 +264,15 @@ public sealed class AppState : INotifyPropertyChanged
         SystemPreferences.TransparencyDisabled,
         Prefs.MiniIdleOpacity);
 
+    /// <summary>
+    /// DESK-28: how solid the mini tile is drawn while it is locked for a game — its idle opacity,
+    /// held there regardless of the pointer or a ringing alarm. The core decides.
+    /// </summary>
+    public double LockedMiniOpacity() => DesktopShell.LockedMiniOpacity(
+        Prefs.MiniFadeEnabled,
+        SystemPreferences.TransparencyDisabled,
+        Prefs.MiniIdleOpacity);
+
     /// <summary>DESK-9: which shape the one window may take. Sign-in is never a tile.</summary>
     public string Shape => DesktopShell.WindowShape(Screen, Prefs.Shape);
 

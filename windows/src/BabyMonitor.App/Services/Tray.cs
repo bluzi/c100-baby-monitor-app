@@ -69,6 +69,7 @@ public sealed class TrayIcon : IDisposable
     private readonly List<Action> _commands = new();
     private readonly uint _taskbarCreated;
     private readonly Action _onOpen;
+    private readonly Func<bool> _onLeftClick;
     private readonly Func<IReadOnlyList<TrayItem>> _menu;
 
     private IntPtr _hwnd;
@@ -83,10 +84,18 @@ public sealed class TrayIcon : IDisposable
     /// <summary>DESK-21: it woke. The outage is reported, never quietly reconnected.</summary>
     public event Action? SystemResumed;
 
-    public TrayIcon(Func<IReadOnlyList<TrayItem>> menu, Action onOpen)
+    /// <param name="onLeftClick">
+    /// DESK-28: a left-click on the icon, given the chance to consume itself before the menu opens.
+    /// It returns true when it has handled the click (acknowledging a ringing alarm — the one way to
+    /// silence it that needs neither the click-through tile nor the menu); false falls through to the
+    /// menu, so a plain left-click still opens it the way DESK-2 promises whenever nothing is ringing.
+    /// A right-click always opens the menu, whatever this returns.
+    /// </param>
+    public TrayIcon(Func<IReadOnlyList<TrayItem>> menu, Action onOpen, Func<bool> onLeftClick)
     {
         _menu = menu;
         _onOpen = onOpen;
+        _onLeftClick = onLeftClick;
         _wndProc = WindowProc;
         _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
         CreateHostWindow();
@@ -190,8 +199,16 @@ public sealed class TrayIcon : IDisposable
                 case WmTrayCallback:
                     switch ((int)lParam)
                     {
-                        case WmRbuttonUp:
                         case WmLbuttonUp:
+                            // DESK-28: a left-click silences a ringing alarm if there is one, and only
+                            // then — otherwise it opens the menu like a right-click (DESK-2).
+                            if (!_onLeftClick())
+                            {
+                                ShowMenu();
+                            }
+
+                            return IntPtr.Zero;
+                        case WmRbuttonUp:
                             ShowMenu();
                             return IntPtr.Zero;
                         case WmLbuttonDblClk:

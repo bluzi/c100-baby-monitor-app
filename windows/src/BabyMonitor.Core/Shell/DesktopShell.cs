@@ -86,6 +86,28 @@ public static class DesktopShell
         double.IsNaN(value) ? MiniOpacityDefault : Math.Clamp(value, MiniOpacityMin, MiniOpacityMax);
 
     /// <summary>
+    /// DESK-28 `[windows]`: how solid the mini tile is drawn **while it is locked** for a game.
+    ///
+    /// This is the one deliberate departure from <see cref="MiniOpacity"/>: a locked tile is held at its
+    /// idle opacity no matter what — it does not brighten for the pointer (it cannot be pointed at; it is
+    /// click-through), and it does not brighten for a ringing alarm the way DESK-11 otherwise demands.
+    /// The point of the lock is that the tile never seizes the screen back from the game, and the alarm's
+    /// own audio path (DESK-23) and the status icon (DESK-1) are what carry the cry instead. The fade
+    /// setting is still honoured — turn fading off, or the system's transparency effects, and a locked
+    /// tile is simply solid — so "locked" only ever changes whether attention forces it opaque, never
+    /// whether the parent gets to see it at all.
+    /// </summary>
+    public static double LockedMiniOpacity(bool fadeEnabled, bool transparencyDisabled, double idleOpacity)
+    {
+        if (!fadeEnabled || transparencyDisabled)
+        {
+            return MiniOpacityMax;
+        }
+
+        return ClampMiniOpacity(idleOpacity);
+    }
+
+    /// <summary>
     /// BG-14: **which controls the PC's feed offers — and Stop is never one of them.**
     ///
     /// On a PC the app *is* the monitor: it watches from the moment it opens until it is exited, so

@@ -136,6 +136,27 @@ are looking at, or close one to be rid of the other.
   is right — it is how you reach it); Windows switches *windows*, so the tile itself is excluded and
   the full window is what Alt-Tab shows. Either way the promise is the same: the tile is reachable,
   and it is never in the way.
+- **DESK-28** `[windows]` **The mini tile can be locked out of the way, so it floats over a full-screen
+  game without ever interrupting it.** The lock is offered in the tray menu, and only while the tile is
+  the shape on screen — the full window is never affected by it. While the tile is locked:
+  - **it is click-through**: every click and every mouse movement passes straight through to whatever is
+    behind it, so a game underneath plays exactly as though the tile were not there. It never takes
+    keyboard focus and never raises itself over the game.
+  - **it stops reacting to the pointer**: it does not brighten on hover and it shows none of its hover
+    controls (close, make-it-full — DESK-10). It sits at the idle opacity the fade setting defines
+    (DESK-11), with the picture and the always-on controls (DESK-8) still there to glance at.
+  - **it stays locked even while an alarm rings.** This is the one place the tile does not obey
+    DESK-11's rule that it never fades while something needs attention — deliberately, because the whole
+    point of the lock is not to seize the screen back from the game. The cry is still never silent: the
+    alarm plays at its configured volume on its own audio path (DESK-23, ALRM-11), which a locked tile
+    does not touch, and the status icon marks the ringing alarm unmistakably (DESK-1). And because a
+    locked tile cannot be clicked, the alarm can be silenced without leaving the game — **clicking the
+    tray icon acknowledges a ringing alarm** (a right-click still opens the menu). This is the fastest
+    way to silence an alarm on a PC, and the only one that needs neither the tile nor the menu.
+
+  The lock is a moment, not a preference: it is cleared by unlocking it from the tray, by the window
+  leaving the mini shape, and by a restart. A parent must never find, after an update or a reboot, a
+  tile they cannot touch and cannot explain.
 
 ## A desktop app behaves like the desktop it is on
 

@@ -372,6 +372,25 @@ D4g. **No black bars (DESK-12):** with the feed live, look at the edges of the p
      window keeps the camera's shape. Go full screen: there the screen's shape wins and any unused
      area is black, which is expected. Sign out — the sign-in window is freely resizable again.
 
+D4h. **(PC) Locking the mini tile for a game (DESK-28):** put the window in its mini shape over a
+     full-screen game (a borderless-windowed FPS is the case this exists for). Open the tray menu and
+     tick **Lock mini window (click-through)** — the item appears only while the tile is the shape on
+     screen, never in the full window. Now:
+     - **Click and move the mouse all over the tile.** Every click and every movement lands in the
+       game underneath as if the tile were not there; aiming and firing through it work. The game
+       **never loses focus** and is **never minimised** — the tile never raises itself over it.
+     - **Move the pointer onto the tile.** Nothing happens: it does **not** brighten, and the close /
+       "make it full" controls do **not** appear. It stays at the faint opacity the fade setting
+       defines (turn fading off — it goes solid but is still click-through).
+     - **Trigger an alarm** (a sharp noise, feed muted or not): the tile **stays faint and
+       click-through — it does not pop opaque over the game**. But the cry is not silent — the alarm
+       **sounds** at its set volume, and the **tray icon turns to the alarm mark** (DESK-1). **Left-click
+       the tray icon: the alarm is acknowledged and silenced**, without leaving the game or opening the
+       menu. A right-click still opens the menu.
+     - **Untick the lock** from the tray: the tile takes clicks again, hover brings its controls back,
+       and it fades over a warning as normal (DESK-11). Switching to the full shape, or **restarting the
+       app**, also clears the lock — you never find a tile you cannot touch and cannot explain.
+
 D4h. **Offline is said out loud (LIVE-13):** turn every network interface off (Wi-Fi *and*
      Ethernet). Within a couple of seconds the window warns that the machine is offline and that the
      camera can only be reached on its own network, and offers a link that opens the system's network

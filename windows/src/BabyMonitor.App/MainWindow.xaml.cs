@@ -38,6 +38,11 @@ public sealed partial class MainWindow : Window
 {
     private const int GwlExStyle = -20;
     private const int WsExLayered = 0x00080000;
+    // DESK-28: WS_EX_TRANSPARENT makes every click and mouse move fall through the window to whatever is
+    // behind it; WS_EX_NOACTIVATE stops it ever taking focus — together, a tile a full-screen game plays
+    // straight through and never loses focus to.
+    private const int WsExTransparent = 0x00000020;
+    private const int WsExNoActivate = 0x08000000;
     private const uint LwaAlpha = 0x00000002;
 
     private readonly AppState _state;
@@ -73,6 +78,13 @@ public sealed partial class MainWindow : Window
     private string? _nightVision;
     private bool _exiting;
 
+    /// <summary>
+    /// DESK-28: the mini tile is locked click-through for a game. Session-only on purpose — never
+    /// written to Prefs — so a restart always returns a tile the parent can touch. Only ever true while
+    /// the mini shape is on screen; leaving it (or a forced full for sign-in) clears it.
+    /// </summary>
+    private bool _miniLocked;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -94,7 +106,10 @@ public sealed partial class MainWindow : Window
         _state.OnVideoRendererChanged(_renderer);
 
         // DESK-1/2: the tray icon is the app. It also owns the window that hears the machine sleep.
-        _tray = new TrayIcon(BuildTrayMenu, ShowWindow);
+        // DESK-28: a left-click acknowledges a ringing alarm — the way to silence one that needs
+        // neither the (possibly locked, click-through) tile nor the menu — and does nothing else, so a
+        // plain click still opens the menu whenever nothing is ringing.
+        _tray = new TrayIcon(BuildTrayMenu, ShowWindow, OnTrayLeftClick);
         _tray.SystemSuspending += () => DispatcherQueue.TryEnqueue(_state.SystemWillSleep);
         _tray.SystemResumed += () => DispatcherQueue.TryEnqueue(() =>
         {
@@ -240,6 +255,16 @@ public sealed partial class MainWindow : Window
                 ToggleShape();
             }),
             Checked: _shape == DesktopShell.ShapeMini));
+
+        // DESK-28: only offered while the tile is the shape on screen — locking is a property of the
+        // floating tile, and it is the tray (never the click-through tile itself) that turns it off.
+        if (_shape == DesktopShell.ShapeMini)
+        {
+            items.Add(new TrayItem(
+                "Lock mini window (click-through)",
+                () => Post(ToggleMiniLock),
+                Checked: _miniLocked));
+        }
 
         items.Add(CameraSubmenu());
 
@@ -554,11 +579,91 @@ public sealed partial class MainWindow : Window
             _applyingShape = false;
         }
 
+        // DESK-28: the lock lives only on the tile. A shape that is not the mini one is never
+        // click-through, so leaving the tile clears the lock, and either way the window's styles are
+        // reconciled to the shape it is now in — a forced full for sign-in can never leave a form with
+        // fields to type into sitting behind a click-through, non-activating window.
+        if (shape != DesktopShell.ShapeMini && _miniLocked)
+        {
+            _miniLocked = false;
+            Log.Info("ui", "mini window unlocked — the tile is no longer the shape on screen");
+        }
+
+        SetClickThrough(IsMiniLocked);
+
         UpdateUi();
     }
 
     private void ToggleShape() =>
         ApplyShape(_shape == DesktopShell.ShapeMini ? DesktopShell.ShapeFull : DesktopShell.ShapeMini, persist: true);
+
+    /// <summary>DESK-28: the tile is locked click-through only while it is genuinely the mini shape.</summary>
+    private bool IsMiniLocked => _miniLocked && _shape == DesktopShell.ShapeMini;
+
+    /// <summary>
+    /// DESK-28: turn the game lock on or off. It never shows or foregrounds the window — the whole point
+    /// is to leave the game with the focus — so it is only ever reached from the tray, over a tile that
+    /// is already on screen. Unlocking hands the tile back its pointer, its hover controls and its normal
+    /// fade in one step, through <see cref="ApplyMiniLock"/> → <see cref="UpdateChrome"/>.
+    /// </summary>
+    private void ToggleMiniLock()
+    {
+        _miniLocked = !_miniLocked;
+        Log.Info("ui", _miniLocked ? "mini window locked click-through (game mode)" : "mini window unlocked");
+        ApplyMiniLock();
+    }
+
+    /// <summary>
+    /// DESK-28: make the window match the lock — click-through and non-activating while the mini tile is
+    /// locked, an ordinary window otherwise. Idempotent, and safe to call on any shape change: a full
+    /// window is never click-through (<see cref="IsMiniLocked"/> is false unless the mini shape is up),
+    /// so a forced full for sign-in cannot strand the lock on a window with fields to type into.
+    /// </summary>
+    private void ApplyMiniLock()
+    {
+        SetClickThrough(IsMiniLocked);
+        UpdateChrome(); // re-decide opacity and hide/show the hover chrome for the new lock state
+    }
+
+    /// <summary>
+    /// DESK-28: add or remove WS_EX_TRANSPARENT (clicks and moves fall through) and WS_EX_NOACTIVATE (the
+    /// window never takes focus), leaving every other style — WS_EX_LAYERED, which the fade owns — alone.
+    /// </summary>
+    private void SetClickThrough(bool on)
+    {
+        try
+        {
+            var style = GetWindowLong(_hwnd, GwlExStyle);
+            var target = on
+                ? style | WsExTransparent | WsExNoActivate
+                : style & ~WsExTransparent & ~WsExNoActivate;
+            if (target != style)
+            {
+                SetWindowLong(_hwnd, GwlExStyle, target);
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warn("ui", $"could not change the mini window's click-through state: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// DESK-28: a left-click on the tray icon acknowledges a ringing alarm, and only then. Returns true
+    /// when it consumed the click (so the menu does not also open); false lets the click open the menu
+    /// the ordinary way (DESK-2). This is the one way to silence an alarm that needs neither the tile —
+    /// which may be locked and click-through — nor a walk through the menu.
+    /// </summary>
+    private bool OnTrayLeftClick()
+    {
+        if (!_state.Alarming)
+        {
+            return false;
+        }
+
+        Post(_state.Acknowledge);
+        return true;
+    }
 
     private void RememberFrame()
     {
@@ -824,6 +929,21 @@ public sealed partial class MainWindow : Window
 
     private void UpdateChrome()
     {
+        // DESK-28: a locked tile does not react to the pointer at all. It cannot be pointed at — it is
+        // click-through — so there is nothing to ask the system, and it shows none of its hover controls
+        // (close, make-it-full). It sits at the idle opacity the fade setting defines, regardless of a
+        // ringing alarm: the whole point of the lock is not to seize the screen back from the game.
+        if (IsMiniLocked)
+        {
+            _pointerInside = false;
+            ControlBar.Opacity = 0;
+            ControlBar.IsHitTestVisible = false;
+            MiniTopControls.Opacity = 0;
+            MiniTopControls.IsHitTestVisible = false;
+            SetWindowOpacity(_state.LockedMiniOpacity());
+            return;
+        }
+
         // DESK-10/11: whether the pointer is on the tile is *asked of the system*, never remembered from
         // the last pointer event. XAML cannot answer it: enter/exit are raised on whichever child is
         // deepest under the pointer, so "left the video for a button on the tile" and "left the window"
@@ -852,7 +972,11 @@ public sealed partial class MainWindow : Window
         try
         {
             var style = GetWindowLong(_hwnd, GwlExStyle);
-            if (opacity >= 1.0)
+
+            // DESK-28: while locked, keep the window layered even at full opacity — WS_EX_LAYERED paired
+            // with WS_EX_TRANSPARENT is what makes the click-through fully reliable under the compositor.
+            // A locked tile with fading off (opacity 1.0) must still let every click fall through.
+            if (opacity >= 1.0 && !IsMiniLocked)
             {
                 if ((style & WsExLayered) != 0)
                 {

@@ -496,6 +496,15 @@ Windows:
   files and starts it again.
 - **`IsEnabled` is on `Control`, not on `Panel`.** A `StackPanel` cannot be greyed out; wrap the
   group in a `ContentControl` (this is why `AlarmGroup` is one).
+- **A dialog on a *second* WinUI window renders nothing until the app's first window has been
+  `Activate()`d synchronously in `App.OnLaunched`.** The dialog window's own background paints, but its
+  content tree — a `ContentDialog`'s popup, or plain children — never lays out; you get a blank box.
+  Activating the main window later (from an async continuation), or off-screen, or transparent, or as a
+  one-pixel window, does **not** count. This is why the launch update offer (UPD-5) appears *over* the
+  monitor window rather than before it, and why `DialogHost` is a plain-XAML card (its own window
+  content) rather than a `ContentDialog`: a ContentDialog also draws a black scrim filling its host
+  window, which read as "a dialog inside a black bordered box". The card, with the window's frame styles
+  stripped (`WS_CAPTION`/`WS_THICKFRAME`/…), is just the question, centred (DESK-29).
 - **A WinUI 3 app cannot be built on a Mac** — the XAML compiler is a Windows binary. But everything
   *else* can: the core and its whole spec suite are plain `net8.0`, and the shell's C# can be
   type-checked against the real WinUI assemblies by compiling it with `EnableWindowsTargeting=true`

@@ -48,6 +48,11 @@ actor Updater {
     private var consecutiveFailures = 0
     private(set) var staged: (version: String, bundle: URL)?
 
+    /// The newer release `check()` found and `downloadAndStage()` will fetch when the parent accepts it.
+    /// Detection and download are deliberately separate: the launch offer must be able to *ask* about an
+    /// update without paying for a tens-of-megabytes download the parent may decline (UPD-5).
+    private var pendingRelease: Release?
+
     init(currentVersion: String) {
         self.currentVersion = currentVersion
         let config = URLSessionConfiguration.ephemeral
@@ -55,23 +60,34 @@ actor Updater {
         session = URLSession(configuration: config)
     }
 
-    /// One check. Returns the staged version when a newer one is ready to install, nil when we are
-    /// already current. Throws when the check itself failed — the caller counts those (UPD-4).
+    /// One check — **detection only**. Returns the version of a newer release, nil when we are already
+    /// current. Nothing large is downloaded here (only the release list and its small checksum file);
+    /// the update itself is fetched only if the parent accepts it, in `downloadAndStage()` (UPD-5).
+    /// Throws when the check itself failed — the caller counts those (UPD-4).
     func check() async throws -> String? {
         do {
             let release = try await latestRelease()
             guard isNewer(release.version, than: currentVersion) else {
+                pendingRelease = nil
                 consecutiveFailures = 0
                 return nil
             }
-            let bundle = try await download(release: release)
-            staged = (release.version, bundle)
+            pendingRelease = release
             consecutiveFailures = 0
             return release.version
         } catch {
             consecutiveFailures += 1
             throw error
         }
+    }
+
+    /// UPD-5: the parent accepted the update — now download it, verify it against the published
+    /// checksum, and stage it on disk (`staged`). Only meaningful after `check()` has found a newer
+    /// release. Throws on a network or verification failure; the caller reports it.
+    func downloadAndStage() async throws {
+        guard let release = pendingRelease else { return }
+        let bundle = try await download(release: release)
+        staged = (release.version, bundle)
     }
 
     /// UPD-4: how many checks in a row have failed. The UI complains once this is no longer a blip.

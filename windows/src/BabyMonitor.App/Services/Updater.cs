@@ -71,16 +71,28 @@ public sealed class Updater : IDisposable
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("BabyMonitor", currentVersion));
     }
 
-    /// <summary>The version that is downloaded, verified and waiting (UPD-7), if any.</summary>
+    /// <summary>The version that has been downloaded, verified and laid out ready to install, if any.</summary>
     public StagedUpdate? Staged { get; private set; }
+
+    /// <summary>
+    /// The newer release <see cref="CheckAsync"/> found and <see cref="DownloadAndStageAsync"/> will
+    /// fetch when the parent accepts it. Detection and download are deliberately separate: at launch the
+    /// app must be able to *ask* about an update before showing a window, without paying for a
+    /// tens-of-megabytes download the parent may decline (UPD-5).
+    /// </summary>
+    private Release? _pending;
 
     public static string CurrentVersion =>
         Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion.Split('+')[0] ?? "0.0.0";
 
     /// <summary>
-    /// One check. Returns the staged version when a newer one is ready to install, null when we are
-    /// already current. Throws when the check itself failed — the caller reports those (UPD-4).
+    /// One check — **detection only**. Returns the version of a newer release, or null when we are
+    /// already current. Nothing large is downloaded here: only the release list and its small checksum
+    /// file. The update itself is fetched only if the parent accepts it, in
+    /// <see cref="DownloadAndStageAsync"/> (UPD-5) — so the launch check can put its question on screen
+    /// before a window, without paying for a download that may be declined. Throws when the check
+    /// itself failed — the caller reports those (UPD-4).
     /// </summary>
     public async Task<string?> CheckAsync(CancellationToken ct = default)
     {
@@ -88,19 +100,30 @@ public sealed class Updater : IDisposable
         {
             // A dev build (0.0.0) is older than every release; checking would "find an update" every
             // time and offer to copy CI's latest over the tree you are building.
+            _pending = null;
             return null;
         }
 
-        var release = await LatestReleaseAsync(ct).ConfigureAwait(false);
-        if (release == null)
+        _pending = await LatestReleaseAsync(ct).ConfigureAwait(false);
+        return _pending?.Version; // null when no release newer than us carries a Windows build
+    }
+
+    /// <summary>
+    /// UPD-5: the parent accepted the update — now download it, verify it against the published
+    /// checksum, and lay it out ready to install (<see cref="Staged"/>). Only meaningful after
+    /// <see cref="CheckAsync"/> has found a newer release. Throws on a network or verification failure;
+    /// the caller reports it and stays on the current version.
+    /// </summary>
+    public async Task DownloadAndStageAsync(CancellationToken ct = default)
+    {
+        if (_pending is not { } release)
         {
-            return null; // no release newer than us carries a Windows build: we are current
+            return;
         }
 
         var zip = await DownloadAssetAsync(release.AssetId, ct).ConfigureAwait(false);
         Staged = await Task.Run(() => _staging.Stage(zip, release.Version, release.Sha256), ct)
             .ConfigureAwait(false);
-        return release.Version;
     }
 
     /// <summary>

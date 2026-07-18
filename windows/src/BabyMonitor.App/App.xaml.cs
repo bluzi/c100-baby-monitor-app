@@ -36,7 +36,9 @@ public partial class App : Application
         Window = new MainWindow();
 
         // BG-13: a PC that restarted overnight comes back with the monitor stopped. The window opens
-        // on the feed with Start right there, so one click fixes it.
+        // on the feed with Start right there, so one click fixes it. (A PC cannot show a dialog before
+        // it has drawn a window, so the launch update offer — UPD-5 — appears over this window rather
+        // than before it; the Activate here is what lets that dialog render at all.)
         Window.Activate();
     }
 }

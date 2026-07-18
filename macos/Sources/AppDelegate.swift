@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     private lazy var updater = Updater(currentVersion: Self.version)
 
+    /// UPD-9: the spinner shown while an update check or download is in flight (`UpdateProgressPanel`).
+    private let progressPanel = UpdateProgressPanel()
+
     /// True only between "the user said yes to a restart" and the process going away — see
     /// `applicationShouldTerminate`.
     private var relaunchingForUpdate = false
@@ -147,8 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             let alert: NSAlert
             switch kind {
             case "quit": alert = Alerts.quit()
-            case "update": alert = Alerts.updateInstalled(version: "0.1.31", monitoring: true)
-            case "update-idle": alert = Alerts.updateInstalled(version: "0.1.31", monitoring: false)
+            case "update": alert = Alerts.updateAvailable(current: Self.version, version: "0.1.31", monitoring: true)
+            case "update-idle": alert = Alerts.updateAvailable(current: Self.version, version: "0.1.31", monitoring: false)
             case "uptodate": alert = Alerts.plain(title: "Baby Monitor is up to date.", body: "You are running \(Self.version).")
             default: alert = Alerts.plain(
                 title: "Could not check for updates.",
@@ -581,11 +584,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         ])
     }
 
-    /// UPD-9: a check asked for by hand, from the menu bar, the feed's menu or the app menu. It
-    /// behaves exactly like the launch check — verify, install, ask once — and it answers, so a
+    /// UPD-9: a check asked for by hand, from the menu bar, the feed's menu or the app menu. Unlike the
+    /// launch check it shows its work — a spinner that can be cancelled — and it always answers, so a
     /// parent who wants to know is never left wondering whether anything happened.
     @objc func checkForUpdatesNow(_ sender: Any?) {
-        Task { [weak self] in await self?.checkForUpdate(askedByUser: true) }
+        Task { [weak self] in await self?.runManualCheck() }
     }
 
     @objc private func quit() { NSApp.terminate(nil) }
@@ -666,48 +669,102 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             Log.info("update", "automatic updates are off — skipping the launch check")
             return
         }
-        Task { [weak self] in await self?.checkForUpdate(askedByUser: false) }
+        Task { [weak self] in await self?.runLaunchCheck() }
     }
 
-    private func checkForUpdate(askedByUser: Bool) async {
+    /// The automatic launch check: detect quietly, and only put a question on screen if there is an
+    /// update. A failed check is reported (UPD-4) but never in a dialog the parent did not ask for.
+    private func runLaunchCheck() async {
         state.updateStatus = .checking
         do {
             guard let version = try await updater.check() else {
                 state.updateStatus = .idle
-                if askedByUser { tellUser(title: "Baby Monitor is up to date.", body: "You are running \(Self.version).") }
                 return
             }
-            try await installAndOfferRestart(version)
+            await offerInstallAndRestart(version)
         } catch {
             // UPD-8: a failed check never touches monitoring. UPD-4: but it is not swallowed either.
             let failing = await updater.isFailingPersistently
-            Log.warn("update", "check failed: \(error.localizedDescription)")
+            Log.warn("update", "launch check failed: \(error.localizedDescription)")
             state.updateStatus = failing ? .failing(reason: error.localizedDescription) : .idle
-            if askedByUser {
-                tellUser(title: "Could not check for updates.", body: error.localizedDescription)
-            }
         }
     }
 
-    /// **UPD-5.** The new version goes on disk; the running monitor is not touched and keeps
-    /// watching. Then — and only then — the app asks, once, whether to restart into it.
-    ///
-    /// Saying no is a real answer: nothing happens, nothing is asked again, and the version already
-    /// on disk takes over at the next launch. The app never restarts itself, which is the promise
-    /// this updater exists to keep.
-    private func installAndOfferRestart(_ version: String) async throws {
-        try await updater.install()
-        state.updateStatus = .installed(version: version)
+    /// UPD-9: the manual check, with its spinner and its Cancel, and an answer whatever the outcome.
+    private func runManualCheck() async {
+        state.updateStatus = .checking
+        var cancelled = false
+        let updater = self.updater // capture the actor, not self, in the concurrent task below
+        let task = Task { try await updater.check() }
+        progressPanel.show(
+            title: "Checking for updates…",
+            message: "Looking for a newer version of Baby Monitor."
+        ) {
+            cancelled = true
+            task.cancel()
+        }
 
-        let alert = Alerts.updateInstalled(version: version, monitoring: state.ui.running)
-        NSApp.activate(ignoringOtherApps: true)
-
-        guard alert.runModal() == .alertFirstButtonReturn else {
-            Log.info("update", "the user chose not to restart — \(version) will run at the next launch")
+        let version: String?
+        do {
+            version = try await task.value
+        } catch {
+            progressPanel.close()
+            if cancelled {
+                state.updateStatus = .idle
+                Log.info("update", "the manual update check was cancelled")
+                return
+            }
+            let failing = await updater.isFailingPersistently
+            Log.warn("update", "manual check failed: \(error.localizedDescription)")
+            state.updateStatus = failing ? .failing(reason: error.localizedDescription) : .idle
+            tellUser(title: "Couldn’t check for updates.", body: error.localizedDescription)
             return
         }
-        relaunchingForUpdate = true
-        try StagedUpdate.relaunch()
+
+        progressPanel.close()
+        guard let version else {
+            state.updateStatus = .idle
+            tellUser(title: "You’re up to date.", body: "You’re running Baby Monitor \(Self.version).")
+            return
+        }
+        await offerInstallAndRestart(version)
+    }
+
+    /// **UPD-5.** Ask — once — whether to install and restart now, naming the new version. Accepting
+    /// downloads, verifies, installs and restarts into it; declining changes nothing at all. The app
+    /// never restarts itself, which is the promise this updater exists to keep.
+    private func offerInstallAndRestart(_ version: String) async {
+        let alert = Alerts.updateAvailable(current: Self.version, version: version, monitoring: state.ui.running)
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            state.updateStatus = .idle
+            Log.info("update", "the user chose not to install \(version) now")
+            return
+        }
+        await downloadInstallAndRelaunch(version)
+    }
+
+    /// The parent accepted: download and verify the update behind a progress spinner, put it on disk,
+    /// and relaunch into it. A failure here leaves the running monitor untouched, and says so (UPD-8).
+    private func downloadInstallAndRelaunch(_ version: String) async {
+        progressPanel.show(
+            title: "Installing update…",
+            message: "Downloading Baby Monitor \(version). The app will restart into it.",
+            onCancel: nil
+        )
+        do {
+            try await updater.downloadAndStage()
+            state.updateStatus = .installed(version: version)
+            try await updater.install()
+            progressPanel.close()
+            relaunchingForUpdate = true
+            try StagedUpdate.relaunch()
+        } catch {
+            progressPanel.close()
+            Log.error("update", "could not install \(version): \(error.localizedDescription)")
+            state.updateStatus = .idle
+            tellUser(title: "Couldn’t install the update.", body: error.localizedDescription)
+        }
     }
 
     private func tellUser(title: String, body: String) {

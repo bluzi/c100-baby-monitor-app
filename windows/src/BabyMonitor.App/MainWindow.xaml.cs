@@ -332,7 +332,7 @@ public sealed partial class MainWindow : Window
 
         // The ellipsis means one thing: "this opens something, or goes and asks somebody". Neither
         // happens on the click itself, so it says so.
-        items.Add(new TrayItem("Check for updates…", () => Post(() => _ = CheckForUpdateAsync(askedByUser: true))));
+        items.Add(new TrayItem("Check for updates…", () => Post(() => _ = CheckForUpdatesManuallyAsync())));
 
         items.Add(TrayItem.Divider);
         items.Add(TrayItem.Label($"Baby Monitor {_state.Version}"));
@@ -438,17 +438,16 @@ public sealed partial class MainWindow : Window
     {
         if (_state.Running)
         {
-            var answer = await AskAsync(new ContentDialog
-            {
-                Title = "Exit Baby Monitor?",
-                Content = "Exiting stops monitoring: audio, the alarm and the connection all end. " +
-                          "The baby will not be monitored until you open it again.",
-                PrimaryButtonText = "Exit and stop monitoring",
-                CloseButtonText = "Keep monitoring",
-                DefaultButton = ContentDialogButton.Close,
-            });
+            var exit = false;
+            await WithDialogHostAsync(async host =>
+                exit = await host.ConfirmAsync(
+                    "Exit Baby Monitor?",
+                    "Exiting stops monitoring: audio, the alarm and the connection all end. " +
+                    "The baby will not be monitored until you open it again.",
+                    primary: "Exit and stop monitoring",
+                    close: "Keep monitoring"));
 
-            if (answer != ContentDialogResult.Primary)
+            if (!exit)
             {
                 return; // including a question that could not be asked: never end a watch by default
             }
@@ -852,6 +851,9 @@ public sealed partial class MainWindow : Window
 
     private void ShowWindow()
     {
+        // The very first show must go through Window.Activate() so the content renders — the window is
+        // created but deliberately not activated at launch, because the update check may decide it is
+        // never to be shown at all (UPD-5). After that, AppWindow.Show() un-hides it.
         AppWindow.Show();
         SetForegroundWindow(_hwnd);
         UpdateUi();
@@ -1240,7 +1242,7 @@ public sealed partial class MainWindow : Window
     private void OnStart(object sender, RoutedEventArgs e) => _state.Start();
 
     private void OnCheckForUpdates(object sender, RoutedEventArgs e) =>
-        _ = CheckForUpdateAsync(askedByUser: true); // UPD-9
+        _ = CheckForUpdatesManuallyAsync(); // UPD-9
 
     private void OnExit(object sender, RoutedEventArgs e) => _ = ConfirmExitAsync();
 
@@ -1605,13 +1607,17 @@ public sealed partial class MainWindow : Window
     // --- updates (UPD-3/4/5/7) ------------------------------------------------
 
     /// <summary>
-    /// **UPD-3: the app checks for an update at launch, and never again while it runs.**
+    /// **UPD-3/UPD-5: the app checks for an update at launch — before it shows a window — and never
+    /// again while it runs.**
     ///
-    /// An updater that checked every few hours could find one at 3am — and an update nobody asked for,
-    /// arriving in the middle of the night, is a risk with no upside whatsoever. A monitor has nothing
-    /// to gain from learning about a new version before morning. So: once, at launch, when the parent
-    /// is demonstrably at the machine, because they just opened it. After that, only the checks a
-    /// human asks for (UPD-9).
+    /// An updater that checked every few hours could find one at 3am, and an update nobody asked for in
+    /// the middle of the night is a risk with no upside. A monitor has nothing to gain from learning
+    /// about a new version before morning. So: once, at launch, when the parent is demonstrably at the
+    /// machine because they just opened it. After that, only the checks a human asks for (UPD-9).
+    ///
+    /// The window is not shown until this has had its say: if there is an update and the parent installs
+    /// it, the app restarts and **no window is ever shown this launch** (UPD-5); otherwise the window
+    /// opens as usual.
     /// </summary>
     private void StartUpdateChecks()
     {
@@ -1626,128 +1632,200 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        _ = CheckForUpdateAsync(askedByUser: false);
+        _ = RunLaunchCheckAsync();
     }
 
-    private async Task CheckForUpdateAsync(bool askedByUser)
+    private async Task RunLaunchCheckAsync()
     {
         _state.UpdateStatus = new UpdateStatus(UpdateState.Checking);
+        string? version;
         try
         {
-            var version = await _updater.CheckAsync();
-            if (version == null)
-            {
-                _state.UpdateStatus = UpdateStatus.Idle;
-                if (askedByUser)
-                {
-                    await TellUserAsync("Baby Monitor is up to date.", $"You are running {_state.Version}.");
-                }
-
-                return;
-            }
-
-            await OfferRestartAsync(version);
+            // Detection only — small and quick (UPD-5). Bounded so a slow or hanging GitHub cannot leave
+            // the check spinning: if it does not answer promptly, leave the update to a later launch or a
+            // manual check.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            version = await _updater.CheckAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Info("update", "launch check did not answer in time");
+            _state.UpdateStatus = UpdateStatus.Idle;
+            return;
         }
         catch (Exception e)
         {
-            // UPD-8: a failed check never touches monitoring. UPD-4: nor is it swallowed.
-            Log.Warn("update", $"check failed: {e.Message}");
+            // UPD-8: a failed check never touches monitoring. UPD-4: nor is it swallowed — it is
+            // reported in the menu and settings. At launch it does not put a dialog in the way.
+            Log.Warn("update", $"launch check failed: {e.Message}");
             _state.UpdateStatus = new UpdateStatus(UpdateState.Failing, Reason: e.Message);
-            if (askedByUser)
-            {
-                await TellUserAsync("Could not check for updates.", e.Message);
-            }
+            return;
+        }
+
+        _state.UpdateStatus = UpdateStatus.Idle;
+
+        // The window is already on screen (App.OnLaunched, BG-13). A PC cannot put a dialog up before it
+        // has drawn a window, so the launch offer appears in the middle of the screen over it (UPD-5).
+        // Accepting downloads, installs and restarts; declining leaves the window open on the old version.
+        if (version != null)
+        {
+            await OfferInstallAndRestartAsync(version);
         }
     }
 
     /// <summary>
-    /// **UPD-5.** The new version is on disk; the running monitor was never touched and is still
-    /// watching. Then — and only then — the app asks, once, whether to restart into it.
-    ///
-    /// Saying no is a real answer: nothing happens, nothing is asked again, and the version already on
-    /// disk takes over at the next launch. The app never restarts itself, which is the promise this
-    /// updater exists to keep.
+    /// **UPD-9: a check asked for by hand.** Unlike the launch check it shows its work — a spinner while
+    /// it looks, which can be cancelled — and always answers: an offer to install when there is an
+    /// update (naming the running and available versions), "up to date" when there is not, or the reason
+    /// it could not check (UPD-4). It never affects monitoring (UPD-8).
     /// </summary>
-    private async Task OfferRestartAsync(string version)
+    private async Task CheckForUpdatesManuallyAsync() => await WithDialogHostAsync(async host =>
     {
+        using var cts = new CancellationTokenSource();
+        host.ShowProgress("Checking for updates…", "Looking for a newer version of Baby Monitor.", () => cts.Cancel());
+        _state.UpdateStatus = new UpdateStatus(UpdateState.Checking);
+
+        string? version = null;
+        Exception? failure = null;
+        try
+        {
+            version = await _updater.CheckAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // the Cancel button — handled below via cts.IsCancellationRequested
+        }
+        catch (Exception e)
+        {
+            failure = e;
+        }
+
+        if (cts.IsCancellationRequested)
+        {
+            Log.Info("update", "the manual update check was cancelled");
+            _state.UpdateStatus = UpdateStatus.Idle;
+            return;
+        }
+
+        if (failure != null)
+        {
+            Log.Warn("update", $"manual check failed: {failure.Message}");
+            _state.UpdateStatus = new UpdateStatus(UpdateState.Failing, Reason: failure.Message);
+            await host.NoticeAsync("Couldn't check for updates", failure.Message);
+            return;
+        }
+
+        if (version == null)
+        {
+            _state.UpdateStatus = UpdateStatus.Idle;
+            await host.NoticeAsync("You're up to date", $"You're running Baby Monitor {_state.Version}.");
+            return;
+        }
+
+        if (!await host.ConfirmAsync("An update is available", UpdateOfferBody(version), "Install and restart", "Not now"))
+        {
+            _state.UpdateStatus = UpdateStatus.Idle;
+            Log.Info("update", $"the user chose not to install {version} now");
+            return;
+        }
+
+        await DownloadInstallAndRestartAsync(host, version);
+    });
+
+    /// <summary>
+    /// The launch offer (UPD-5): ask whether to install and restart now, and if so download, verify,
+    /// install and restart. Returns true when the app is on its way to restarting.
+    /// </summary>
+    private async Task<bool> OfferInstallAndRestartAsync(string version)
+    {
+        var restarting = false;
+        await WithDialogHostAsync(async host =>
+        {
+            if (!await host.ConfirmAsync("An update is available", UpdateOfferBody(version), "Install and restart", "Not now"))
+            {
+                Log.Info("update", $"the user chose not to install {version} now");
+                return;
+            }
+
+            restarting = await DownloadInstallAndRestartAsync(host, version);
+        });
+        return restarting;
+    }
+
+    /// <summary>
+    /// The parent accepted (UPD-5): download and verify the update behind an indeterminate progress
+    /// view, then hand the swap to the new copy and restart (UPD-10). Returns true when the hand-over
+    /// took and the app is shutting down; false when it stays on the current version, having said why.
+    /// </summary>
+    private async Task<bool> DownloadInstallAndRestartAsync(DialogHost host, string version)
+    {
+        host.ShowProgress(
+            "Installing update…",
+            $"Downloading and installing Baby Monitor {version}. The app will restart into it.",
+            onCancel: null);
+
+        Exception? failure = null;
+        try
+        {
+            await _updater.DownloadAndStageAsync();
+        }
+        catch (Exception e)
+        {
+            failure = e;
+        }
+
+        if (failure != null || _updater.Staged is not { } staged)
+        {
+            Log.Error("update", $"could not download {version}: {failure?.Message}");
+            _state.UpdateStatus = UpdateStatus.Idle;
+            await host.NoticeAsync(
+                "Couldn't install the update",
+                failure?.Message ?? "The download did not complete. Baby Monitor will stay on the current version.");
+            return false;
+        }
+
         _state.UpdateStatus = new UpdateStatus(UpdateState.Installed, version);
 
-        var answer = await AskAsync(new ContentDialog
-        {
-            Title = $"Baby Monitor {version} is installed.",
-            Content = _state.Running
-                ? "It will run the next time you open Baby Monitor. Restarting now takes a few " +
-                  "seconds, during which the baby is not monitored — monitoring resumes by itself " +
-                  "afterwards."
-                : "It will run the next time you open Baby Monitor.",
-            PrimaryButtonText = "Restart now",
-            CloseButtonText = "Later",
-            DefaultButton = ContentDialogButton.Close,
-        });
-
-        if (answer != ContentDialogResult.Primary)
-        {
-            // Including a question that could not be asked. The app never restarts itself, so silence
-            // means "later" — and later is a real answer: it is already on disk, and it runs next time.
-            Log.Info("update", $"not restarting — {version} will run at the next launch");
-            return;
-        }
-
-        if (_updater.Staged is not { } staged)
-        {
-            return;
-        }
-
-        // Install re-verifies and extracts the staged zip (tens of MB) and waits out the new process's
-        // first second — seconds of work that must not freeze the window the parent just clicked. Off
-        // the UI thread, then finish the hand-over back on it.
+        // Install re-verifies and lays out the staged build and waits out the new process's first
+        // second (UPD-10) — seconds of work that must not freeze the UI thread. Off it, then finish.
         var launched = await Task.Run(() => Updater.Install(staged));
         if (launched)
         {
             _state.Stop(); // they asked for this restart; the watch resumes on the other side
             Shutdown();    // same clean exit as user Exit: tray icon removed, close not cancelled
+            return true;
         }
+
+        _state.UpdateStatus = UpdateStatus.Idle;
+        await host.NoticeAsync(
+            "Couldn't install the update",
+            "The updated copy did not start. Baby Monitor will stay on the current version.");
+        return false;
     }
 
-    private async Task TellUserAsync(string title, string body) =>
-        await AskAsync(new ContentDialog
-        {
-            Title = title,
-            Content = body,
-            CloseButtonText = "OK",
-        });
-
-    // --- odds and ends --------------------------------------------------------
+    private string UpdateOfferBody(string version) => _state.Running
+        ? $"Baby Monitor {version} is available — you're running {_state.Version}. Installing it restarts " +
+          "the app: monitoring stops for a few seconds while it does, then resumes by itself."
+        : $"Baby Monitor {version} is available — you're running {_state.Version}. Installing it downloads " +
+          "it and reopens on the new version.";
 
     /// <summary>
-    /// The one door every dialog in this app goes through.
-    ///
-    /// It guards two things, and both would otherwise be a crash or a lie:
-    ///  - **only one dialog may be open at a time.** A second concurrent `ShowAsync` throws, and the
-    ///    two that can genuinely collide are the update's "restart now?" and Exit's "are you sure?" —
-    ///    the two questions that must never be lost.
-    ///  - **the question is shown where it can be answered** (DESK-29). It is put in its own centred
-    ///    window via <see cref="DialogHost"/>, never on the monitor window's content — which may be a
-    ///    locked, click-through mini tile a dialog cannot be answered on (DESK-28), or not on screen at
-    ///    all. The host owes nothing to the monitor window's shape or styles.
-    ///
-    /// A dialog that could not be shown answers <see cref="ContentDialogResult.None"/>, and every
-    /// caller reads that as "no": the app does not restart, and it does not exit. Never act on a
-    /// question nobody was asked.
+    /// Run a dialog session — one or more dialogs in turn — in its own centred window (DESK-29), holding
+    /// the single-dialog lock for its whole life. The manual check uses this to swap "checking…" for its
+    /// result on the same window.
     /// </summary>
-    private async Task<ContentDialogResult> AskAsync(ContentDialog dialog)
+    private async Task WithDialogHostAsync(Func<DialogHost, Task> body)
     {
         await _dialogLock.WaitAsync().ConfigureAwait(true);
         DialogHost? host = null;
         try
         {
             host = await DialogHost.CreateAsync(this).ConfigureAwait(true);
-            return await host.ShowAsync(dialog).ConfigureAwait(true);
+            await body(host).ConfigureAwait(true);
         }
         catch (Exception e)
         {
-            Log.Error("ui", $"could not show the dialog '{dialog.Title}': {e.Message}", e);
-            return ContentDialogResult.None;
+            Log.Error("ui", $"a dialog session failed: {e.Message}", e);
         }
         finally
         {
@@ -1755,6 +1833,8 @@ public sealed partial class MainWindow : Window
             _dialogLock.Release();
         }
     }
+
+    // --- odds and ends --------------------------------------------------------
 
     private void Post(Action action) => DispatcherQueue.TryEnqueue(() => action());
 

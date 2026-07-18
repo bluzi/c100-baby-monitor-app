@@ -25,21 +25,23 @@ enum Alerts {
         return alert
     }
 
-    /// **UPD-5: the app never restarts itself — it asks, once.**
+    /// **UPD-5: the app never restarts itself — it asks, once, whether to install and restart now.**
     ///
-    /// The new version is already on disk and the running monitor was never touched, so "Later" costs
-    /// nothing and is a real answer: it simply runs next time. That is why the question is worded as
-    /// an offer rather than a warning — and why, when a monitor *is* running, it says out loud what a
-    /// restart costs: seconds of not watching, with the parent standing right there.
-    static func updateInstalled(version: String, monitoring: Bool) -> NSAlert {
+    /// The question names both versions — what is running now and what is on offer — so the parent
+    /// knows exactly what changes. Declining costs nothing: nothing is downloaded and nothing changes.
+    /// That is why it is worded as an offer rather than a warning — and why, when a monitor *is*
+    /// running, it says out loud what a restart costs: seconds of not watching, with the parent
+    /// standing right there.
+    static func updateAvailable(current: String, version: String, monitoring: Bool) -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = "Baby Monitor \(version) is installed."
+        alert.messageText = "An update is available"
+        let lead = "Baby Monitor \(version) is available — you’re running \(current). "
         alert.informativeText = monitoring
-            ? "It will run the next time you open Baby Monitor. Restarting now takes a few seconds, "
-                + "during which the baby is not monitored — monitoring resumes by itself afterwards."
-            : "It will run the next time you open Baby Monitor."
-        alert.addButton(withTitle: "Restart Now")
-        alert.addButton(withTitle: "Later")
+            ? lead + "Installing it restarts the app: monitoring stops for a few seconds while it does, "
+                + "then resumes by itself."
+            : lead + "Installing it downloads it and reopens on the new version."
+        alert.addButton(withTitle: "Install and Restart")
+        alert.addButton(withTitle: "Not Now")
         alert.alertStyle = .informational
         return alert
     }

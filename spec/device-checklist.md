@@ -449,27 +449,30 @@ D9. **Restart (BG-13, DESK-19):** while monitoring, restart the machine. On next
     show it off. Turn it on in settings and restart again — the app comes back by itself and
     monitoring resumes. Turn it off — it does not.
 
-D10. **Updates: at launch, and only at launch (UPD-3, UPD-5, UPD-7; on a PC also UPD-10):** with a
-     newer release published, launch the app. It checks **once, at launch**, downloads and verifies
-     the update, puts it in place — on a Mac on top of itself, on a PC beside itself (UPD-10) — while
-     the running app **keeps watching, untouched**: audio plays on behind the dialog. Then it asks,
-     **once**, whether to restart into it.
-     Answer **Later**. Nothing happens: monitoring carries on, and **the app never asks again and
-     never restarts on its own** — leave it running for hours, overnight if you can, with another
-     release published, and it must still be the old version, still watching. The status menu and
-     Settings say quietly that the new version is installed and runs at the next launch (UPD-7). The
-     only thing that can start a check while it runs is a human (UPD-9).
-     Then quit and reopen: it comes up on the **new** version, before monitoring starts. Check About
-     (UPD-6, LIVE-15).
+D10. **Updates: offered at launch (UPD-3, UPD-5; on a PC also UPD-10):** with a newer release published,
+     launch the app. At launch it checks and puts up a single question **in the middle of the screen**
+     (DESK-29): an update is available, naming **the new version** and the one running now, offering
+     **Install and restart** or **Not now**.
+     Answer **Not now**. **Nothing is downloaded and nothing changes**: monitoring carries on, on the
+     **old** version — check About (UPD-6, LIVE-15). Leave it running for hours, overnight if you can,
+     with the release still newer: **it never asks again and never restarts on its own**. The only thing
+     that can start another check while it runs is a human (UPD-9). Quit and reopen — it offers the
+     update again, at launch, exactly as before.
 
-D10a. **Restart now (UPD-5):** repeat, and this time answer **Restart now** while monitoring is live.
-      The app restarts within seconds, comes back on the new version, and **monitoring resumes by
-      itself**. The outage is seconds long and you are standing there — which is the only condition
-      under which this app restarts at all.
+D10a. **Install and restart (UPD-5, UPD-10):** repeat, and this time answer **Install and restart**
+      while monitoring is live. The app downloads and verifies the update, applies it — on a Mac on top
+      of itself, on a PC by handing the swap to the new copy (UPD-10) — and restarts into it. It comes
+      back on the **new** version and **monitoring resumes by itself**. The outage is seconds long and
+      you are standing there — which is the only condition under which this app restarts at all. Check
+      About (UPD-6, LIVE-15).
 
-D10b. **A check on demand (UPD-9):** with no update available, choose "Check for updates…" from the
-      status menu, from the live feed's "…" menu, and (on a Mac) from the app menu. Each one answers —
-      it says the app is up to date rather than leaving you wondering whether the click did anything.
+D10b. **A check on demand shows its work (UPD-9):** choose "Check for updates…" from the status menu,
+      from the live feed's "…" menu, and (on a Mac) from the app menu. Each opens a **checking-for-updates
+      indicator** with a spinner that can be **cancelled** (cancel it once and confirm nothing else
+      happens). Let it finish: **with no update** it says the app is **up to date** and names the running
+      version; **with a newer release published** it offers to install and restart, showing **both the
+      version running now and the new one**. Accept it and it downloads, installs and restarts just like
+      D10a. Every one of these answers rather than leaving you wondering whether the click did anything.
 
 D10c. **The update does not ask for anything (AUTH-12):** the steps above must complete with **no
       prompt of any kind** — no Keychain password box on a Mac, nothing on a PC. The updated app reads
@@ -480,11 +483,11 @@ D10c. **The update does not ask for anything (AUTH-12):** the steps above must c
       important step on this list.
 
 D10d. **Automatic updates can be turned off (UPD-11):** in Settings, switch **off** "Check for updates
-      automatically". Quit and reopen with a newer release published: the app comes up on the **old**
-      version and stages nothing — no launch check ran. Now choose "Check for updates…" by hand
-      (UPD-9): it still finds, verifies and offers the update exactly as in D10. Turn the setting back
-      **on**: the next launch checks again on its own. (The setting persists across relaunches, and
-      exists only on the desktops — the phones have no such control.)
+      automatically". Quit and reopen with a newer release published: the app opens **straight to the
+      window** on the **old** version — no launch check ran, and no update was offered. Now choose
+      "Check for updates…" by hand (UPD-9): it still finds, verifies and offers the update exactly as in
+      D10b. Turn the setting back **on**: the next launch checks again on its own. (The setting persists
+      across relaunches, and exists only on the desktops — the phones have no such control.)
 
 D11. **A dead updater says so (UPD-4, UPD-8):** block `api.github.com` at launch (e.g. add a
      `127.0.0.1 api.github.com` line to the hosts file — the monitor itself talks to Xiaomi, not

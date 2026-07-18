@@ -390,6 +390,11 @@ D4h. **Locking the mini tile for a game (DESK-28), on a Mac and a PC:** put the 
        the status icon** — the menu-bar item on a Mac, the tray icon on a PC — **and the alarm is
        acknowledged and silenced**, without leaving the game or opening the menu. A right-click (or a
        Control-click on a Mac) still opens the menu.
+     - **Ask a question while the tile is locked** (DESK-29): from the status-area menu choose **Exit**.
+       The confirmation appears in **its own window in the middle of the screen** and can be answered —
+       it is not trapped, tiny and click-through, inside the locked tile. Cancel it: the tile is still
+       locked and the game was never disturbed. (Answer it on a Mac too, where the alert is a native
+       panel — the behaviour is the same on both.)
      - **Untick the lock** from the status-area menu: the tile takes clicks again, hover brings its
        controls back, and it fades over a warning as normal (DESK-11). Switching to the full shape, or
        **restarting the app**, also clears the lock — you never find a tile you cannot touch and cannot

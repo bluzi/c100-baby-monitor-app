@@ -1722,12 +1722,14 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// The one door every dialog in this app goes through.
     ///
-    /// Two things it guards, and both would otherwise be a crash or a lie:
-    ///  - **only one ContentDialog may be open at a time.** A second `ShowAsync` throws, and the two
-    ///    that can genuinely collide are the update's "restart now?" and Exit's "are you sure?" —
+    /// It guards two things, and both would otherwise be a crash or a lie:
+    ///  - **only one dialog may be open at a time.** A second concurrent `ShowAsync` throws, and the
+    ///    two that can genuinely collide are the update's "restart now?" and Exit's "are you sure?" —
     ///    the two questions that must never be lost.
-    ///  - **it needs a loaded window.** The launch-time update check can answer before the window has
-    ///    a XamlRoot; with none, there is nothing to put the question on.
+    ///  - **the question is shown where it can be answered** (DESK-29). It is put in its own centred
+    ///    window via <see cref="DialogHost"/>, never on the monitor window's content — which may be a
+    ///    locked, click-through mini tile a dialog cannot be answered on (DESK-28), or not on screen at
+    ///    all. The host owes nothing to the monitor window's shape or styles.
     ///
     /// A dialog that could not be shown answers <see cref="ContentDialogResult.None"/>, and every
     /// caller reads that as "no": the app does not restart, and it does not exit. Never act on a
@@ -1736,17 +1738,11 @@ public sealed partial class MainWindow : Window
     private async Task<ContentDialogResult> AskAsync(ContentDialog dialog)
     {
         await _dialogLock.WaitAsync().ConfigureAwait(true);
+        DialogHost? host = null;
         try
         {
-            ShowWindow(); // a question nobody can see is not a question
-            if (Root.XamlRoot == null)
-            {
-                Log.Warn("ui", $"could not ask '{dialog.Title}' — the window has no XAML root yet");
-                return ContentDialogResult.None;
-            }
-
-            dialog.XamlRoot = Root.XamlRoot;
-            return await dialog.ShowAsync();
+            host = await DialogHost.CreateAsync(this).ConfigureAwait(true);
+            return await host.ShowAsync(dialog).ConfigureAwait(true);
         }
         catch (Exception e)
         {
@@ -1755,6 +1751,7 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
+            host?.Dispose();
             _dialogLock.Release();
         }
     }

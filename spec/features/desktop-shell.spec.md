@@ -159,6 +159,14 @@ are looking at, or close one to be rid of the other.
   The lock is a moment, not a preference: it is cleared by unlocking it from the status-area menu, by the
   window leaving the mini shape, and by a restart. A parent must never find, after an update or a reboot,
   a tile they cannot touch and cannot explain.
+- **DESK-29** `[desktop]` `[device]` **A question the app must ask is shown in its own window, in the
+  middle of the screen, and can always be answered.** Every confirmation and prompt — Exit (DESK-3), the
+  update's install-and-restart offer and a manual check's result (UPD-5, UPD-9) — appears as its own
+  centred window, never drawn inside the monitor window. It is answerable whatever shape that window is
+  in, and even while the mini tile is locked click-through for a game (DESK-28): the question does not
+  inherit the tile's transparency, its size, or its refusal to take focus, so it can never be trapped
+  behind a window a click falls straight through. (On a Mac these are the platform's own alerts, which
+  are already separate windows; on a PC the app hosts them in one.)
 
 ## A desktop app behaves like the desktop it is on
 

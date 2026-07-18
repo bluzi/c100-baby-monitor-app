@@ -187,6 +187,11 @@ struct ControlMenuButton: View {
     let label: String
     /// LIVE-18: set instead of `symbol` when the control's state is a word — see `ControlGlyph`.
     var text: String? = nil
+    /// LIVE-10: like `ControlButton`, an engaged state is a filled, tinted well — a changed glyph is
+    /// never the only clue. Night vision "On" latches; "Off" dims the moon. The well is the accent
+    /// colour, not the red of a mute, so "on" reads as a benign engaged state rather than a warning.
+    var latched = false
+    var tint: Color = .white
     let items: () -> [ControlMenuItem]
 
     @StateObject private var anchor = MenuAnchorHolder()
@@ -195,8 +200,11 @@ struct ControlMenuButton: View {
     var body: some View {
         Button(action: present) {
             ControlGlyph(symbol: symbol, text: text)
-                .foregroundStyle(.white)
-                .background(Circle().fill(Color.white.opacity(hovering ? 0.16 : 0)))
+                .foregroundStyle(latched ? AnyShapeStyle(.white) : AnyShapeStyle(tint))
+                .background {
+                    Circle().fill(latched ? AnyShapeStyle(Color.accentColor.opacity(0.9))
+                                          : AnyShapeStyle(Color.white.opacity(hovering ? 0.16 : 0)))
+                }
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

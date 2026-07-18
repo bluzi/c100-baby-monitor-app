@@ -75,6 +75,10 @@ enum Preview {
     /// checked against a camera that is not 16:9 without owning one.
     static var aspect: CGFloat { CGFloat(env["BM_UI_ASPECT"].flatMap(Double.init) ?? 0) }
 
+    /// The night-vision mode the control should show (`BM_UI_NIGHT=OFF|AUTO|ON`), since a real camera
+    /// is never reached in a preview run. Defaults to AUTO, as the iOS harness does.
+    static var nightVision: String { env["BM_UI_NIGHT"] ?? "AUTO" }
+
     /// Where to write a picture of the app's own window, and then quit. Used to look at the design
     /// without a human having to be sitting in front of the Mac — including on a locked screen,
     /// where nothing outside the process can see a window at all.

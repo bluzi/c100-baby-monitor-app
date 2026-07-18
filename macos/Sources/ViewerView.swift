@@ -198,19 +198,24 @@ struct NightVisionControl: View {
     @State private var mode: String?
     @State private var error: String?
 
-    /// The camera's current mode, at a glance. All three are filled forms, so the moon carries the
-    /// same weight as the speaker next to it.
+    // The whole control stays in the moon family — no `moon.slash` (which is not even a real symbol,
+    // so it drew nothing and "Off" had no icon at all). On and Off share the moon; what tells them
+    // apart is the treatment: On is lit (the latched accent well), Off is a dimmed moon with no well.
+    // Auto is the starry moon.
     private var symbol: String {
         switch mode {
-        case "ON": return "moon.fill"
-        case "AUTO": return "moon.stars.fill"
-        case "OFF": return "moon.slash.fill"
-        default: return "moon.fill" // not read yet
+        case "AUTO": return "moon.stars"
+        default: return "moon" // On and Off; the well and the tint distinguish them
         }
     }
 
     var body: some View {
-        ControlMenuButton(symbol: symbol, label: "Night vision") {
+        ControlMenuButton(
+            symbol: symbol,
+            label: "Night vision",
+            latched: mode == "ON", // On is lit: a filled accent well behind the moon
+            tint: mode == "OFF" ? Color.white.opacity(0.4) : .white // Off is a dimmed moon
+        ) {
             var items: [ControlMenuItem] = [
                 .action(title: "Off", checked: mode == "OFF") { set("OFF") },
                 .action(title: "Auto", checked: mode == "AUTO") { set("AUTO") },
@@ -224,6 +229,7 @@ struct NightVisionControl: View {
             return items
         }
         .onAppear {
+            guard !Preview.active else { mode = Preview.nightVision; return }
             BabyMonitor.shared.nightVision { value, message in
                 mode = value
                 error = message
